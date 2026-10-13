@@ -1,5 +1,8 @@
 /* Animated Purple & Light Green Background */
 
+html, #root {
+  min-height: 100%;
+}
 
 body {
   margin: 0;
@@ -7,11 +10,21 @@ body {
   /* Dark space color, #aa3bff purple, dark green, and light green */
   background: linear-gradient(-45deg, #130922, #aa3bff, #0b2e21, #4ade80);
   background-size: 400% 400%;
+  background-attachment: fixed;
   animation: gradientBG 15s ease infinite;
   color: white;
-  height: 100vh;
-  overflow: hidden;
+
+  /* FIX: height:100vh + overflow:hidden was blocking scroll on every page.
+     Now the page can grow and scroll vertically when content is taller than the screen. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
+
+/* Phone browsers: 100vh includes the address bar, so use dvh for Bootstrap's vh classes */
+.vh-100 { height: 100vh !important; height: 100dvh !important; }
+.min-vh-100 { min-height: 100vh !important; min-height: 100dvh !important; }
 
 @keyframes gradientBG {
   0% { background-position: 0% 50%; }
