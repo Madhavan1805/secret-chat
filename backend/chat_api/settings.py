@@ -1,5 +1,5 @@
 """
-Django settings for chat_api project (local + Render ready).
+Django settings for chat_api project (local + Render + Railway ready).
 """
 
 import os
@@ -11,14 +11,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # ---------------------------------------------------------------- security
-# Render-la SECRET_KEY, DEBUG env variables set pannunga.
+# Deploy-la SECRET_KEY, DEBUG env variables set pannunga.
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-local-dev-key-change-me')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-RENDER_HOST = os.environ.get('RENDER_EXTERNAL_HOSTNAME')   # Render itha thaanaa set pannum
+RENDER_HOST = os.environ.get('RENDER_EXTERNAL_HOSTNAME')     # Render thaanaa set pannum
+RAILWAY_HOST = os.environ.get('RAILWAY_PUBLIC_DOMAIN')       # Railway thaanaa set pannum
+
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 if RENDER_HOST:
     ALLOWED_HOSTS.append(RENDER_HOST)
+if RAILWAY_HOST:
+    ALLOWED_HOSTS.append(RAILWAY_HOST)
 # custom domain irundha: EXTRA_ALLOWED_HOSTS="a.com,b.com"
 ALLOWED_HOSTS += [h.strip() for h in os.environ.get('EXTRA_ALLOWED_HOSTS', '').split(',') if h.strip()]
 
@@ -41,11 +45,20 @@ INSTALLED_APPS = [
 
 ASGI_APPLICATION = 'chat_api.asgi.application'
 
-# NOTE: InMemoryChannelLayer oru server process-la mattum work aagum.
-# Render-la 1 instance-la run panna pothum. Scale panna Redis venum.
-CHANNEL_LAYERS = {
-    'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}
-}
+# REDIS_URL set panna Redis layer use aagum (multiple instances ku).
+# Illana InMemory layer (1 instance-la mattum work aagum).
+REDIS_URL = os.environ.get('REDIS_URL', '')
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {'hosts': [REDIS_URL]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}
+    }
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -80,7 +93,7 @@ WSGI_APPLICATION = 'chat_api.wsgi.application'
 
 
 # ---------------------------------------------------------------- database
-# DATABASE_URL set panna (Neon / Supabase / Render Postgres) athu use aagum.
+# DATABASE_URL set panna (Railway Postgres / Neon / Supabase) athu use aagum.
 # Illana local-la db.sqlite3 use aagum.
 DATABASES = {
     'default': dj_database_url.config(
@@ -110,8 +123,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# NOTE: Render free-la disk temporary. Redeploy-la media/ azhinjidum.
-# Permanent-aa venum-na Cloudinary / S3 use pannunga.
+# NOTE: Railway/Render-la disk temporary. Redeploy-la media/ azhinjidum.
+# Permanent-aa venum-na Railway Volume / Cloudinary / S3 use pannunga.
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -135,19 +148,21 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = []
 
 # Frontend deploy pannina antha URL-a FRONTEND_URL-la podunga
-# e.g. https://secretchat.onrender.com  (trailing slash illama)
+# e.g. https://secretchat.vercel.app  (trailing slash illama)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', '').rstrip('/')
 if FRONTEND_URL:
     CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
     CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
 if RENDER_HOST:
     CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_HOST}')
+if RAILWAY_HOST:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{RAILWAY_HOST}')
 
 
 # ---------------------------------------------------------------- email
 # Default: terminal-la print aagum (local dev).
 # GMAIL_USER + GMAIL_APP_PASSWORD set panna real mail pogum.
-# NOTE: Render free-la SMTP ports block aagalaam. Mail vara-la na Resend / Brevo use pannunga.
+# NOTE: Railway/Render-la SMTP ports block aagalaam. Mail vara-la na Resend / Brevo use pannunga.
 MAILERS = {
     'default': {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
