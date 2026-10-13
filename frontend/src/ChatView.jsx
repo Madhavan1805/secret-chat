@@ -1,17 +1,3 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { BsCheckAll } from 'react-icons/bs';
-import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPaperclip, BiSearch, BiLock } from 'react-icons/bi';
-import api from './api';
-import Avatar from './Avatar';
-import MessageBubble from './MessageBubble';
-import ForwardModal from './ForwardModal';
-import { useModal } from './PromptModal';
-import { useRealtime, sendSocket, isSocketOpen } from './socket';
-import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime } from './config';
-import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme } from './theme';
-import { setActiveChat } from './notify';
-
 const DISAPPEAR_CHOICES = [
   { label: 'Off 🛑', value: 0 },
   { label: '10 Seconds 💣', value: 10 },
@@ -347,12 +333,17 @@ function ChatView() {
       isUserScrolling.current = scrollHeight - scrollTop - clientHeight > 100;
     }
   };
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+
+  // Scrolls ONLY the messages box (not the whole page), so the input never gets pushed off screen.
+  const scrollToBottom = (smooth = true) => {
+    const el = chatContainerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
+
   useEffect(() => {
     if (messages.length > prevMessagesLength.current) {
-      if (!isUserScrolling.current || prevMessagesLength.current === 0) scrollToBottom();
+      const first = prevMessagesLength.current === 0;
+      if (first || !isUserScrolling.current) scrollToBottom(!first);
     }
     prevMessagesLength.current = messages.length;
   }, [messages]);
@@ -430,7 +421,7 @@ function ChatView() {
       clearTimeout(typingTimerRef.current);
       sendTyping(false);
       isUserScrolling.current = false;
-      setTimeout(scrollToBottom, 100);
+      setTimeout(() => scrollToBottom(true), 100);
     } catch (error) { await handleSendError(error, 'Failed to send message!'); }
     setSending(false);
   };
@@ -456,7 +447,7 @@ function ChatView() {
     try {
       const response = await api.post('messages/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (response?.data) setMessages((prev) => (prev.some((m) => m.id === response.data.id) ? prev : [...prev, response.data]));
-      setTimeout(scrollToBottom, 100);
+      setTimeout(() => scrollToBottom(true), 100);
     } catch (error) { await handleSendError(error, 'Failed to send audio!'); }
   };
 
@@ -732,7 +723,8 @@ function ChatView() {
 
   // ------------------------------------------------------------- render
   const wrapStyle = { backgroundColor: T.bg };
-  const cardStyle = { maxWidth: '450px', height: '88vh', overflow: 'hidden', border: `1px solid ${T.accent}33`, ...(T.light ? { background: T.panel } : {}) };
+  // NOTE: height is set by the .chat-card CSS class (88dvh) so it works on phones too.
+  const cardStyle = { maxWidth: '450px', overflow: 'hidden', border: `1px solid ${T.accent}33`, ...(T.light ? { background: T.panel } : {}) };
 
   if (booting || notFound) {
     return (
@@ -786,11 +778,13 @@ function ChatView() {
   };
 
   return (
-    <div className={`d-flex justify-content-center align-items-center vh-100 px-3 position-relative ${T.light ? 't-light' : ''}`} style={wrapStyle}>
+    <div className={`d-flex justify-content-center align-items-center chat-shell px-3 position-relative ${T.light ? 't-light' : ''}`} style={wrapStyle}>
       <style>
         {`
         .hide-scroll::-webkit-scrollbar { display: none; }
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .chat-shell { height: 100vh; height: 100dvh; }
+        .chat-card { height: 88vh; height: 88dvh; }
         @keyframes blinker { 50% { opacity: 0; } }
         .blink-anim { animation: blinker 1s linear infinite; }
         @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
@@ -838,7 +832,7 @@ function ChatView() {
         </div>
       )}
 
-      <div className="glass-card p-3 d-flex flex-column w-100 position-relative" style={cardStyle}>
+      <div className="glass-card chat-card p-3 d-flex flex-column w-100 position-relative" style={cardStyle}>
 
         {/* ---------------------------------------------------------- header */}
         <div className="d-flex justify-content-between align-items-center pb-2 border-bottom flex-shrink-0" style={{ borderColor: `${T.accent}33` }}>
@@ -920,7 +914,13 @@ function ChatView() {
         )}
 
         {/* ---------------------------------------------------------- messages */}
-        <div className="flex-grow-1 p-2 overflow-auto d-flex flex-column gap-1 hide-scroll" style={{ minHeight: 0 }} ref={chatContainerRef} onScroll={handleScroll}>
+        <div
+          className="flex-grow-1 p-2 overflow-auto d-flex flex-column gap-1 hide-scroll"
+          style={{ minHeight: 0 }}
+          ref={chatContainerRef}
+          onScroll={handleScroll}
+          onLoadCapture={() => { if (!isUserScrolling.current) scrollToBottom(false); }}
+        >
 
           {pinnedMsg && (
             <div className="d-flex justify-content-between align-items-center bg-dark p-2 mb-2 rounded border-start border-3 shadow-sm" style={{ borderColor: T.accent, fontSize: '11px', position: 'sticky', top: 0, zIndex: 100 }}>
