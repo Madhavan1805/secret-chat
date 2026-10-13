@@ -3,6 +3,7 @@ import api from './api';
 export const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://127.0.0.1:8000';
 export const WS_ORIGIN = API_ORIGIN.replace(/^http/, 'ws');
 
+
 // Where your Login page saves the token. If yours is different, add the key here.
 const TOKEN_KEYS = ['token', 'authToken', 'access_token', 'access'];
 
