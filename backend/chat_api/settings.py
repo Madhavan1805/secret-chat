@@ -126,7 +126,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # NOTE: Railway/Render-la disk temporary. Redeploy-la media/ azhinjidum.
 # Permanent-aa venum-na Railway Volume / Cloudinary / S3 use pannunga.
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+_volume = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')
+MEDIA_ROOT = Path(_volume) / 'media' if _volume else BASE_DIR / 'media'
 
 
 # ---------------------------------------------------------------- auth / DRF
