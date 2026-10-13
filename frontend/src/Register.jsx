@@ -114,7 +114,7 @@ export default function Register() {
   return (
     <AuthLayout
       title="Create your account"
-      subtitle="Choose a user ID and add an email or mobile number, so you can get back in if you forget your password."
+      subtitle="Choose a user ID and add an Email, so you can get back in if you forget your password."
     >
       <form onSubmit={onSubmit} noValidate>
         {general && <Alert tone="err">{general}</Alert>}
@@ -137,7 +137,7 @@ export default function Register() {
 
         <div className="au-seg" role="group" aria-label="How should we reach you?">
           <button type="button" aria-pressed={contactType === 'email'} onClick={() => switchContact('email')}>Email</button>
-          <button type="button" aria-pressed={contactType === 'phone'} onClick={() => switchContact('phone')}>Mobile number</button>
+          <button type="button" aria-pressed={contactType === 'phone'} onClick={() => switchContact('phone')}>Mobile</button>
         </div>
 
         {contactType === 'email' ? (
