@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BiSearch, BiCheck, BiX, BiLogOut, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiImageAdd, BiPhoneIncoming, BiPhoneOutgoing, BiVideo } from 'react-icons/bi';
+import { BiSearch, BiCheck, BiX, BiLogOut, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo } from 'react-icons/bi';
 import { BsChatSquareTextFill } from 'react-icons/bs';
 import api from './api';
 import Avatar from './Avatar';
+import StatusTab from './StatusTab';
 import { useModal } from './PromptModal';
 import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
-import { getMe, clearMe, getPicUrl, errMsg, formatListTime, formatDuration, startCall } from './config';
+import { getMe, clearMe, errMsg, formatListTime, formatDuration, startCall } from './config';
 import { CHAT_THEMES, APP_MODES, THEME_CSS, resolveTheme, getAppTheme, setAppTheme } from './theme';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 
@@ -79,9 +80,6 @@ function Home() {
   const [calls, setCalls] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [statuses, setStatuses] = useState([]);
-  const [viewingStatus, setViewingStatus] = useState(null);
-  const [showViewers, setShowViewers] = useState(false);
-  const [statusReply, setStatusReply] = useState('');
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
@@ -333,42 +331,6 @@ function Home() {
     setSelectedGroupMembers((prev) => (prev.includes(friendId) ? prev.filter((id) => id !== friendId) : [...prev, friendId]));
   };
 
-  const uploadStatus = async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('media_file', file);
-    try {
-      await api.post('statuses/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      fetchStatuses();
-      ask({ type: 'alert', title: 'Status Uploaded Successfully! ✨' });
-    } catch (err) { ask({ type: 'alert', title: errMsg(err, 'Failed to upload status') }); }
-  };
-
-  const openStatus = (st) => {
-    setViewingStatus(st);
-    setShowViewers(false);
-    setStatusReply('');
-    if (st.user !== me?.id && !st.viewed_by_me) api.post(`statuses/${st.id}/view/`).catch(() => {});
-  };
-
-  const deleteStatus = async (st) => {
-    const ok = await ask({ type: 'confirm', title: 'Delete this status?', danger: true, okText: 'Delete' });
-    if (!ok) return;
-    try { await api.delete(`statuses/${st.id}/`); setViewingStatus(null); fetchStatuses(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
-  };
-
-  const sendStatusReply = async (st) => {
-    if (!statusReply.trim()) return;
-    try {
-      await api.post(`statuses/${st.id}/reply/`, { content: statusReply });
-      setStatusReply('');
-      setViewingStatus(null);
-      ask({ type: 'alert', title: 'Reply sent ✅' });
-    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Reply failed') }); }
-  };
-
   const changeAppTheme = (key) => { setAppTheme(key); setAppThemeState(key); };
 
   const enableNotifications = async () => {
@@ -387,9 +349,6 @@ function Home() {
     navigate('/');
   };
 
-  const liveStatus = viewingStatus ? (statuses.find((s) => s.id === viewingStatus.id) || viewingStatus) : null;
-  const myStatuses = statuses.filter((s) => s.user === me?.id);
-  const otherStatuses = statuses.filter((s) => s.user !== me?.id);
   const hasNewMessage = friends.some((f) => f.unread_count > 0 && !f.ov?.is_muted);
   const groupUnread = groups.some((g) => g.unread_count > 0 && !g.is_muted);
   const missedCalls = calls.filter((c) => c.direction === 'incoming' && c.status === 'missed').length;
@@ -600,91 +559,15 @@ function Home() {
 
           {/* ------------------------------------------------ STATUS TAB */}
           {activeTab === 'status' && (
-            <div>
-              <div className="d-flex align-items-center p-2 rounded mb-3" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                <label htmlFor="status-upload" className="d-flex align-items-center w-100 m-0" style={{ cursor: 'pointer' }}>
-                  <div className="position-relative me-3">
-                    <Avatar src={me?.profile_picture} name={currentUsername} size={40} T={T} />
-                    <div className="position-absolute bg-success rounded-circle d-flex justify-content-center align-items-center" style={{ width: '16px', height: '16px', bottom: '-2px', right: '-2px', border: '2px solid #3b0e1b' }}><BiImageAdd className="text-white" style={{ fontSize: '10px' }} /></div>
-                  </div>
-                  <div>
-                    <h6 className="mb-0 fw-bold text-white" style={{ fontSize: '13px' }}>My Status</h6>
-                    <small className="text-light opacity-50" style={{ fontSize: '10px' }}>Tap to upload photo/video status</small>
-                  </div>
-                </label>
-                <input type="file" id="status-upload" className="d-none" accept="image/*,video/*" onChange={uploadStatus} />
-              </div>
-
-              {myStatuses.map((st) => (
-                <div key={st.id} className="d-flex align-items-center p-2 rounded mb-2" style={{ background: rowBg, cursor: 'pointer', border: `1px solid ${T.accent}` }} onClick={() => openStatus(st)}>
-                  <div className="me-3"><Avatar src={me?.profile_picture} name={currentUsername} size={38} T={T} /></div>
-                  <div className="flex-grow-1">
-                    <h6 className="mb-0 fw-bold text-white" style={{ fontSize: '13px' }}>You • {formatListTime(st.created_at)}</h6>
-                    <small style={{ fontSize: '10px', color: T.accent }}>👁 {st.view_count || 0} views ({st.media_type})</small>
-                  </div>
-                </div>
-              ))}
-
-              <h6 className="text-light mb-2 mt-3 opacity-75" style={{ fontSize: '12px' }}>Recent Updates</h6>
-
-              {otherStatuses.length > 0 ? (
-                otherStatuses.map((st) => (
-                  <div key={st.id} className="d-flex align-items-center p-2 rounded mb-2" style={{ background: rowBg, cursor: 'pointer', border: `1px solid ${st.viewed_by_me ? 'rgba(255,255,255,0.2)' : T.accent}` }} onClick={() => openStatus(st)}>
-                    <div className="me-3"><Avatar src={st.profile_picture} name={st.username} size={38} T={T} /></div>
-                    <div className="flex-grow-1">
-                      <h6 className="mb-0 fw-bold text-white" style={{ fontSize: '13px' }}>{st.username}</h6>
-                      <small style={{ fontSize: '10px', color: T.accent }}>{formatListTime(st.created_at)} • Tap to view ({st.media_type})</small>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-light opacity-50 mt-4" style={{ fontSize: '11px' }}>No recent status updates.</p>
-              )}
-
-              {liveStatus && (
-                <div className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center" style={{ background: 'rgba(0,0,0,0.92)', zIndex: 9000 }}>
-                  <div className="position-relative text-center" style={{ maxWidth: '420px', width: '92%' }}>
-                    <button className="position-absolute top-0 end-0 btn btn-dark rounded-circle m-2 fs-5" style={{ zIndex: 2 }} onClick={() => setViewingStatus(null)}>✕</button>
-                    <h5 className="text-white mb-3">{liveStatus.user === me?.id ? 'Your Status' : `${liveStatus.username}'s Status`}</h5>
-                    {liveStatus.media_type === 'video' ? (
-                      <video src={getPicUrl(liveStatus.media_file)} controls autoPlay className="img-fluid rounded shadow-lg" style={{ maxHeight: '60vh' }} />
-                    ) : (
-                      <img src={getPicUrl(liveStatus.media_file)} alt="Status" className="img-fluid rounded shadow-lg" style={{ maxHeight: '60vh' }} />
-                    )}
-
-                    {liveStatus.user === me?.id ? (
-                      <div className="mt-3">
-                        <button className="btn btn-sm btn-outline-light rounded-pill px-3 me-2" onClick={() => setShowViewers(!showViewers)}>👁 {liveStatus.view_count || 0} views</button>
-                        <button className="btn btn-sm btn-outline-danger rounded-pill px-3" onClick={() => deleteStatus(liveStatus)}>🗑 Delete</button>
-                        {showViewers && (
-                          <div className="mt-2 text-start mx-auto p-2 rounded" style={{ background: 'rgba(255,255,255,0.1)', maxWidth: 300, maxHeight: 150, overflowY: 'auto' }}>
-                            {(liveStatus.viewers || []).length === 0 && <small className="text-white-50">Nobody has viewed yet.</small>}
-                            {(liveStatus.viewers || []).map((v) => (
-                              <div key={v.id} className="d-flex justify-content-between text-white" style={{ fontSize: 12 }}>
-                                <span>{v.username}</span>
-                                <span className="opacity-50">{formatListTime(v.viewed_at)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="d-flex gap-2 mt-3">
-                        <input
-                          className="form-control form-control-sm text-white"
-                          style={{ background: 'rgba(255,255,255,0.1)', border: `1px solid ${T.accent}66` }}
-                          placeholder="Reply to status…"
-                          value={statusReply}
-                          onChange={(e) => setStatusReply(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') sendStatusReply(liveStatus); }}
-                        />
-                        <button className="btn btn-sm fw-bold px-3" style={{ background: T.accent, color: '#1f2937' }} onClick={() => sendStatusReply(liveStatus)}>Send</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <StatusTab
+              T={T}
+              rowBg={rowBg}
+              me={me}
+              currentUsername={currentUsername}
+              friends={friends}
+              statuses={statuses}
+              refreshStatuses={fetchStatuses}
+            />
           )}
 
           {/* ------------------------------------------------ CALLS TAB */}
