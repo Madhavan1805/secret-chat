@@ -15,7 +15,7 @@ from rest_framework.response import Response
 
 from .models import (
     CustomUser, Chat, ChatUserSetting, Message, ChatRequest, Status, StatusView,
-    CallHistory, Block,
+    CallHistory, Block, CloseFriend,
 )
 from .serializers import (
     UserSerializer, ChatSerializer, MessageSerializer, ChatRequestSerializer,
@@ -878,18 +878,44 @@ class StatusViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    # ---- who can see what -------------------------------------------------
     def get_queryset(self):
         user = self.request.user
         Status.objects.filter(created_at__lt=timezone.now() - timedelta(hours=24)).delete()
-        visible = friend_ids_of(user) | {user.id}
-        return (Status.objects.filter(user_id__in=visible)
-                .select_related('user').prefetch_related('views__viewer').order_by('-created_at'))
 
+        friends = set(friend_ids_of(user))
+        for a, b in Block.objects.filter(Q(blocker=user) | Q(blocked=user)).values_list('blocker_id', 'blocked_id'):
+            friends.discard(a)
+            friends.discard(b)
+
+        qs = Status.objects.filter(
+            Q(user=user)                                                      # my own
+            | Q(user_id__in=friends, privacy='all')                           # friends: public
+            | Q(user_id__in=friends, privacy='close',
+                user__close_friends__friend=user)                             # only if I am in THEIR close list
+        ).distinct()
+        return qs.select_related('user').prefetch_related('views__viewer').order_by('created_at')
+
+    # ---- create (caption + privacy) --------------------------------------
     def perform_create(self, serializer):
+        user = self.request.user
         f = self.request.FILES.get('media_file')
         media_type = 'video' if f and (f.content_type or '').startswith('video') else 'image'
-        serializer.save(user=self.request.user, media_type=media_type)
-        notify_users(friend_ids_of(self.request.user), 'status')
+        privacy = self.request.data.get('privacy') or 'all'
+        if privacy not in ('all', 'close'):
+            raise ValidationError({"error": "Invalid privacy option"})
+        caption = (self.request.data.get('caption') or '').strip()[:300]
+
+        friends = set(friend_ids_of(user))
+        if privacy == 'close':
+            audience = set(CloseFriend.objects.filter(owner=user).values_list('friend_id', flat=True)) & friends
+            if not audience:
+                raise ValidationError({"error": "Your Close Friends list is empty. Add some friends first."})
+        else:
+            audience = friends
+
+        serializer.save(user=user, media_type=media_type, privacy=privacy, caption=caption)
+        notify_users(list(audience), 'status')
 
     def perform_update(self, serializer):
         if serializer.instance.user_id != self.request.user.id:
@@ -901,15 +927,65 @@ class StatusViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Not your status.")
         instance.delete()
 
+    # ---- helpers ----------------------------------------------------------
+    def _my_view_row(self, st, user):
+        row, created = StatusView.objects.get_or_create(status=st, viewer=user)
+        return row, created
+
+    def _chat_note(self, st, user, text):
+        """Drop a message into the status owner's chat so they notice the like / reaction / reply."""
+        chat = get_or_create_direct_chat(user, st.user)
+        msg = Message.objects.create(chat=chat, sender=user, receiver=st.user, content=text)
+        notify_message(chat, msg, 'new')
+
+    def _status_label(self, st):
+        cap = f" - {st.caption[:40]}" if st.caption else ''
+        return f"{st.media_type}{cap}"
+
+    # ---- viewed -----------------------------------------------------------
     @action(detail=True, methods=['post'])
     def view(self, request, pk=None):
         st = self.get_object()
         if st.user_id != request.user.id:
-            _, created = StatusView.objects.get_or_create(status=st, viewer=request.user)
+            _, created = self._my_view_row(st, request.user)
             if created:
                 notify_users([st.user_id], 'status_view', status_id=st.id)
         return Response({"status": "viewed"})
 
+    # ---- like (toggle) ----------------------------------------------------
+    @action(detail=True, methods=['post'])
+    def like(self, request, pk=None):
+        st = self.get_object()
+        user = request.user
+        if st.user_id == user.id:
+            return Response({"error": "You can't like your own status"}, status=400)
+        row, _ = self._my_view_row(st, user)
+        row.liked = not row.liked
+        row.save(update_fields=['liked'])
+        if row.liked:
+            self._chat_note(st, user, f"❤️ Liked your status ({self._status_label(st)})")
+        notify_users([st.user_id], 'status_view', status_id=st.id)
+        return Response({"liked": row.liked})
+
+    # ---- emoji reaction (tap same emoji again = remove) -------------------
+    @action(detail=True, methods=['post'])
+    def react(self, request, pk=None):
+        st = self.get_object()
+        user = request.user
+        emoji = (request.data.get('emoji') or '').strip()
+        if not emoji or len(emoji) > 8:
+            return Response({"error": "Invalid emoji"}, status=400)
+        if st.user_id == user.id:
+            return Response({"error": "You can't react to your own status"}, status=400)
+        row, _ = self._my_view_row(st, user)
+        row.reaction = '' if row.reaction == emoji else emoji
+        row.save(update_fields=['reaction'])
+        if row.reaction:
+            self._chat_note(st, user, f"{emoji} Reacted to your status ({self._status_label(st)})")
+        notify_users([st.user_id], 'status_view', status_id=st.id)
+        return Response({"reaction": row.reaction})
+
+    # ---- text reply -> goes to the owner's chat ---------------------------
     @action(detail=True, methods=['post'])
     def reply(self, request, pk=None):
         st = self.get_object()
@@ -921,12 +997,26 @@ class StatusViewSet(viewsets.ModelViewSet):
             return Response({"error": "You can't reply to your own status"}, status=400)
         if blocked_between(user.id, st.user_id):
             raise PermissionDenied("You can't message this user.")
-        chat = get_or_create_direct_chat(user, st.user)
-        msg = Message.objects.create(
-            chat=chat, sender=user, receiver=st.user,
-            content=f"↩️ Replied to your status ({st.media_type}): {text}")
-        notify_message(chat, msg, 'new')
+        self._my_view_row(st, user)
+        self._chat_note(st, user, f"↩️ Replied to your status ({self._status_label(st)}): {text}")
         return Response({"status": "reply sent"})
+
+    # ---- Close Friends list (GET = my list, POST {ids:[..]} = save) -------
+    @action(detail=False, methods=['get', 'post'], url_path='close_friends')
+    def close_friends(self, request):
+        user = request.user
+        friends = set(friend_ids_of(user))
+        if request.method == 'POST':
+            raw = request.data.get('ids', [])
+            if not isinstance(raw, list):
+                raw = [raw]
+            ids = {to_int(i) for i in raw if to_int(i)} & friends
+            CloseFriend.objects.filter(owner=user).exclude(friend_id__in=ids).delete()
+            for fid in ids:
+                CloseFriend.objects.get_or_create(owner=user, friend_id=fid)
+        current = list(CloseFriend.objects.filter(owner=user, friend_id__in=friends)
+                       .values_list('friend_id', flat=True))
+        return Response({"ids": sorted(current)})
 
 
 # ================================================================= calls

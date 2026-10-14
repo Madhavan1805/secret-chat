@@ -75,13 +75,18 @@ class StatusSerializer(serializers.ModelSerializer):
     username = serializers.ReadOnlyField(source='user.username')
     profile_picture = serializers.SerializerMethodField()
     view_count = serializers.SerializerMethodField()
+    like_count = serializers.SerializerMethodField()
     viewers = serializers.SerializerMethodField()
     viewed_by_me = serializers.SerializerMethodField()
+    liked_by_me = serializers.SerializerMethodField()
+    my_reaction = serializers.SerializerMethodField()
 
     class Meta:
         model = Status
         fields = ['id', 'user', 'username', 'profile_picture', 'media_file', 'media_type',
-                  'created_at', 'view_count', 'viewers', 'viewed_by_me']
+                  'caption', 'privacy', 'created_at',
+                  'view_count', 'like_count', 'viewers',
+                  'viewed_by_me', 'liked_by_me', 'my_reaction']
         read_only_fields = ['user', 'media_type', 'created_at']
 
     def get_profile_picture(self, obj):
@@ -93,20 +98,40 @@ class StatusSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         return bool(request and obj.user_id == request.user.id)
 
+    def _my_view(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return None
+        for v in obj.views.all():
+            if v.viewer_id == request.user.id:
+                return v
+        return None
+
+    # --- owner-only numbers / lists
     def get_view_count(self, obj):
         return len(obj.views.all()) if self._is_owner(obj) else None
+
+    def get_like_count(self, obj):
+        return sum(1 for v in obj.views.all() if v.liked) if self._is_owner(obj) else None
 
     def get_viewers(self, obj):
         if not self._is_owner(obj):
             return []
-        return [{"id": v.viewer_id, "username": v.viewer.username, "viewed_at": v.viewed_at}
+        return [{"id": v.viewer_id, "username": v.viewer.username, "viewed_at": v.viewed_at,
+                 "liked": v.liked, "reaction": v.reaction}
                 for v in obj.views.all()]
 
+    # --- my own state on someone else's status
     def get_viewed_by_me(self, obj):
-        request = self.context.get('request')
-        if not request:
-            return False
-        return any(v.viewer_id == request.user.id for v in obj.views.all())
+        return self._my_view(obj) is not None
+
+    def get_liked_by_me(self, obj):
+        v = self._my_view(obj)
+        return bool(v and v.liked)
+
+    def get_my_reaction(self, obj):
+        v = self._my_view(obj)
+        return v.reaction if v else ''
 
 
 class CallHistorySerializer(serializers.ModelSerializer):

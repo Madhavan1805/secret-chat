@@ -162,24 +162,46 @@ class ChatRequest(models.Model):
         return f"{self.sender.username} -> {self.receiver.username} ({self.status})"
 
 
+# ====================================================================== STATUS
 class Status(models.Model):
+    PRIVACY_CHOICES = (
+        ('all', 'All friends'),
+        ('close', 'Close friends only'),
+    )
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='statuses')
     media_file = models.FileField(upload_to='status_media/')
     media_type = models.CharField(max_length=10, default='image')  # 'image' or 'video'
+    caption = models.CharField(max_length=300, blank=True, default='')            # NEW
+    privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='all')   # NEW
     created_at = models.DateTimeField(auto_now_add=True)
 
 
-# ------------------------------------------------ NEW: who viewed a status
+# ------------------------------------- who viewed a status (+ like / emoji reaction)
 class StatusView(models.Model):
     status = models.ForeignKey(Status, on_delete=models.CASCADE, related_name='views')
     viewer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='status_views')
     viewed_at = models.DateTimeField(auto_now_add=True)
+    liked = models.BooleanField(default=False)                                    # NEW
+    reaction = models.CharField(max_length=16, blank=True, default='')            # NEW
 
     class Meta:
         unique_together = ('status', 'viewer')
 
 
-# ------------------------------------------- NEW: forgot-password one-time codes
+# ------------------------------------- NEW: Close Friends list (like Instagram)
+class CloseFriend(models.Model):
+    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='close_friends')
+    friend = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='close_friend_of')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('owner', 'friend')
+
+    def __str__(self):
+        return f"{self.owner.username} -> {self.friend.username} (close friend)"
+
+
+# ------------------------------------------- forgot-password one-time codes
 class PasswordResetOTP(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='reset_otps')
     code_hash = models.CharField(max_length=128)          # the 6-digit code is stored hashed
