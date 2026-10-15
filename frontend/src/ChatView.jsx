@@ -11,6 +11,7 @@ import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime } from './config';
 import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme } from './theme';
 import { setActiveChat } from './notify';
+import { useChatExtras } from './chatExtras';
 
 
 const DISAPPEAR_CHOICES = [
@@ -103,6 +104,7 @@ function ChatView() {
   const [modal, ask] = useModal(T);
   const isGroupChat = !!groupId;
   const locked = !!meta?.is_locked && !unlocked;
+  const extras = useChatExtras({ chatId: meta?.chat_id, ask, messagesLen: messages.length, T });
 
   // ------------------------------------------------------------- data loaders
   const fetchMeta = async () => {
@@ -387,6 +389,22 @@ function ChatView() {
     clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => { lastTypingSent.current = 0; sendTyping(false); }, 1800);
   };
+
+  // desktop: Enter = send, Shift+Enter = new line. Phone: Enter = new line
+  const onComposerKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+      e.preventDefault();
+      sendMessage(e);
+    }
+  };
+
+  // auto-grow the composer textarea (max 120px)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [newMessage, isRecording]);
 
   // ------------------------------------------------------------- sending
   const handleSendError = async (error, fallback) => {
@@ -702,6 +720,9 @@ function ChatView() {
     [`⏳ Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],
     [meta.is_locked ? '🔐 Chat lock (change / remove)' : '🔐 Chat lock', lockMenu],
     ['🎨 Chat theme', themeMenu],
+    ['🖼 Wallpaper (colours)', extras.chooseWallpaper],
+    ['📷 Wallpaper from photo', extras.pickWallpaperPhoto],
+    [`⏰ Scheduled messages (${extras.scheduledCount})`, extras.openScheduledList],
     [meta.is_pinned ? '📌 Unpin chat' : '📌 Pin chat', () => toggleSetting('is_pinned')],
     [meta.is_muted ? '🔔 Unmute' : '🔇 Mute', () => toggleSetting('is_muted')],
     ['🧹 Clear chat (for me)', clearChat, true],
@@ -809,6 +830,8 @@ function ChatView() {
       </style>
 
       {modal}
+      {extras.modals}
+      {extras.wallpaperInput}
       {forwardMsg && (
         <ForwardModal
           msg={forwardMsg}
@@ -931,7 +954,7 @@ function ChatView() {
         {/* ---------------------------------------------------------- messages */}
         <div
           className="flex-grow-1 p-2 overflow-auto d-flex flex-column gap-1 hide-scroll"
-          style={{ minHeight: 0 }}
+          style={{ minHeight: 0, borderRadius: 12, ...extras.wallpaperStyle }}
           ref={chatContainerRef}
           onScroll={handleScroll}
           onLoadCapture={() => { if (!isUserScrolling.current) scrollToBottom(false); }}
@@ -1029,10 +1052,13 @@ function ChatView() {
                       <>
                         <div onClick={() => setShowAttach(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
                         <div className="shadow-lg p-1 rounded-3" style={{ position: 'absolute', bottom: '120%', left: 0, zIndex: 901, background: T.light ? '#fff' : '#26121a', border: `1px solid ${T.accent}`, minWidth: 160 }}>
-                          {[['🖼 Photo / Video', () => photoInputRef.current && photoInputRef.current.click()],
+                          {[
+                            ['🖼 Photo / Video', () => photoInputRef.current && photoInputRef.current.click()],
                             ['📄 Document', () => docInputRef.current && docInputRef.current.click()],
-                            ['📍 Location', shareLocation]].map(([l, fn]) => (
-                              <button type="button" key={l} className="btn btn-sm w-100 text-start" style={{ fontSize: 12, color: T.light ? '#1f2937' : '#fff' }} onClick={fn}>{l}</button>
+                            ['📍 Location', shareLocation],
+                            ['⏰ Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
+                          ].map(([l, fn]) => (
+                            <button type="button" key={l} className="btn btn-sm w-100 text-start" style={{ fontSize: 12, color: T.light ? '#1f2937' : '#fff' }} onClick={fn}>{l}</button>
                           ))}
                         </div>
                       </>
@@ -1041,8 +1067,16 @@ function ChatView() {
 
                   <button type="button" className={`btn rounded-circle p-1 ${isViewOnce ? 'btn-danger shadow' : 'btn-outline-secondary'}`} onClick={() => setIsViewOnce(!isViewOnce)} title="View Once Message">💣</button>
 
-                  <input ref={inputRef} type="text" className="form-control px-2 py-1 text-white form-control-sm" placeholder={editing ? 'Edit message...' : 'Type a message...'} value={newMessage} onChange={handleTyping}
-                         style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.accent}55`, fontSize: '12px' }} />
+                  <textarea
+                    ref={inputRef}
+                    rows={1}
+                    className="form-control px-2 py-1 text-white form-control-sm"
+                    placeholder={editing ? 'Edit message...' : 'Type a message...'}
+                    value={newMessage}
+                    onChange={handleTyping}
+                    onKeyDown={onComposerKey}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.accent}55`, fontSize: '12px', resize: 'none', overflowY: 'auto', maxHeight: 120, lineHeight: 1.4 }}
+                  />
 
                   {!newMessage.trim() && !selectedFile ? (
                     <button type="button" className="btn btn-outline-warning rounded-circle p-1" onClick={startRecording} style={{ borderColor: T.accent }}>

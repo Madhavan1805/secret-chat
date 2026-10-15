@@ -5,6 +5,7 @@ from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
     StatusViewSet, CallViewSet,
 )
+from .extras import wallpaper_view, schedule_view, scheduled_list_view, cancel_scheduled_view
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -20,5 +21,12 @@ urlpatterns = [
     path('auth/check/', check_view, name='check-username'),
     path('auth/forgot/', forgot_view, name='forgot-password'),
     path('auth/reset/', reset_view, name='reset-password'),
+
+    # new (must stay ABOVE the router include)
+    path('chats/wallpaper/', wallpaper_view, name='chat-wallpaper'),
+    path('messages/schedule/', schedule_view, name='message-schedule'),
+    path('messages/scheduled/', scheduled_list_view, name='message-scheduled'),
+    path('messages/cancel_scheduled/', cancel_scheduled_view, name='message-cancel-scheduled'),
+
     path('', include(router.urls)),
 ]

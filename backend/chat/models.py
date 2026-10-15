@@ -61,6 +61,9 @@ class ChatUserSetting(models.Model):
     unlocked_until = models.DateTimeField(null=True, blank=True)
     failed_attempts = models.IntegerField(default=0)
     blocked_until = models.DateTimeField(null=True, blank=True)
+        # private wallpaper (only this user sees it)
+    wallpaper_preset = models.CharField(max_length=20, blank=True, default='')
+    wallpaper_image = models.ImageField(upload_to='wallpapers/', null=True, blank=True)
 
     class Meta:
         unique_together = ('user', 'chat')
@@ -120,6 +123,14 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.sender.username}: {self.content[:20] if self.content else self.message_type}"
+
+class ScheduledMessage(models.Model):
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='scheduled_messages')
+    sender = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='scheduled_messages')
+    content = models.TextField()
+    send_at = models.DateTimeField(db_index=True)
+    sent = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class CallHistory(models.Model):
