@@ -22,6 +22,7 @@ from .serializers import (
     StatusSerializer, CallHistorySerializer,
 )
 from .realtime import notify_users, send_to_user
+from .push import send_push
 
 UNLOCK_MINUTES = 10
 MAX_UPLOAD = 25 * 1024 * 1024
@@ -190,13 +191,15 @@ def message_preview(msg):
 
 
 def notify_message(chat, msg, action, message_id=None):
-    """Push a live 'message' event to everybody in the chat (muted/locked aware)."""
+    """Push a live 'message' event to everybody in the chat (muted/locked aware),
+    and send a phone push (OneSignal) for brand-new messages."""
     if not chat:
         return
     members = list(chat.participants.values_list('id', flat=True))
     sets = {s.user_id: s for s in ChatUserSetting.objects.filter(chat=chat, user_id__in=members)}
     preview = message_preview(msg)
     title = f"{msg.sender.username} • {chat.group_name}" if chat.is_group else msg.sender.username
+    push_normal, push_locked = [], []
     for uid in members:
         s = sets.get(uid)
         send_to_user(uid, {
@@ -206,6 +209,13 @@ def notify_message(chat, msg, action, message_id=None):
             "body": 'New message' if (s and s.pin_hash) else preview,
             "muted": bool(s and s.is_muted),
         })
+        # phone push: only new messages from others, never system messages, never muted chats
+        if (action == 'new' and uid != msg.sender_id and msg.message_type != 'system'
+                and not (s and s.is_muted)):
+            (push_locked if (s and s.pin_hash) else push_normal).append(uid)
+    data = {"chat_id": chat.id}
+    send_push(push_normal, title, preview, data)
+    send_push(push_locked, title, 'New message', data)
 
 
 def notify_chat(chat, event, **data):

@@ -12,6 +12,7 @@ import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime } fr
 import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme } from './theme';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
+import { pushLogin } from './push';
 
 
 const DISAPPEAR_CHOICES = [
@@ -185,6 +186,7 @@ function ChatView() {
     (async () => {
       try {
         const meData = await getMe();
+        pushLogin(meData.id);
         let fid = location.state?.friendId ?? null;
         let gid = location.state?.chatId ?? null;
         if (!fid && !gid) {
