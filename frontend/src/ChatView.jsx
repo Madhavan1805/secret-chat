@@ -13,6 +13,7 @@ import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme } from './theme';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
 import { pushLogin } from './push';
+import { playSound } from './sounds';
 
 
 const DISAPPEAR_CHOICES = [
@@ -96,6 +97,7 @@ function ChatView() {
   const inputRef = useRef(null);
   const markedAt = useRef(0);
   const initToken = useRef(0);
+  const statusSeen = useRef(new Map());   // my message id -> last tick status (to play the tick sound)
   const tickRef = useRef(0);
   const ids = useRef({});
   ids.current = { friendId, groupId, chatId: meta?.chat_id, me, locked: !!meta?.is_locked, unlocked };
@@ -154,6 +156,18 @@ function ChatView() {
       if (Array.isArray(res.data)) {
         setMessages(res.data);
         markRead(res.data);
+        // double-tick / blue-tick sound when one of MY messages is delivered or read
+        const mineId = ids.current.me?.id;
+        if (mineId != null && !g) {
+          let ticked = false;
+          res.data.forEach((m) => {
+            if (m.sender !== mineId) return;
+            const old = statusSeen.current.get(m.id);
+            if (old && old !== m.status && m.status !== 'sent') ticked = true;
+            statusSeen.current.set(m.id, m.status);
+          });
+          if (ticked) playSound('tick');
+        }
       }
     } catch (e) {
       if (e?.response?.status === 423) setUnlocked(false);
@@ -182,6 +196,7 @@ function ChatView() {
     setSearchOpen(false);
     prevMessagesLength.current = 0;
     isUserScrolling.current = false;
+    statusSeen.current = new Map();
 
     (async () => {
       try {
@@ -448,7 +463,11 @@ function ChatView() {
     setSending(true);
     try {
       const response = await api.post('messages/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (response?.data) setMessages((prev) => (prev.some((m) => m.id === response.data.id) ? prev : [...prev, response.data]));
+      if (response?.data) {
+        setMessages((prev) => (prev.some((m) => m.id === response.data.id) ? prev : [...prev, response.data]));
+        statusSeen.current.set(response.data.id, response.data.status);
+      }
+      playSound('send');
       setNewMessage('');
       setSelectedFile(null);
       setReplyingTo(null);
@@ -481,7 +500,11 @@ function ChatView() {
     setReplyingTo(null);
     try {
       const response = await api.post('messages/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (response?.data) setMessages((prev) => (prev.some((m) => m.id === response.data.id) ? prev : [...prev, response.data]));
+      if (response?.data) {
+        setMessages((prev) => (prev.some((m) => m.id === response.data.id) ? prev : [...prev, response.data]));
+        statusSeen.current.set(response.data.id, response.data.status);
+      }
+      playSound('send');
       setTimeout(() => scrollToBottom(true), 100);
     } catch (error) { await handleSendError(error, 'Failed to send audio!'); }
   };
@@ -537,6 +560,7 @@ function ChatView() {
       if (v === 'everyone') await api.patch(`messages/${msg.id}/`, { is_deleted: true });
       else await api.post(`messages/${msg.id}/hide/`);
       setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+      playSound('delete');
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Delete failed') }); }
   };
 
@@ -816,13 +840,11 @@ function ChatView() {
   };
 
   return (
-    <div className={`d-flex justify-content-center align-items-center chat-shell px-3 position-relative ${T.light ? 't-light' : ''}`} style={wrapStyle}>
+    <div className={`chat-shell px-3 position-relative ${T.light ? 't-light' : ''}`} style={wrapStyle}>
       <style>
         {`
         .hide-scroll::-webkit-scrollbar { display: none; }
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-        .chat-shell { height: 100vh; height: 100dvh; }
-        .chat-card { height: 88vh; height: 88dvh; }
         @keyframes blinker { 50% { opacity: 0; } }
         .blink-anim { animation: blinker 1s linear infinite; }
         @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }

@@ -957,10 +957,22 @@ class StatusViewSet(viewsets.ModelViewSet):
         return row, created
 
     def _chat_note(self, st, user, text):
-        """Drop a message into the status owner's chat so they notice the like / reaction / reply."""
+        """Drop a message into the status owner's chat (used for reactions and replies)."""
         chat = get_or_create_direct_chat(user, st.user)
         msg = Message.objects.create(chat=chat, sender=user, receiver=st.user, content=text)
-        notify_message(chat, msg, 'new')
+        notify_message(chat, msg, 'new')      # live event + phone push (= the notification)
+        return msg
+
+    def _drop_reaction_note(self, row):
+        """Remove the viewer's previous reaction line, so the chat only ever shows the LATEST one."""
+        old = row.reaction_message
+        if not old:
+            return
+        chat, mid = old.chat, old.id
+        row.reaction_message = None
+        row.save(update_fields=['reaction_message'])
+        old.delete()
+        notify_message(chat, old, 'delete', message_id=mid)
 
     def _status_label(self, st):
         cap = f" - {st.caption[:40]}" if st.caption else ''
@@ -987,7 +999,11 @@ class StatusViewSet(viewsets.ModelViewSet):
         row.liked = not row.liked
         row.save(update_fields=['liked'])
         if row.liked:
-            self._chat_note(st, user, f"❤️ Liked your status ({self._status_label(st)})")
+            # a like is only a notification - it is NOT added to the chat
+            title = user.username
+            body = f"❤️ Liked your status ({self._status_label(st)})"
+            notify_users([st.user_id], 'status_like', status_id=st.id, title=title, body=body)
+            send_push([st.user_id], title, body, {"status_id": st.id})
         notify_users([st.user_id], 'status_view', status_id=st.id)
         return Response({"liked": row.liked})
 
@@ -1004,8 +1020,12 @@ class StatusViewSet(viewsets.ModelViewSet):
         row, _ = self._my_view_row(st, user)
         row.reaction = '' if row.reaction == emoji else emoji
         row.save(update_fields=['reaction'])
+        # always remove the older reaction line first -> the chat keeps only the latest reaction
+        self._drop_reaction_note(row)
         if row.reaction:
-            self._chat_note(st, user, f"{emoji} Reacted to your status ({self._status_label(st)})")
+            msg = self._chat_note(st, user, f"{row.reaction} Reacted to your status ({self._status_label(st)})")
+            row.reaction_message = msg
+            row.save(update_fields=['reaction_message'])
         notify_users([st.user_id], 'status_view', status_id=st.id)
         return Response({"reaction": row.reaction})
 

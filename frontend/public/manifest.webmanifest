@@ -1,0 +1,13 @@
+{
+  "name": "Secret Chat",
+  "short_name": "Secret Chat",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#3b0e1b",
+  "theme_color": "#3b0e1b",
+  "icons": [
+    { "src": "/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -4,6 +4,18 @@ html, #root {
   min-height: 100%;
 }
 
+:root { --app-height: 100dvh; }
+
+/* app-like behaviour: no pinch / double-tap zoom, no pull-to-refresh bounce, no text-size jumps */
+html, body {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+input, textarea, select { font-size: max(16px, 1em); }   /* stops iOS zooming into focused inputs */
+
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
@@ -77,4 +89,33 @@ body {
 .btn-glow:hover {
   box-shadow: 0 0 15px #aa3bff, 0 0 15px #4ade80;
   transform: scale(1.05);
+}
+
+/* ---------- phone / APK: use the WHOLE screen instead of a floating card ---------- */
+div.home-shell, div.chat-shell {
+  height: 100vh;
+  height: var(--app-height, 100dvh);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.glass-card.home-card, .glass-card.chat-card {
+  height: 88vh;
+  height: calc(var(--app-height, 100dvh) * 0.88);
+}
+
+@media (max-width: 576px) {
+  div.home-shell, div.chat-shell {
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0 !important;
+    align-items: stretch !important;
+  }
+  .glass-card.home-card, .glass-card.chat-card {
+    height: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    padding: 10px 12px !important;
+    animation: none;
+  }
 }

@@ -364,7 +364,7 @@ function Home() {
 
   // ------------------------------------------------------------------- UI
   return (
-    <div className={`d-flex justify-content-center align-items-center vh-100 px-3 ${T.light ? 't-light' : ''}`} style={{ backgroundColor: T.bg }}>
+    <div className={`home-shell px-3 ${T.light ? 't-light' : ''}`} style={{ backgroundColor: T.bg }}>
       <style>
         {`
         @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:ital,wght@0,700;1,400&display=swap');
@@ -376,7 +376,7 @@ function Home() {
 
       {modal}
 
-      <div className="glass-card p-4 d-flex flex-column w-100 position-relative" style={{ maxWidth: '450px', height: '88vh', border: `1px solid ${T.accent}33`, overflow: 'hidden', ...(T.light ? { background: T.panel } : {}) }}>
+      <div className="glass-card home-card p-4 d-flex flex-column w-100 position-relative" style={{ maxWidth: '450px', border: `1px solid ${T.accent}33`, overflow: 'hidden', ...(T.light ? { background: T.panel } : {}) }}>
 
         <div className="d-flex justify-content-between align-items-center pb-2 border-bottom flex-shrink-0" style={{ borderColor: `${T.accent}33` }}>
           <div>
@@ -409,14 +409,16 @@ function Home() {
           </div>
         </div>
 
-        <div className="d-flex p-1 gap-2 my-2 hide-scroll overflow-auto flex-shrink-0" style={{ whiteSpace: 'nowrap' }}>
+        <div className="d-flex p-1 gap-1 my-2 flex-shrink-0" style={{ whiteSpace: 'nowrap' }}>
           {['chats', 'groups', 'status', 'calls', 'requests'].map((tab) => (
             <button key={tab}
-              className={`btn rounded-pill py-1 px-3 position-relative ${activeTab === tab ? 'fw-bold' : 'text-light'}`}
+              className={`btn rounded-pill py-1 px-1 position-relative ${activeTab === tab ? 'fw-bold' : 'text-light'}`}
               onClick={() => setActiveTab(tab)}
               style={{
+                flex: '1 1 0',
+                minWidth: 0,
                 textTransform: 'capitalize',
-                fontSize: '12px',
+                fontSize: '11px',
                 background: activeTab === tab ? T.mine : 'rgba(255,255,255,0.05)',
                 color: activeTab === tab ? T.mineText : (T.light ? '#374151' : '#fff'),
                 border: `1px solid ${activeTab === tab ? T.accent : `${T.accent}33`}`,
