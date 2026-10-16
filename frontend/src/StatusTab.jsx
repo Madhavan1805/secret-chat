@@ -243,7 +243,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     return g.hasClose ? CLOSE_GREEN : T.accent;
   };
 
-  const overlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', zIndex: 9500 };
+  const overlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9500 };
 
   // ======================================================================= UI
   return (

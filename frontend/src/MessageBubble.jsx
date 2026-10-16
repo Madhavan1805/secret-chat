@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { BsCheck, BsCheckAll } from 'react-icons/bs';
 import AudioPlayer from './AudioPlayer';
+import MediaViewer, { downloadFile } from './MediaViewer';
 import { getPicUrl, formatSize, formatTime } from './config';
 
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
@@ -18,6 +19,7 @@ export default function MessageBubble({
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
 }) {
   const [menu, setMenu] = useState(false);
+  const [viewer, setViewer] = useState(false);
   const touch = useRef({ x: 0, y: 0, timer: null });
 
   // ---------------------------------------------------------------- system line
@@ -116,11 +118,25 @@ export default function MessageBubble({
           </button>
         ) : (
           <>
-            {isImage && <img src={getPicUrl(msg.file_url)} alt="" style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 10, display: 'block' }} />}
-            {isVideo && <video src={getPicUrl(msg.file_url)} controls style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 10 }} />}
+            {isImage && (
+              <img
+                src={getPicUrl(msg.file_url)} alt="" onClick={() => setViewer(true)}
+                style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 10, display: 'block', cursor: 'zoom-in' }}
+              />
+            )}
+            {isVideo && (
+              <div className="position-relative" style={{ cursor: 'pointer' }} onClick={() => setViewer(true)}>
+                <video src={getPicUrl(msg.file_url)} preload="metadata" playsInline muted style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 10, display: 'block', pointerEvents: 'none' }} />
+                <span
+                  className="position-absolute top-50 start-50 translate-middle d-flex align-items-center justify-content-center"
+                  style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 20 }}
+                >▶</span>
+              </div>
+            )}
             {isAudio && <AudioPlayer src={getPicUrl(msg.voice_note || msg.file_url)} isMe={isMe} T={T} />}
             {isDoc && (
-              <a href={getPicUrl(msg.file_url)} target="_blank" rel="noreferrer" download
+              <a href={getPicUrl(msg.file_url)} target="_blank" rel="noreferrer"
+                 onClick={(e) => { e.preventDefault(); downloadFile(getPicUrl(msg.file_url), msg.file_name); }}
                  className="d-flex align-items-center gap-2 text-decoration-none" style={{ color: 'inherit', minWidth: 180 }}>
                 <span style={{ fontSize: 28 }}>📄</span>
                 <span className="flex-grow-1" style={{ minWidth: 0 }}>
@@ -145,6 +161,10 @@ export default function MessageBubble({
           <button onClick={() => setMenu(true)} className="btn p-0 border-0" style={{ fontSize: 12, color: 'inherit', lineHeight: 1 }}>⌄</button>
         </div>
       </div>
+
+      {viewer && (isImage || isVideo) && (
+        <MediaViewer src={getPicUrl(msg.file_url)} type={isVideo ? 'video' : 'image'} name={msg.file_name} onClose={() => setViewer(false)} />
+      )}
 
       {msg.reactions && Object.keys(msg.reactions).length > 0 && (
         <div className="d-flex gap-1 px-2 rounded-pill shadow-sm" style={{ marginTop: -6, fontSize: 12, background: T.light ? '#fff' : '#1f1f1f', border: `1px solid ${T.accent}66`, zIndex: 1 }}>

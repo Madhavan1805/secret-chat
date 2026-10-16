@@ -194,6 +194,9 @@ class StatusView(models.Model):
     viewed_at = models.DateTimeField(auto_now_add=True)
     liked = models.BooleanField(default=False)                                    # NEW
     reaction = models.CharField(max_length=16, blank=True, default='')            # NEW
+    # the single chat line that shows this viewer's LATEST reaction (replaced on every new reaction)
+    reaction_message = models.ForeignKey('Message', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='+')
 
     class Meta:
         unique_together = ('status', 'viewer')

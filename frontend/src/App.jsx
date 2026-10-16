@@ -6,6 +6,7 @@ import ForgotPassword from './ForgotPassword';
 import Home from './Home';
 import ChatView from './ChatView';
 import CallManager from './CallManager';
+import GlobalEvents from './GlobalEvents';
 import { getToken } from './config';
 
 // pages that need a logged-in user: no token -> back to the login page
@@ -21,6 +22,7 @@ export default function App() {
   return (
     <Shell>
       <CallManager />
+      <GlobalEvents />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
