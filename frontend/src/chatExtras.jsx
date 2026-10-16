@@ -16,7 +16,7 @@ export const WALLPAPERS = {
 const pad = (n) => String(n).padStart(2, '0');
 const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-const overlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', zIndex: 9600, background: 'rgba(0,0,0,0.8)' };
+const overlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9600, background: 'rgba(0,0,0,0.8)' };
 const panel = (T) => ({ maxWidth: 380, background: '#1b1016', border: `1px solid ${T.accent}`, color: '#fff' });
 
 // ------------------------------------------------------------ schedule modal

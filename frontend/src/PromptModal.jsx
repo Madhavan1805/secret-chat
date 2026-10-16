@@ -46,14 +46,14 @@ export function useModal(T) {
           <input
             autoFocus
             type={state.inputType || 'text'}
-            inputMode={state.inputType === 'password' || state.inputType === 'number' ? 'numeric' : undefined}
+            inputMode={state.inputMode !== undefined ? state.inputMode : (state.inputType === 'password' || state.inputType === 'number' ? 'numeric' : undefined)}
             maxLength={state.maxLength}
             value={value}
             placeholder={state.placeholder || ''}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') finish(value); }}
             className="form-control text-center mb-3 fs-5"
-            style={{ background: T?.input || 'rgba(255,255,255,0.1)', color: T?.text || '#fff', border: `1px solid ${accent}`, letterSpacing: state.inputType === 'password' ? 8 : 0 }}
+            style={{ background: T?.input || 'rgba(255,255,255,0.1)', color: T?.text || '#fff', border: `1px solid ${accent}`, letterSpacing: state.inputType === 'password' && state.maxLength ? 8 : 0 }}
           />
         )}
 

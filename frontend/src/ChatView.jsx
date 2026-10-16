@@ -14,6 +14,8 @@ import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
 import { pushLogin } from './push';
 import { playSound } from './sounds';
+import EmojiPicker from './EmojiPicker';
+import ProfileModal from './ProfileModal';
 
 
 const DISAPPEAR_CHOICES = [
@@ -66,6 +68,8 @@ function ChatView() {
 
   const [showTopMenu, setShowTopMenu] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -95,6 +99,7 @@ function ChatView() {
   const photoInputRef = useRef(null);
   const docInputRef = useRef(null);
   const inputRef = useRef(null);
+  const caretRef = useRef(null);          // last cursor position in the message box (for emojis)
   const markedAt = useRef(0);
   const initToken = useRef(0);
   const statusSeen = useRef(new Map());   // my message id -> last tick status (to play the tick sound)
@@ -407,6 +412,18 @@ function ChatView() {
     typingTimerRef.current = setTimeout(() => { lastTypingSent.current = 0; sendTyping(false); }, 1800);
   };
 
+  // emoji button: put the emoji where the cursor was (or at the end)
+  const insertEmoji = (emoji) => {
+    const pos = caretRef.current == null ? newMessage.length : Math.min(caretRef.current, newMessage.length);
+    setNewMessage(newMessage.slice(0, pos) + emoji + newMessage.slice(pos));
+    caretRef.current = pos + emoji.length;
+  };
+  const toggleEmoji = () => {
+    setShowAttach(false);
+    if (!showEmoji && inputRef.current) inputRef.current.blur();    // hide the keyboard, show the emojis
+    setShowEmoji(!showEmoji);
+  };
+
   // desktop: Enter = send, Shift+Enter = new line. Phone: Enter = new line
   const onComposerKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
@@ -468,6 +485,8 @@ function ChatView() {
         statusSeen.current.set(response.data.id, response.data.status);
       }
       playSound('send');
+      setShowEmoji(false);
+      caretRef.current = null;
       setNewMessage('');
       setSelectedFile(null);
       setReplyingTo(null);
@@ -741,6 +760,7 @@ function ChatView() {
   };
 
   const menuItems = !meta ? [] : [
+    ...(!isGroupChat ? [['👤 View profile', () => setProfileOpen(true)]] : []),
     ['🔍 Search messages', () => { setSearchOpen(true); }],
     ...(isGroupChat ? [['👥 Group members', showMembers]] : []),
     [`⏳ Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],
@@ -864,6 +884,10 @@ function ChatView() {
         />
       )}
 
+      {profileOpen && !isGroupChat && (
+        <ProfileModal user={receiver} name={contactName} T={T} online={online} onClose={() => setProfileOpen(false)} />
+      )}
+
       {viewOnceData && (
         <div className="position-fixed top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center"
              style={{ background: 'rgba(20, 5, 10, 0.95)', backdropFilter: 'blur(10px)', zIndex: 9000 }}>
@@ -903,9 +927,9 @@ function ChatView() {
             {isGroupChat ? (
               <div className="rounded-circle d-flex justify-content-center align-items-center me-2 shadow" style={{ width: '38px', height: '38px', background: T.accent, flexShrink: 0 }}>👥</div>
             ) : (
-              <div className="me-2"><Avatar src={receiver?.profile_picture} name={contactName} size={38} online={online} T={T} /></div>
+              <div className="me-2" style={{ cursor: 'pointer' }} onClick={() => setProfileOpen(true)}><Avatar src={receiver?.profile_picture} name={contactName} size={38} online={online} T={T} /></div>
             )}
-            <div className="ms-1" style={{ minWidth: 0 }}>
+            <div className="ms-1" style={{ minWidth: 0, cursor: isGroupChat ? 'default' : 'pointer' }} onClick={() => { if (!isGroupChat) setProfileOpen(true); }}>
               <h6 className="mb-0 fw-bold text-white lh-1 d-flex align-items-center">
                 <span className="text-truncate" style={{ maxWidth: 130 }}>{contactName}</span>
                 {dTime > 0 && (
@@ -1058,6 +1082,10 @@ function ChatView() {
             <input ref={photoInputRef} type="file" className="d-none" accept="image/*,video/*" onChange={(e) => { setSelectedFile(e.target.files[0] || null); e.target.value = ''; setShowAttach(false); }} />
             <input ref={docInputRef} type="file" className="d-none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json" onChange={(e) => { setSelectedFile(e.target.files[0] || null); e.target.value = ''; setShowAttach(false); }} />
 
+            {showEmoji && !isRecording && (
+              <div className="mb-2"><EmojiPicker T={T} onPick={insertEmoji} /></div>
+            )}
+
             <div className="d-flex gap-2 align-items-center">
               {isRecording ? (
                 <div className="d-flex align-items-center w-100 bg-dark rounded-pill px-3 py-1" style={{ border: `1px solid ${T.accent}88` }}>
@@ -1091,13 +1119,18 @@ function ChatView() {
 
                   <button type="button" className={`btn rounded-circle p-1 ${isViewOnce ? 'btn-danger shadow' : 'btn-outline-secondary'}`} onClick={() => setIsViewOnce(!isViewOnce)} title="View Once Message">💣</button>
 
+                  <button type="button" className={`btn rounded-circle p-1 ${showEmoji ? 'btn-warning' : 'btn-outline-light'}`}
+                          onMouseDown={(e) => e.preventDefault()} onClick={toggleEmoji} title="Emoji" style={{ lineHeight: 1, fontSize: 18, width: 34, height: 34 }}>😊</button>
+
                   <textarea
                     ref={inputRef}
                     rows={1}
                     className="form-control px-2 py-1 text-white form-control-sm"
                     placeholder={editing ? 'Edit message...' : 'Type a message...'}
                     value={newMessage}
-                    onChange={handleTyping}
+                    onChange={(e) => { caretRef.current = e.target.selectionStart; handleTyping(e); }}
+                    onSelect={(e) => { caretRef.current = e.target.selectionStart; }}
+                    onFocus={() => setShowEmoji(false)}
                     onKeyDown={onComposerKey}
                     style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.accent}55`, fontSize: '12px', resize: 'none', overflowY: 'auto', maxHeight: 120, lineHeight: 1.4 }}
                   />

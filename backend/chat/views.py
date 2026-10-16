@@ -2,7 +2,7 @@ import os
 from datetime import timedelta
 
 from django.contrib.auth.hashers import check_password, make_password
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -324,6 +324,30 @@ class UserViewSet(viewsets.ModelViewSet):
             user.bio = bio
         user.save()
         return Response(self.get_serializer(user).data)
+
+    @action(detail=False, methods=['post'])
+    def delete_account(self, request):
+        """Permanently delete MY account (needs my password). Cannot be undone."""
+        user = request.user
+        if not user.check_password(str(request.data.get('password') or '')):
+            return Response({"error": "Wrong password"}, status=400)
+
+        # everybody who shares a chat / friendship with me must refresh their lists afterwards
+        others = set(friend_ids_of(user))
+        others.update(Chat.objects.filter(participants=user).values_list('participants', flat=True))
+        others.discard(user.id)
+        picture = user.profile_picture
+
+        with transaction.atomic():
+            Chat.objects.filter(participants=user, is_group=False).delete()   # 1:1 chats + their messages
+            user.delete()          # messages, statuses, requests, blocks, tokens... cascade away
+        try:
+            if picture:
+                picture.delete(save=False)
+        except Exception:
+            pass
+        notify_users(list(others), 'friends_changed')
+        return Response({"status": "deleted"})
 
     @action(detail=False, methods=['post'])
     def typing(self, request):                      # REST fallback when WebSocket is down

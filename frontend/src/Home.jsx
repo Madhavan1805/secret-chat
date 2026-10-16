@@ -343,13 +343,36 @@ function Home() {
 
   const doLogout = () => {
     const keep = {};
-    Object.keys(localStorage).forEach((k) => { if (/^(pinned_msg_|app_theme)/.test(k)) keep[k] = localStorage.getItem(k); });
+    Object.keys(localStorage).forEach((k) => { if (/^(pinned_msg_|app_theme|custom_reactions|recent_emojis|sounds_off)/.test(k)) keep[k] = localStorage.getItem(k); });
     pushLogout();
     disconnectSocket();
     clearMe();
     localStorage.clear();
     Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v));
     navigate('/');
+  };
+
+  // permanent account delete (asks twice: a warning, then the password)
+  const deleteAccount = async () => {
+    const ok = await ask({
+      type: 'confirm', danger: true, okText: 'Continue',
+      title: 'Delete account permanently?',
+      message: 'Your profile, chats, statuses and friends will be erased. This cannot be undone.',
+    });
+    if (!ok) return;
+    const pw = await ask({
+      type: 'prompt', danger: true, okText: 'Delete forever', inputType: 'password', inputMode: 'text',
+      title: 'Enter your password to confirm', placeholder: 'Password',
+    });
+    if (!pw) return;
+    try {
+      await api.post('users/delete_account/', { password: pw });
+    } catch (error) {
+      await ask({ type: 'alert', title: errMsg(error, 'Could not delete account') });
+      return;
+    }
+    await ask({ type: 'alert', title: 'Your account was deleted' });
+    doLogout();
   };
 
   const hasNewMessage = friends.some((f) => f.unread_count > 0 && !f.ov?.is_muted);
@@ -703,6 +726,11 @@ function Home() {
                     <button className="btn btn-sm btn-outline-light rounded-pill" style={{ fontSize: 11 }} onClick={() => doUnblock(u.id)}>Unblock</button>
                   </div>
                 ))}
+
+                <h6 className="fw-bold mb-2 mt-4" style={{ fontSize: '12px', color: '#f87171' }}>⚠️ Danger zone</h6>
+                <button className="btn btn-sm btn-outline-danger rounded-pill px-3 mb-3" style={{ fontSize: 11 }} onClick={deleteAccount}>
+                  🗑️ Delete my account permanently
+                </button>
               </div>
             </div>
           )}
