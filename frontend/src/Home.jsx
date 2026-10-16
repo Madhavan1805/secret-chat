@@ -10,6 +10,7 @@ import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
 import { getMe, clearMe, errMsg, formatListTime, formatDuration, startCall } from './config';
 import { CHAT_THEMES, APP_MODES, THEME_CSS, resolveTheme, getAppTheme, setAppTheme } from './theme';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
+import { pushLogin, pushLogout } from './push';
 
 // one row of the chats / groups list
 function ChatRow({ T, rowBg, avatar, title, subtitle, subtitleColor, time, unread, pinned, muted, locked, onOpen, menu, menuOpen, setMenuOpen }) {
@@ -135,6 +136,7 @@ function Home() {
       const overview = ovRes.data || { direct: [], groups: [] };
       const mine = allUsers.find((u) => u.id === meData.id) || meData;
       setMe(mine);
+      pushLogin(meData.id);
       localStorage.setItem('username', mine.username);
 
       setPendingRequests(
@@ -342,6 +344,7 @@ function Home() {
   const doLogout = () => {
     const keep = {};
     Object.keys(localStorage).forEach((k) => { if (/^(pinned_msg_|app_theme)/.test(k)) keep[k] = localStorage.getItem(k); });
+    pushLogout();
     disconnectSocket();
     clearMe();
     localStorage.clear();
