@@ -9,6 +9,7 @@ Railway Variables needed:
 import json
 import os
 import threading
+import urllib.error
 import urllib.request
 
 ONESIGNAL_URL = "https://api.onesignal.com/notifications?c=push"
@@ -17,7 +18,7 @@ ONESIGNAL_URL = "https://api.onesignal.com/notifications?c=push"
 SHOW_PREVIEW = True
 
 
-def _post(payload):
+def _post(payload, on_success=None):
     app_id = os.environ.get("ONESIGNAL_APP_ID")
     api_key = os.environ.get("ONESIGNAL_API_KEY")
     if not app_id or not api_key:
@@ -33,12 +34,18 @@ def _post(payload):
         method="POST",
     )
     try:
-        urllib.request.urlopen(req, timeout=10).read()
-    except Exception:
-        pass  # a push failure must never break sending a message
+        res = urllib.request.urlopen(req, timeout=10).read().decode()
+        print("ONESIGNAL OK:", res, flush=True)
+        # OneSignal accepted it for at least one device -> run the callback
+        if on_success and json.loads(res).get("id"):
+            on_success()
+    except urllib.error.HTTPError as e:
+        print("ONESIGNAL HTTP ERROR:", e.code, e.read().decode(), flush=True)
+    except Exception as e:
+        print("ONESIGNAL ERROR:", repr(e), flush=True)  # never break sending a message
 
 
-def send_push(user_ids, title, body, data=None):
+def send_push(user_ids, title, body, data=None, on_success=None):
     """Send a push to the given user ids (OneSignal external_id = user id)."""
     ids = ["u" + str(u) for u in user_ids if u is not None]
     if not ids:
@@ -51,7 +58,7 @@ def send_push(user_ids, title, body, data=None):
         "data": data or {},
     }
     # run in background so the API response is not delayed
-    threading.Thread(target=_post, args=(payload,), daemon=True).start()
+    threading.Thread(target=_post, args=(payload, on_success), daemon=True).start()
 
 
 def notify_new_message(message):

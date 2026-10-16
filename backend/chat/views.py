@@ -2,6 +2,7 @@ import os
 from datetime import timedelta
 
 from django.contrib.auth.hashers import check_password, make_password
+from django.db import connection
 from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -214,8 +215,21 @@ def notify_message(chat, msg, action, message_id=None):
                 and not (s and s.is_muted)):
             (push_locked if (s and s.pin_hash) else push_normal).append(uid)
     data = {"chat_id": chat.id}
-    send_push(push_normal, title, preview, data)
-    send_push(push_locked, title, 'New message', data)
+
+    # 1:1 chat: once OneSignal accepts the push, mark the message delivered (double tick)
+    mark = None
+    if action == 'new' and not chat.is_group and msg.status == 'sent':
+        def mark():
+            try:
+                if Message.objects.filter(id=msg.id, status='sent').update(status='delivered'):
+                    notify_message(chat, msg, 'update')
+            except Exception:
+                pass
+            finally:
+                connection.close()
+
+    send_push(push_normal, title, preview, data, on_success=mark)
+    send_push(push_locked, title, 'New message', data, on_success=mark)
 
 
 def notify_chat(chat, event, **data):
