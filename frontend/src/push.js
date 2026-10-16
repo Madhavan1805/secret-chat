@@ -1,18 +1,32 @@
-// Put this file at: frontend/src/push.js
-// Links the logged-in user to this phone in OneSignal (works only inside the Median APK).
-
 export function pushLogin(userId) {
-  try {
-    if (userId != null && window.median && window.median.onesignal && window.median.onesignal.login) {
-      window.median.onesignal.login(String(userId));
-    }
-  } catch (e) { /* ignore */ }
+  if (userId == null) return;
+  const id = String(userId);
+  let tries = 0;
+  const attempt = () => {
+    tries++;
+    try {
+      const m = window.median || window.gonative;
+      if (m && m.onesignal) {
+        if (typeof m.onesignal.login === 'function') {
+          m.onesignal.login(id);
+          return;
+        }
+        if (m.onesignal.externalUserId && typeof m.onesignal.externalUserId.set === 'function') {
+          m.onesignal.externalUserId.set({ externalId: id });
+          return;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    if (tries < 15) setTimeout(attempt, 1000);
+  };
+  attempt();
 }
 
 export function pushLogout() {
   try {
-    if (window.median && window.median.onesignal && window.median.onesignal.logout) {
-      window.median.onesignal.logout();
+    const m = window.median || window.gonative;
+    if (m && m.onesignal && typeof m.onesignal.logout === 'function') {
+      m.onesignal.logout();
     }
   } catch (e) { /* ignore */ }
 }
