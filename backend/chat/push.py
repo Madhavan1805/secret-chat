@@ -56,6 +56,8 @@ def send_push(user_ids, title, body, data=None, on_success=None):
         "headings": {"en": title},
         "contents": {"en": body},
         "data": data or {},
+        # colour app icon shown beside the notification text (file: frontend/public/icon.png)
+        "large_icon": os.environ.get("PUSH_LARGE_ICON", "https://secret-chat-umber.vercel.app/icon.png"),
     }
     # run in background so the API response is not delayed
     threading.Thread(target=_post, args=(payload, on_success), daemon=True).start()
