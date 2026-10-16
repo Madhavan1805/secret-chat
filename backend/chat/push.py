@@ -10,7 +10,6 @@ import json
 import os
 import threading
 import urllib.request
-import urllib.error
 
 ONESIGNAL_URL = "https://api.onesignal.com/notifications?c=push"
 
@@ -22,7 +21,6 @@ def _post(payload):
     app_id = os.environ.get("ONESIGNAL_APP_ID")
     api_key = os.environ.get("ONESIGNAL_API_KEY")
     if not app_id or not api_key:
-        print("ONESIGNAL: env variables missing", flush=True)
         return
     payload["app_id"] = app_id
     req = urllib.request.Request(
@@ -35,17 +33,14 @@ def _post(payload):
         method="POST",
     )
     try:
-        res = urllib.request.urlopen(req, timeout=10).read().decode()
-        print("ONESIGNAL OK:", res, flush=True)
-    except urllib.error.HTTPError as e:
-        print("ONESIGNAL HTTP ERROR:", e.code, e.read().decode(), flush=True)
-    except Exception as e:
-        print("ONESIGNAL ERROR:", repr(e), flush=True)
+        urllib.request.urlopen(req, timeout=10).read()
+    except Exception:
+        pass  # a push failure must never break sending a message
 
 
 def send_push(user_ids, title, body, data=None):
     """Send a push to the given user ids (OneSignal external_id = user id)."""
-    ids = [str(u) for u in user_ids if u is not None]
+    ids = ["u" + str(u) for u in user_ids if u is not None]
     if not ids:
         return
     payload = {
