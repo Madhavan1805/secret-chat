@@ -189,6 +189,11 @@ if _gmail_user and _gmail_app_password:
     }
     DEFAULT_FROM_EMAIL = f'Secret Chat <{_gmail_user}>'
 
+# Railway / Render block SMTP, so Gmail above will not deliver there. Set these two instead and the
+# reset code goes out over HTTPS with Brevo (free plan: verify one sender email in Brevo, no domain needed).
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', '')
+
 
 # ---------------------------------------------------------------- production hardening
 if not DEBUG:

@@ -8,7 +8,9 @@ POST auth/reset/      check the code and set a new password
 
 All of them are public, ignore any old/stale token header and are rate limited.
 """
+import json
 import logging
+import urllib.request
 from datetime import timedelta
 
 from django.conf import settings
@@ -98,16 +100,36 @@ def send_sms(number, text):
     return False
 
 
+def send_email_via_brevo(to_email, subject, text):
+    """Sends over HTTPS (port 443) with Brevo's API. Railway / Render block SMTP ports, so Gmail SMTP
+    never delivers there. Needs BREVO_API_KEY and BREVO_SENDER_EMAIL (a sender verified in Brevo)."""
+    payload = json.dumps({
+        'sender': {'name': 'Secret Chat', 'email': settings.BREVO_SENDER_EMAIL},
+        'to': [{'email': to_email}],
+        'subject': subject,
+        'textContent': text,
+    }).encode('utf-8')
+    req = urllib.request.Request(
+        'https://api.brevo.com/v3/smtp/email', data=payload, method='POST',
+        headers={'api-key': settings.BREVO_API_KEY, 'content-type': 'application/json',
+                 'accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=15):      # raises on any non-2xx answer
+        pass
+
+
 def deliver_otp(user, code):
     text = (f'Your Secret Chat code is {code}. It expires in 10 minutes. '
             'If you did not ask to reset your password, ignore this message.')
+    subject = 'Your Secret Chat password reset code'
     if user.email:
         try:
-            # uses the "default" entry of MAILERS (Django 6.1+) or the old EMAIL_* settings (older Django)
-            send_mail('Your Secret Chat password reset code', text,
-                      getattr(settings, 'DEFAULT_FROM_EMAIL', None), [user.email])
-        except Exception:  # SMTP down / wrong credentials: never crash the request
-            logger.exception('Could not send the reset code email')
+            if getattr(settings, 'BREVO_API_KEY', '') and getattr(settings, 'BREVO_SENDER_EMAIL', ''):
+                send_email_via_brevo(user.email, subject, text)
+            else:
+                # uses the "default" entry of MAILERS (Django 6.1+) or the old EMAIL_* settings (older Django)
+                send_mail(subject, text, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [user.email])
+        except Exception:  # SMTP down / blocked port / wrong key: never crash the request
+            logger.exception('Could not send the reset code email to user %s', user.pk)
     elif user.phone_number:
         send_sms(user.phone_number, text)
     if settings.DEBUG:      # local testing: the code is visible in the server terminal
