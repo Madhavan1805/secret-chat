@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from './api';
+import { Sheet } from './ui';
+import { CHAT_THEMES } from './theme';
 import { errMsg } from './config';
 
 const MAX_WALLPAPER = 5 * 1024 * 1024;
@@ -12,6 +14,11 @@ export const WALLPAPERS = {
   rose: { label: '🌹 Rose', css: 'linear-gradient(160deg, #3b0e1b, #7f1d3a, #4c0519)' },
   graphite: { label: '🩶 Graphite', css: 'linear-gradient(160deg, #141e30, #243b55)' },
 };
+
+// plain colours for the wallpaper (stored as "color:#rrggbb")
+export const SOLID_WALLPAPERS = ['#0F0B14', '#1e293b', '#0f766e', '#14532d', '#7c2d12', '#831843', '#4c1d95', '#1d4ed8', '#e8e0d0', '#f5f1f7'];
+const COLOR_RE = /^color:#[0-9a-f]{6}$/i;
+const colorOf = (preset) => (COLOR_RE.test(preset || '') ? preset.slice(6).toLowerCase() : '');
 
 const pad = (n) => String(n).padStart(2, '0');
 const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -55,7 +62,7 @@ function ScheduleModal({ open, T, initialText, chatId, onClose, onScheduled }) {
     setError('');
     try {
       await api.post('messages/schedule/', { chat_id: chatId, content: msg, send_at: d.toISOString() });
-      onScheduled(msg);
+      onScheduled(msg, d);
     } catch (e) { setError(errMsg(e, 'Could not schedule')); }
     setBusy(false);
   };
@@ -111,12 +118,100 @@ function ScheduledListModal({ open, T, items, onClose, onCancel }) {
   );
 }
 
+// ------------------------------------------------------------ "scheduled" confirmation popup
+function ScheduledDoneModal({ info, T, onClose }) {
+  useEffect(() => {
+    if (!info) return undefined;
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, [info]);
+  if (!info) return null;
+  const when = info.at.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const preview = info.text.length > 80 ? `${info.text.slice(0, 80)}…` : info.text;
+  return (
+    <div className="d-flex justify-content-center align-items-center px-3" style={{ ...overlay, zIndex: 9700 }} onClick={onClose}>
+      <div className="p-4 rounded-4 w-100 text-center" role="alertdialog" aria-label="Message scheduled" style={panel(T)} onClick={(e) => e.stopPropagation()}>
+        <div className="sched-check" aria-hidden="true">✓</div>
+        <h6 className="fw-bold mb-1" style={{ fontSize: 18 }}>Message scheduled</h6>
+        <p className="mb-1 opacity-75 text-break" style={{ fontSize: 13 }}>“{preview}”</p>
+        <p className="mb-3" style={{ fontSize: 14, color: T.accent }}>It will be sent on {when}</p>
+        <button type="button" className="btn btn-sm px-4 rounded-pill fw-bold" style={{ background: T.accent, color: '#1f2937' }} onClick={onClose}>OK</button>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ chat theme: bubble colours + wallpaper
+function ThemeSheet({ T, theme, wp, wallpaperStyle, onTheme, onPreset, onColor, onPhoto, onClear, onClose }) {
+  const timer = useRef(null);
+  const [custom, setCustom] = useState(colorOf(wp.preset) || '#4c1d95');
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const current = theme || 'default';
+  const hasWallpaper = !!(wp.url || wp.preset);
+  const themeKeys = ['default', ...Object.keys(CHAT_THEMES).filter((k) => k !== 'default')];
+  const pickCustom = (v) => {              // the colour dialog fires many times while dragging: save once it settles
+    setCustom(v);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => onColor(v), 600);
+  };
+  return (
+    <Sheet T={T} title="Chat theme" onClose={onClose}>
+      <div className="th-preview" style={wallpaperStyle} aria-hidden="true">
+        <div className="th-bub theirs">How does this look?</div>
+        <div className="th-bub mine">Pretty good 😎</div>
+      </div>
+
+      <div className="sc-label">Colours</div>
+      <div className="th-grid">
+        {themeKeys.map((k) => {
+          const t = CHAT_THEMES[k];
+          return (
+            <button key={k} type="button" className="th-chip" aria-pressed={current === k} onClick={() => onTheme(k)}>
+              <span className="th-sw" style={{ background: t.mine }} />
+              <small>{k === 'default' ? 'Follow app' : t.label.replace(/^\S+\s/, '')}</small>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="sc-label">Wallpaper colours</div>
+      <div className="th-grid">
+        {Object.entries(WALLPAPERS).map(([k, v]) => (
+          <button key={k} type="button" className="th-chip" aria-pressed={!wp.url && wp.preset === k} onClick={() => onPreset(k)}>
+            <span className="th-sw wide" style={{ backgroundImage: v.css }} />
+            <small>{v.label.replace(/^\S+\s/, '')}</small>
+          </button>
+        ))}
+        {SOLID_WALLPAPERS.map((c) => (
+          <button key={c} type="button" className="th-chip" aria-label={`Plain colour ${c}`} aria-pressed={!wp.url && colorOf(wp.preset) === c} onClick={() => onColor(c)}>
+            <span className="th-sw wide" style={{ background: c }} />
+            <small>Plain</small>
+          </button>
+        ))}
+        <label className="th-chip" aria-pressed={!wp.url && !!colorOf(wp.preset) && !SOLID_WALLPAPERS.includes(colorOf(wp.preset))}>
+          <span className="th-sw wide" style={{ background: `conic-gradient(#f43f5e, #f59e0b, #22c55e, #38bdf8, #8b5cf6, #f43f5e)` }}>
+            <input type="color" value={custom} onChange={(e) => pickCustom(e.target.value)} aria-label="Pick any colour" />
+          </span>
+          <small>Any colour</small>
+        </label>
+      </div>
+
+      <div className="sc-label">Wallpaper photo</div>
+      <button type="button" className="sc-btn ghost" style={{ width: '100%' }} onClick={onPhoto}>Choose from photo</button>
+      {wp.url && <p style={{ color: 'var(--sub)', fontSize: 12.5, margin: '8px 4px 0' }}>Your photo is the wallpaper now. Pick a colour above to replace it.</p>}
+      {hasWallpaper && <button type="button" className="sc-btn danger" style={{ width: '100%', marginTop: 10 }} onClick={onClear}>Remove wallpaper</button>}
+    </Sheet>
+  );
+}
+
 // ------------------------------------------------------------ the hook
-export function useChatExtras({ chatId, ask, messagesLen, T }) {
+export function useChatExtras({ chatId, ask, messagesLen, T, theme, onTheme }) {
   const [wp, setWp] = useState({ preset: '', url: '' });
   const [items, setItems] = useState([]);
   const [schedOpen, setSchedOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [doneInfo, setDoneInfo] = useState(null);       // the "scheduled" popup
   const [draft, setDraft] = useState('');
   const doneRef = useRef(null);
   const fileRef = useRef(null);
@@ -147,17 +242,9 @@ export function useChatExtras({ chatId, ask, messagesLen, T }) {
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Wallpaper failed') }); }
   };
 
-  const chooseWallpaper = async () => {
-    if (!chatId) return;
-    const choices = [
-      ...Object.entries(WALLPAPERS).map(([k, v]) => ({ label: v.label, value: k })),
-      { label: '🧹 Remove wallpaper', value: '__clear' },
-    ];
-    const v = await ask({ type: 'choice', title: 'Chat wallpaper', current: wp.preset, choices });
-    if (!v) return;
-    if (v === '__clear') saveWallpaper({ chat_id: chatId, clear: true });
-    else saveWallpaper({ chat_id: chatId, preset: v });
-  };
+  const setPreset = (k) => { if (chatId) saveWallpaper({ chat_id: chatId, preset: k }); };
+  const setColor = (hex) => { if (chatId) saveWallpaper({ chat_id: chatId, preset: `color:${hex.toLowerCase()}` }); };
+  const clearWallpaper = () => { if (chatId) saveWallpaper({ chat_id: chatId, clear: true }); };
 
   const pickWallpaperPhoto = () => { if (fileRef.current) fileRef.current.click(); };
 
@@ -178,12 +265,13 @@ export function useChatExtras({ chatId, ask, messagesLen, T }) {
 
   const wallpaperStyle = wp.url
     ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)), url("${wp.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : (WALLPAPERS[wp.preset] ? { backgroundImage: WALLPAPERS[wp.preset].css } : {});
+    : colorOf(wp.preset)
+      ? { backgroundColor: colorOf(wp.preset) }
+      : (WALLPAPERS[wp.preset] ? { backgroundImage: WALLPAPERS[wp.preset].css } : {});
 
   return {
     wallpaperStyle,
-    chooseWallpaper,
-    pickWallpaperPhoto,
+    openTheme: () => setThemeOpen(true),
     wallpaperInput: <input ref={fileRef} type="file" accept="image/*" className="d-none" onChange={onWallpaperFile} />,
     scheduledCount: items.length,
     openSchedule: (text, onDone) => { setDraft(text || ''); doneRef.current = onDone || null; setSchedOpen(true); },
@@ -193,8 +281,16 @@ export function useChatExtras({ chatId, ask, messagesLen, T }) {
         <ScheduleModal
           open={schedOpen} T={T} initialText={draft} chatId={chatId}
           onClose={() => setSchedOpen(false)}
-          onScheduled={(text) => { setSchedOpen(false); if (doneRef.current) doneRef.current(text); loadScheduled(); }}
+          onScheduled={(text, at) => { setSchedOpen(false); if (doneRef.current) doneRef.current(text); loadScheduled(); setDoneInfo({ text, at }); }}
         />
+        <ScheduledDoneModal info={doneInfo} T={T} onClose={() => setDoneInfo(null)} />
+        {themeOpen && (
+          <ThemeSheet
+            T={T} theme={theme} wp={wp} wallpaperStyle={wallpaperStyle}
+            onTheme={(k) => onTheme && onTheme(k)} onPreset={setPreset} onColor={setColor} onPhoto={pickWallpaperPhoto} onClear={clearWallpaper}
+            onClose={() => setThemeOpen(false)}
+          />
+        )}
         <ScheduledListModal open={listOpen} T={T} items={items} onClose={() => setListOpen(false)} onCancel={cancelItem} />
       </>
     ),

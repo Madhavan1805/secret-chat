@@ -9,7 +9,7 @@ import ForwardModal from './ForwardModal';
 import { useModal } from './PromptModal';
 import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, shortFile } from './config';
-import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
+import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
 import { Seal, SealButton } from './ui';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
@@ -121,7 +121,7 @@ function ChatView() {
   const [modal, ask] = useModal(T);
   const isGroupChat = !!groupId;
   const locked = !!meta?.is_locked && !unlocked;
-  const extras = useChatExtras({ chatId: meta?.chat_id, ask, messagesLen: messages.length, T });
+  const extras = useChatExtras({ chatId: meta?.chat_id, ask, messagesLen: messages.length, T, theme: meta?.theme, onTheme: (v) => applyTheme(v) });
 
   // ------------------------------------------------------------- data loaders
   const fetchMeta = async () => {
@@ -751,11 +751,8 @@ function ChatView() {
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
   };
 
-  const themeMenu = async () => {
+  const applyTheme = async (v) => {
     if (!meta) return;
-    const choices = [{ label: '🎨 Follow app theme', value: 'default' }, ...Object.entries(CHAT_THEMES).filter(([k]) => k !== 'default').map(([k, v]) => ({ label: v.label, value: k }))];
-    const v = await ask({ type: 'choice', title: 'Chat theme', current: meta.theme, choices });
-    if (!v) return;
     try { await api.post('chats/theme/', { chat_id: meta.chat_id, theme: v }); await fetchMeta(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
   };
 
@@ -824,9 +821,7 @@ function ChatView() {
     ['Media, docs and links', () => setShowGallery(true)],
     [`Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],
     [meta.is_locked ? 'Chat lock (change or remove)' : 'Chat lock', lockMenu],
-    ['Chat theme', themeMenu],
-    ['Wallpaper colours', extras.chooseWallpaper],
-    ['Wallpaper from photo', extras.pickWallpaperPhoto],
+    ['Chat theme and wallpaper', extras.openTheme],
     [`Scheduled messages (${extras.scheduledCount})`, extras.openScheduledList],
     [meta.is_pinned ? 'Unpin chat' : 'Pin chat', () => toggleSetting('is_pinned')],
     [meta.is_muted ? 'Unmute' : 'Mute…', muteMenu],

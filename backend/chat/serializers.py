@@ -80,7 +80,7 @@ class MessageSerializer(serializers.ModelSerializer):
         if st.media_file:
             url = request.build_absolute_uri(st.media_file.url) if request else st.media_file.url
         return {"id": st.id, "media_type": st.media_type, "media_file": url,
-                "caption": st.caption, "owner": st.user.username}
+                "caption": st.caption, "owner": st.user.username, "created_at": st.created_at}
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
