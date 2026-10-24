@@ -1,3 +1,4 @@
+import re
 import sys
 import threading
 import time
@@ -18,6 +19,7 @@ from .views import (
 )
 
 WALLPAPER_PRESETS = {'midnight', 'ocean', 'forest', 'sunset', 'rose', 'graphite'}
+COLOR_WALLPAPER_RE = re.compile(r'^color:#[0-9a-fA-F]{6}$')      # 13 characters, fits wallpaper_preset (max_length 20)
 MAX_WALLPAPER = 5 * 1024 * 1024
 
 
@@ -48,7 +50,9 @@ def wallpaper_view(request):
             s.wallpaper_image = upload
             s.wallpaper_preset = ''
         elif preset:
-            if preset not in WALLPAPER_PRESETS:
+            if COLOR_WALLPAPER_RE.match(preset):
+                preset = preset.lower()          # a plain colour: "color:#1e293b"
+            elif preset not in WALLPAPER_PRESETS:
                 return Response({"error": "Unknown wallpaper"}, status=400)
             s.wallpaper_preset = preset
             s.wallpaper_image = None

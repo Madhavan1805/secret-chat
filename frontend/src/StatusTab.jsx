@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight } from 'react-icons/bi';
+import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight, BiShow, BiSend } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import { getPicUrl, errMsg, formatListTime, shortFile } from './config';
@@ -71,6 +71,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [showViewers, setShowViewers] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
+  const [hearts, setHearts] = useState([]);
 
   const videoRef = useRef(null);
   const viewedSent = useRef(new Set());
@@ -231,8 +232,25 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   }, [st?.id]);
 
   // ---------------------------------------------------------- viewer actions
+  const burst = () => {
+    const id = `${Date.now()}-${Math.random()}`;
+    const batch = Array.from({ length: 18 }, (_, i) => ({
+      k: `${id}-${i}`,
+      dx: -150 + Math.random() * 180,            // drift left / right of the like button
+      rise: -(260 + Math.random() * 300),        // how far it floats up
+      s: 0.8 + Math.random() * 1.1,
+      r: `${Math.round(Math.random() * 60 - 30)}deg`,
+      d: Math.random() * 0.35,
+      t: 1.3 + Math.random() * 0.9,
+      size: 20 + Math.round(Math.random() * 18),
+    }));
+    setHearts((h) => [...h, ...batch]);
+    setTimeout(() => setHearts((h) => h.filter((x) => !batch.includes(x))), 2800);
+  };
+
   const doLike = async () => {
     if (!st || busy) return;
+    if (!st.liked_by_me) burst();                // hearts pour out the moment you like, not after the server answers
     setBusy(true);
     try { await api.post(`statuses/${st.id}/like/`); await refreshStatuses(); } catch (e) { flash(errMsg(e, 'Failed')); }
     setBusy(false);
@@ -240,6 +258,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
   const doReact = async (emoji) => {
     if (!st || busy) return;
+    if (emoji === '❤️' && st.my_reaction !== '❤️') burst();
     setBusy(true);
     try { await api.post(`statuses/${st.id}/react/`, { emoji }); await refreshStatuses(); } catch (e) { flash(errMsg(e, 'Failed')); }
     setBusy(false);
@@ -483,7 +502,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
             {/* viewers sheet (owner) */}
             {isMine && showViewers && (
-              <div className="position-absolute w-100 p-2" style={{ left: 0, bottom: 64, zIndex: 6, background: 'rgba(20,20,24,0.97)', borderTop: `1px solid ${T.accent}55`, maxHeight: '45%', overflowY: 'auto' }}>
+              <div className="position-absolute w-100 p-2" style={{ left: 0, bottom: 'calc(env(safe-area-inset-bottom) + 72px)', zIndex: 6, background: 'rgba(20,20,24,0.97)', borderTop: `1px solid ${T.accent}55`, maxHeight: '45%', overflowY: 'auto' }}>
                 <div className="text-white fw-bold mb-2" style={{ fontSize: 13 }}>Viewed by {st.view_count || 0} • ❤️ {st.like_count || 0}</div>
                 {(st.viewers || []).length === 0 && <small className="text-white-50">Nobody has viewed yet.</small>}
                 {(st.viewers || []).map((v) => (
@@ -501,26 +520,29 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
             {/* footer */}
             {isMine ? (
-              <div className="d-flex align-items-center justify-content-between flex-shrink-0" style={{ padding: '10px 12px 14px', zIndex: 3, background: 'rgba(0,0,0,0.6)' }}>
-                <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={() => setShowViewers(!showViewers)}>
-                  👁 {st.view_count || 0} &nbsp; ❤️ {st.like_count || 0}
+              <div className="st-foot">
+                <button type="button" className="st-stat" onClick={() => setShowViewers(!showViewers)} aria-expanded={showViewers} aria-label="Who viewed this status">
+                  <BiShow /> {st.view_count || 0}
                 </button>
-                <button className="btn btn-sm btn-outline-danger rounded-pill px-3" onClick={doDelete}><BiTrash /> Delete</button>
+                <button type="button" className="st-stat" onClick={() => setShowViewers(!showViewers)} aria-label="Who liked this status">
+                  <span aria-hidden>❤️</span> {st.like_count || 0}
+                </button>
+                <span style={{ flex: 1 }} />
+                <button type="button" className="st-round danger" onClick={doDelete} aria-label="Delete status"><BiTrash /></button>
               </div>
             ) : (
-              <div className="flex-shrink-0" style={{ padding: '8px 10px 12px', zIndex: 3, background: 'rgba(0,0,0,0.6)' }}>
-                <div className="d-flex justify-content-center gap-3 mb-2">
+              <div className="st-foot col">
+                <div className="st-tray" role="group" aria-label="React to this status">
                   {QUICK.map((e) => (
-                    <button key={e} type="button" className="btn btn-sm p-0 border-0"
-                            style={{ fontSize: 24, lineHeight: 1.2, opacity: st.my_reaction && st.my_reaction !== e ? 0.4 : 1, transform: st.my_reaction === e ? 'scale(1.3)' : 'none', transition: '0.15s' }}
+                    <button key={e} type="button" className={st.my_reaction === e ? 'on' : ''} aria-pressed={st.my_reaction === e}
+                            style={{ opacity: st.my_reaction && st.my_reaction !== e ? 0.5 : 1 }}
                             onClick={() => doReact(e)}>{e}</button>
                   ))}
                 </div>
-                <div className="d-flex gap-2 align-items-center">
+                <div className="st-reply">
                   <input
-                    className="form-control form-control-sm text-white"
-                    style={{ background: 'rgba(255,255,255,0.12)', border: `1px solid ${T.accent}66`, borderRadius: 20 }}
                     placeholder={`Reply to ${vGroup.username}…`}
+                    aria-label={`Reply to ${vGroup.username}`}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     onFocus={() => setReplyFocus(true)}
@@ -528,13 +550,23 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
                     onKeyDown={(e) => { if (e.key === 'Enter') doReply(); }}
                   />
                   {replyText.trim() ? (
-                    <button className="btn btn-sm fw-bold px-3 rounded-pill" style={{ background: T.accent, color: '#1f2937' }} onMouseDown={(e) => e.preventDefault()} onClick={doReply}>Send</button>
+                    <button type="button" className="st-like send" onMouseDown={(e) => e.preventDefault()} onClick={doReply} aria-label="Send reply"><BiSend /></button>
                   ) : (
-                    <button className="btn btn-sm p-0 border-0" style={{ fontSize: 26, lineHeight: 1 }} onClick={doLike} title="Like">
+                    <button type="button" className={`st-like${st.liked_by_me ? ' on' : ''}`} onClick={doLike} aria-label={st.liked_by_me ? 'Unlike' : 'Like'} aria-pressed={!!st.liked_by_me}>
                       {st.liked_by_me ? '❤️' : '🤍'}
                     </button>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* hearts shower when you like */}
+            {hearts.length > 0 && (
+              <div className="st-hearts" aria-hidden="true">
+                {hearts.map((h) => (
+                  <span key={h.k} className="st-heart"
+                        style={{ '--dx': `${h.dx}px`, '--rise': `${h.rise}px`, '--s': h.s, '--r': h.r, '--d': `${h.d}s`, '--t': `${h.t}s`, fontSize: h.size }}>❤️</span>
+                ))}
               </div>
             )}
           </div>

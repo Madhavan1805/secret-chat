@@ -63,17 +63,58 @@ function PollCard({ poll, onVote }) {
   );
 }
 
-function StatusCard({ st }) {
+// the status a reply was sent about: tap it to see that status full screen
+function StatusCard({ st, onOpen }) {
   const src = getPicUrl(st.media_file);
   return (
-    <div className="d-flex gap-2 mb-1 p-1 pe-2 align-items-center" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, borderLeft: '3px solid currentColor' }}>
+    <button
+      type="button"
+      aria-label={`Open ${st.owner}'s status`}
+      onClick={(e) => { e.stopPropagation(); onOpen(); }}
+      className="d-flex gap-2 mb-1 p-1 pe-2 align-items-center text-start w-100"
+      style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: 0, borderLeft: '3px solid currentColor', color: 'inherit', cursor: 'pointer' }}
+    >
       {src && st.media_type === 'image' && <img src={src} alt="" style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 8 }} />}
-      {src && st.media_type === 'video' && <video src={src} muted playsInline preload="metadata" style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 8 }} />}
+      {src && st.media_type === 'video' && <video src={src} muted playsInline preload="metadata" style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 8, pointerEvents: 'none' }} />}
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 11.5, fontWeight: 700 }}>Status · {st.owner}</div>
         <div className="text-truncate" style={{ fontSize: 12, opacity: 0.8, maxWidth: 170 }}>{st.caption || (st.media_type === 'text' ? 'Text status' : 'Photo / video')}</div>
       </div>
-    </div>
+    </button>
+  );
+}
+
+function StatusPeek({ st, onClose }) {
+  const src = getPicUrl(st.media_file);
+  const [gone, setGone] = useState(!src);          // file missing or expired
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label={`${st.owner}'s status`}
+      onClick={onClose}
+      style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 30000, background: '#000', display: 'flex', flexDirection: 'column' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(var(--safe-top, 0px) + 12px) 14px 10px', color: '#fff', flexShrink: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="text-truncate" style={{ fontWeight: 700, fontSize: 15 }}>{st.owner}'s status</div>
+          {st.created_at && <div style={{ fontSize: 12, opacity: 0.65 }}>{formatTime(st.created_at)}</div>}
+        </div>
+        <button type="button" aria-label="Close status" onClick={onClose} style={{ border: 0, background: 'rgba(255,255,255,0.16)', color: '#fff', width: 38, height: 38, borderRadius: '50%', fontSize: 20, lineHeight: 1 }}>✕</button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+        {gone ? (
+          <div style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', padding: 24 }}>This status is no longer available.</div>
+        ) : st.media_type === 'video' ? (
+          <video src={src} autoPlay playsInline controls loop onClick={(e) => e.stopPropagation()} onError={() => setGone(true)} style={{ maxWidth: '100%', maxHeight: '100%' }} />
+        ) : (
+          <img src={src} alt="Status" onError={() => setGone(true)} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+        )}
+        {!gone && st.caption && (
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 16px calc(env(safe-area-inset-bottom) + 16px)', background: 'linear-gradient(transparent, rgba(0,0,0,0.75))', color: '#fff', textAlign: 'center', fontSize: 15, whiteSpace: 'pre-wrap', wordBreak: 'break-word', pointerEvents: 'none' }}>{st.caption}</div>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -86,6 +127,7 @@ export default function MessageBubble({
   const [up, setUp] = useState(false);                        // open the menu above the bubble when there is no room below
   const rowRef = useRef(null);
   const [viewer, setViewer] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);       // tapped the status a reply was about
   const [picker, setPicker] = useState(false);               // "+" -> pick any emoji as a reaction
   const [custom, setCustom] = useState(getCustomReactions);   // my own saved reactions
   const touch = useRef({ x: 0, y: 0, timer: null });
@@ -220,7 +262,7 @@ export default function MessageBubble({
               </a>
             )}
             {isPoll && <PollCard poll={msg.poll} onVote={onVote} />}
-            {msg.status_preview && <StatusCard st={msg.status_preview} />}
+            {msg.status_preview && <StatusCard st={msg.status_preview} onOpen={() => setStatusOpen(true)} />}
             {isSticker && <div style={{ fontSize: 76, lineHeight: 1.1 }}>{content.slice(STICKER_PREFIX.length)}</div>}
             {isGif && <img src={content.slice(GIF_PREFIX.length)} alt="GIF" style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 12, display: 'block' }} />}
             {content && !isAudio && !isPoll && !isSticker && !isGif && (
@@ -243,6 +285,8 @@ export default function MessageBubble({
       {viewer && (isImage || isVideo) && (
         <MediaViewer src={getPicUrl(msg.file_url)} type={isVideo ? 'video' : 'image'} name={msg.file_name} onClose={() => setViewer(false)} />
       )}
+
+      {statusOpen && msg.status_preview && <StatusPeek st={msg.status_preview} onClose={() => setStatusOpen(false)} />}
 
       {picker && createPortal(
         <div
