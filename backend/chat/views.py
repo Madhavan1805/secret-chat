@@ -722,8 +722,19 @@ class ChatRequestViewSet(viewsets.ModelViewSet):
         existing.filter(status='declined').delete()
 
         chat_req = ChatRequest.objects.create(sender=sender, receiver_id=receiver_id, status='pending')
-        notify_users([receiver_id], 'request')
+        notify_users([receiver_id], 'request', action='new', from_name=sender.username, from_id=sender.id)
+        send_push([receiver_id], sender.username, 'sent you a friend request', {'type': 'request'})
         return Response(self.get_serializer(chat_req).data, status=201)
+
+    def destroy(self, request, *args, **kwargs):
+        """The sender can take back a request that is still pending (like "Requested" -> cancel)."""
+        req = self.get_object()
+        if req.sender_id != request.user.id or req.status != 'pending':
+            raise PermissionDenied("Only your own pending request can be cancelled.")
+        receiver_id = req.receiver_id
+        req.delete()
+        notify_users([receiver_id, request.user.id], 'request', action='cancel')
+        return Response(status=204)
 
     def update(self, request, *args, **kwargs):
         req = self.get_object()
@@ -735,6 +746,8 @@ class ChatRequestViewSet(viewsets.ModelViewSet):
         req.status = new_status
         req.save(update_fields=['status'])
         notify_users([req.sender_id, req.receiver_id], 'friends_changed')
+        if new_status == 'accepted':
+            send_push([req.sender_id], request.user.username, 'accepted your friend request', {'type': 'request'})
         return Response(self.get_serializer(req).data)
 
 
@@ -992,6 +1005,8 @@ class StatusViewSet(viewsets.ModelViewSet):
             | Q(user_id__in=friends, privacy='all')                           # friends: public
             | Q(user_id__in=friends, privacy='close',
                 user__close_friends__friend=user)                             # only if I am in THEIR close list
+            | Q(user_id__in=friends, privacy='only', privacy_users=user)      # "only share with" - I was picked
+            | (Q(user_id__in=friends, privacy='except') & ~Q(privacy_users=user))   # "all except" - I was not excluded
         ).distinct()
         return qs.select_related('user').prefetch_related('views__viewer').order_by('created_at')
 
@@ -1001,19 +1016,35 @@ class StatusViewSet(viewsets.ModelViewSet):
         f = self.request.FILES.get('media_file')
         media_type = 'video' if f and (f.content_type or '').startswith('video') else 'image'
         privacy = self.request.data.get('privacy') or 'all'
-        if privacy not in ('all', 'close'):
+        if privacy not in ('all', 'close', 'except', 'only'):
             raise ValidationError({"error": "Invalid privacy option"})
         caption = (self.request.data.get('caption') or '').strip()[:300]
 
         friends = set(friend_ids_of(user))
+        raw = self.request.data.getlist('privacy_ids') if hasattr(self.request.data, 'getlist') else self.request.data.get('privacy_ids') or []
+        picked = set()
+        for x in raw:
+            for part in str(x).split(','):
+                i = to_int(part.strip())
+                if i in friends:
+                    picked.add(i)
+
         if privacy == 'close':
             audience = set(CloseFriend.objects.filter(owner=user).values_list('friend_id', flat=True)) & friends
             if not audience:
                 raise ValidationError({"error": "Your Close Friends list is empty. Add some friends first."})
+        elif privacy == 'only':
+            audience = picked
+            if not audience:
+                raise ValidationError({"error": "Pick at least one friend to share with."})
+        elif privacy == 'except':
+            audience = friends - picked
         else:
             audience = friends
 
-        serializer.save(user=user, media_type=media_type, privacy=privacy, caption=caption)
+        st = serializer.save(user=user, media_type=media_type, privacy=privacy, caption=caption)
+        if privacy in ('only', 'except'):
+            st.privacy_users.set(picked)
         notify_users(list(audience), 'status')
 
     def perform_update(self, serializer):

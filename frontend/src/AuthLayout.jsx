@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { BiShow, BiHide } from 'react-icons/bi';
 import { passwordStrength } from './auth';
-import { Seal } from './ui';
 
 /* Shared shell for Login / Register / Forgot password.
    Self-contained styles (no Bootstrap needed). Same maroon + gold as Home and ChatView. */
@@ -26,8 +25,9 @@ const CSS = `
 /* ---- brand ---- */
 .au-brand{grid-area:brand; text-align:center}
 .au-logo{display:flex; align-items:center; justify-content:center; gap:12px; line-height:1}
-.au-logo-a{font-family:'Bricolage Grotesque','Noto Sans Tamil',system-ui,sans-serif; font-weight:800; font-size:2.1rem; letter-spacing:-.03em}
-.au-logo-b{display:none}
+.au-logo{align-items:baseline; gap:0}
+.au-logo-a{font-family:'Playfair Display',Georgia,serif; font-weight:700; font-size:2rem; letter-spacing:.5px}
+.au-logo-b{display:block; font-family:'Great Vibes','Apple Chancery','URW Chancery L','Z003',cursive; font-size:2.7rem; margin-left:6px; color:var(--gold); text-shadow:0 0 14px rgba(255,100,119,.45)}
 .au-seal-intro{animation:au-stamp .6s .1s cubic-bezier(.2,.8,.2,1) both}
 @keyframes au-stamp{0%{transform:scale(1.5) rotate(14deg);opacity:0}60%{transform:scale(.92) rotate(-3deg);opacity:1}100%{transform:none}}
 .au-tag{display:none; margin:16px 0 0; max-width:28ch; color:var(--mute); font-size:1.08rem; line-height:1.6}
@@ -125,7 +125,8 @@ const CSS = `
   }
   .au-brand{text-align:left; align-self:start; padding-top:12px}
   .au-logo{justify-content:flex-start}
-  .au-logo-a{font-size:3.6rem}
+  .au-logo-a{font-size:4rem}
+  .au-logo-b{font-size:5.4rem; margin-left:10px}
   .au-tag{display:block}
   .au-card{align-self:center}
   .au-sign{justify-content:flex-start; gap:18px; align-self:end}
@@ -154,8 +155,8 @@ export default function AuthLayout({ title, subtitle, children }) {
       <div className="au-wrap">
         <header className="au-brand">
           <div className="au-logo">
-            <span className="au-seal-intro" style={{ display: 'inline-grid' }}><Seal size={56} keyhole /></span>
-            <span className="au-logo-a">Secret Chat</span>
+            <span className="au-logo-a">Secret</span>
+            <span className="au-logo-b">Chat</span>
           </div>
           <p className="au-tag">Private conversations with the people you choose to add. Nothing else.</p>
         </header>

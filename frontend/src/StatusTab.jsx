@@ -2,12 +2,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
-import { getPicUrl, errMsg, formatListTime } from './config';
+import { getPicUrl, errMsg, formatListTime, shortFile } from './config';
 
 const IMAGE_MS = 5000;           // how long a photo stays on screen
 const TICK_MS = 50;
 const QUICK = ['❤️', '😂', '😮', '😢', '🙏', '🔥'];
 const CLOSE_GREEN = '#22c55e';
+const readIds = (k) => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+const saveIds = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } };
+const AUDIENCES = [
+  { key: 'all', label: 'My friends', icon: '👥', color: null },
+  { key: 'except', label: 'My friends except…', icon: '🚫', color: '#f59e0b' },
+  { key: 'only', label: 'Only share with…', icon: '🎯', color: '#38bdf8' },
+  { key: 'close', label: 'Close friends', icon: '💚', color: CLOSE_GREEN },
+];
 
 // group the flat status list -> one entry per person, oldest status first
 const groupByUser = (list) => {
@@ -49,7 +57,9 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [mutedIds, setMutedIds] = useState([]);
   const [showMuted, setShowMuted] = useState(false);
   const [closeIds, setCloseIds] = useState([]);
-  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);   // holds the picker mode: 'close' | 'except' | 'only' | false
+  const [exceptIds, setExceptIds] = useState(() => readIds('sc_status_except'));
+  const [onlyIds, setOnlyIds] = useState(() => readIds('sc_status_only'));
   const [closeDraft, setCloseDraft] = useState([]);
   const [closeError, setCloseError] = useState('');
 
@@ -106,9 +116,12 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     } catch (e) { flash(errMsg(e, 'Failed')); }
   };
 
-  const openClose = () => { setCloseDraft(closeIds); setCloseError(''); setCloseOpen(true); };
+  const listFor = (mode) => (mode === 'except' ? exceptIds : mode === 'only' ? onlyIds : closeIds);
+  const openClose = (mode = 'close') => { setCloseDraft(listFor(mode)); setCloseError(''); setCloseOpen(mode); };
   const toggleDraft = (id) => setCloseDraft((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const saveClose = async () => {
+    if (closeOpen === 'except') { setExceptIds(closeDraft); saveIds('sc_status_except', closeDraft); setCloseOpen(false); return; }
+    if (closeOpen === 'only') { setOnlyIds(closeDraft); saveIds('sc_status_only', closeDraft); setCloseOpen(false); return; }
     try {
       const r = await api.post('statuses/close_friends/', { ids: closeDraft });
       setCloseIds(Array.isArray(r.data?.ids) ? r.data.ids : []);
@@ -140,13 +153,15 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
   const postStatus = async () => {
     if (!uploadFile || posting) return;
-    if (privacy === 'close' && closeIds.length === 0) { openClose(); return; }
+    if (privacy === 'close' && closeIds.length === 0) { openClose('close'); return; }
+    if (privacy === 'only' && onlyIds.length === 0) { openClose('only'); return; }
     setPosting(true);
     setUploadError('');
     const fd = new FormData();
-    fd.append('media_file', uploadFile);
+    fd.append('media_file', shortFile(uploadFile));
     fd.append('caption', caption.trim());
     fd.append('privacy', privacy);
+    if (privacy === 'except' || privacy === 'only') (privacy === 'except' ? exceptIds : onlyIds).forEach((id) => fd.append('privacy_ids', id));
     try {
       await api.post('statuses/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       cancelUpload();
@@ -351,19 +366,23 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               />
 
               <div className="text-light opacity-75 mb-1" style={{ fontSize: 11 }}>Who can see this?</div>
-              <div className="d-flex gap-2 mb-2">
-                <button type="button" className="btn btn-sm flex-grow-1 rounded-pill"
-                        style={{ fontSize: 12, border: `1px solid ${T.accent}`, background: privacy === 'all' ? T.accent : 'transparent', color: privacy === 'all' ? '#1f2937' : '#fff' }}
-                        onClick={() => setPrivacy('all')}>👥 All friends</button>
-                <button type="button" className="btn btn-sm flex-grow-1 rounded-pill"
-                        style={{ fontSize: 12, border: `1px solid ${CLOSE_GREEN}`, background: privacy === 'close' ? CLOSE_GREEN : 'transparent', color: privacy === 'close' ? '#052e16' : '#fff' }}
-                        onClick={() => setPrivacy('close')}>💚 Close friends ({closeIds.length})</button>
+              <div className="d-flex flex-column gap-1 mb-2">
+                {AUDIENCES.map((a) => {
+                  const on = privacy === a.key;
+                  const col = a.color || T.accent;
+                  const n = a.key === 'except' ? exceptIds.length : a.key === 'only' ? onlyIds.length : a.key === 'close' ? closeIds.length : null;
+                  return (
+                    <div key={a.key} className="d-flex align-items-center rounded-pill" style={{ border: `1px solid ${col}`, background: on ? col : 'transparent', color: on ? '#101010' : '#fff', padding: '0 4px 0 14px' }}>
+                      <button type="button" className="btn btn-sm text-start flex-grow-1 p-0" style={{ color: 'inherit', fontSize: 13, height: 34 }} onClick={() => setPrivacy(a.key)} aria-pressed={on}>
+                        {a.icon} {a.label}{n !== null ? ` (${n})` : ''}
+                      </button>
+                      {a.key !== 'all' && (
+                        <button type="button" className="btn btn-sm" style={{ color: 'inherit', fontSize: 12, textDecoration: 'underline' }} onClick={() => { setPrivacy(a.key); openClose(a.key); }}>Edit</button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              {privacy === 'close' && (
-                <button type="button" className="btn btn-sm btn-link p-0 mb-2" style={{ fontSize: 11, color: CLOSE_GREEN }} onClick={openClose}>
-                  {closeIds.length === 0 ? 'Your list is empty. Add close friends' : 'Edit close friends list'}
-                </button>
-              )}
 
               {uploadError && <div className="text-danger small mb-2">{uploadError}</div>}
 
@@ -379,8 +398,8 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
       {closeOpen && (
         <div className="d-flex justify-content-center align-items-center px-3" style={{ ...overlay, zIndex: 9700, background: 'rgba(0,0,0,0.85)' }}>
           <div className="p-3 rounded-4 w-100" style={{ maxWidth: 380, background: '#16101a', border: `1px solid ${CLOSE_GREEN}` }}>
-            <h6 className="fw-bold mb-1" style={{ color: CLOSE_GREEN }}>💚 Close Friends</h6>
-            <p className="text-light opacity-75 mb-2" style={{ fontSize: 11 }}>Only the people you tick can see your “Close friends” statuses.</p>
+            <h6 className="fw-bold mb-1" style={{ color: CLOSE_GREEN }}>{closeOpen === 'except' ? '🚫 Hide from…' : closeOpen === 'only' ? '🎯 Only share with…' : '💚 Close Friends'}</h6>
+            <p className="text-light opacity-75 mb-2" style={{ fontSize: 11 }}>{closeOpen === 'except' ? 'Everyone can see it except the people you tick.' : closeOpen === 'only' ? 'Only the people you tick can see this status.' : 'Only the people you tick can see your “Close friends” statuses.'}</p>
             <div className="hide-scroll" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
               {friends.length === 0 && <p className="text-white-50 small">No friends yet.</p>}
               {friends.map((f) => (
@@ -421,7 +440,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
                 <div className="ms-2 flex-grow-1" style={{ minWidth: 0 }}>
                   <div className="text-white fw-bold text-truncate" style={{ fontSize: 13 }}>{isMine ? 'My Status' : vGroup.username}</div>
                   <div className="text-white-50" style={{ fontSize: 10 }}>
-                    {formatListTime(st.created_at)} {st.privacy === 'close' && <span style={{ color: CLOSE_GREEN }}>• 💚 Close friends</span>}
+                    {formatListTime(st.created_at)} {st.privacy === 'close' && <span style={{ color: CLOSE_GREEN }}>• 💚 Close friends</span>}{st.privacy === 'except' && <span>• 🚫 Friends except…</span>}{st.privacy === 'only' && <span>• 🎯 Selected people</span>}
                   </div>
                 </div>
                 <button className="btn btn-sm text-white fs-4 p-0" onClick={closeViewer}><BiX /></button>

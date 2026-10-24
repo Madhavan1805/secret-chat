@@ -54,7 +54,7 @@ export default function MediaViewer({ src, type, name, onClose }) {
     <div
       style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 30000, background: 'rgba(0,0,0,0.96)', display: 'flex', flexDirection: 'column' }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'calc(env(safe-area-inset-top) + 10px) 12px 10px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'calc(var(--safe-top, 0px) + 10px) 12px 10px', flexShrink: 0 }}>
         <button type="button" style={btn} onClick={onClose} title="Close"><BiX size={26} /></button>
         <button type="button" style={{ ...btn, opacity: busy ? 0.5 : 1 }} onClick={save} title="Download"><BiDownload size={22} /></button>
       </div>
