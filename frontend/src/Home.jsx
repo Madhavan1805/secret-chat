@@ -14,6 +14,8 @@ import ProfileHub from './ProfileHub';
 import { RequestsSheet, FindPeopleSheet } from './People';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
+import { useBackClose } from './backClose';
+import { BsCheck, BsCheckAll } from 'react-icons/bs';
 
 // one row of the chats / groups list
 function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, muted, locked, onOpen, menu, menuOpen, setMenuOpen }) {
@@ -80,6 +82,7 @@ function Home() {
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [muteFor, setMuteFor] = useState(null);
   const [rowMenu, setRowMenu] = useState(null);
+  useBackClose(!!rowMenu, () => setRowMenu(null));
 
   const [me, setMe] = useState(null);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -352,10 +355,19 @@ function Home() {
   const groupUnread = groups.some((g) => g.unread_count > 0 && !g.is_muted);
   const missedCalls = calls.filter((c) => c.direction === 'incoming' && c.status === 'missed').length;
 
-  const lastText = (row, myId) => {
-    if (!row?.last_message) return null;
-    const mine = row.last_message.sender_id === myId;
-    return `${mine ? 'You: ' : ''}${row.last_message.preview}`;
+  // last message line of a chat row. My own message in a 1:1 chat gets a tick: one = sent, two = delivered, blue = seen.
+  const lastText = (row, myId, withTick = false) => {
+    const lm = row?.last_message;
+    if (!lm) return null;
+    if (lm.sender_id !== myId) return lm.preview;
+    const tickStyle = { verticalAlign: '-3px', marginRight: 4, flexShrink: 0 };
+    let tick = null;
+    if (withTick) {
+      if (lm.status === 'read') tick = <BsCheckAll size={17} color="#38bdf8" style={tickStyle} aria-label="Seen" />;
+      else if (lm.status === 'delivered') tick = <BsCheckAll size={17} style={tickStyle} aria-label="Delivered" />;
+      else tick = <BsCheck size={17} style={tickStyle} aria-label="Sent" />;
+    }
+    return <>{tick}You: {lm.preview}</>;
   };
 
   // ------------------------------------------------------------------- UI
@@ -386,7 +398,7 @@ function Home() {
 
   const friendRow = (friend) => {
     const ov = friend.ov;
-    const typedText = lastText(ov, me?.id);
+    const typedText = lastText(ov, me?.id, true);
     const key = `f${friend.id}`;
     return (
       <ChatRow

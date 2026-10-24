@@ -670,11 +670,18 @@ class ChatViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def clear_chat(self, request, pk=None):
-        """Clear for ME only (works for groups and 1:1)."""
+        """Clear for ME only (works for groups and 1:1).
+        keep_starred=true keeps my starred messages; keep_ids=[...] keeps those messages (the pinned one)."""
         chat = self.get_object()
         through = Message.hidden_for.through
-        ids = list(Message.objects.filter(chat=chat).exclude(hidden_for=request.user)
-                   .values_list('id', flat=True))
+        qs = Message.objects.filter(chat=chat).exclude(hidden_for=request.user)
+        if to_bool(request.data.get('keep_starred')):
+            qs = qs.exclude(starred_by=request.user)
+        raw_keep = request.data.get('keep_ids')
+        keep = [int(i) for i in raw_keep if str(i).isdigit()] if isinstance(raw_keep, (list, tuple)) else []
+        if keep:
+            qs = qs.exclude(id__in=keep)
+        ids = list(qs.values_list('id', flat=True))
         through.objects.bulk_create(
             [through(message_id=i, customuser_id=request.user.id) for i in ids], ignore_conflicts=True)
         return Response({"status": "Chat cleared for you"})

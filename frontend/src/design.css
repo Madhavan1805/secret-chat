@@ -339,3 +339,36 @@ html, body { background: var(--page-bg, #0F0B14); }
 /* "message scheduled" popup */
 .sched-check { width: 64px; height: 64px; margin: 0 auto 12px; display: grid; place-items: center; border-radius: 50%; background: #22c55e; color: #fff; font-size: 34px; font-weight: 700; line-height: 1; animation: st-pop .45s; }
 @media (prefers-reduced-motion: reduce) { .sched-check { animation: none; } }
+
+/* ---------- status: audience chip + sheet, small reaction picker, emoji rain ---------- */
+.st-postrow { display: flex; align-items: center; gap: 10px; }
+.st-aud { display: inline-flex; align-items: center; gap: 6px; max-width: 62%; height: 44px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, .28); border-radius: 22px; background: rgba(255, 255, 255, .1); color: #fff; font-size: 14px; }
+.st-aud .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-post { flex: 1; height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 22px; background: var(--accent); color: #1f2937; font-weight: 700; font-size: 15px; }
+.st-post:disabled { opacity: .6; }
+.st-sheet { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 100%; max-width: 440px; padding: 8px 14px calc(env(safe-area-inset-bottom) + 18px); border-radius: 24px 24px 0 0; background: var(--panel, #16101a); color: var(--text, #fff); box-shadow: 0 -12px 40px rgba(0, 0, 0, .5); }
+.st-sheet h6 { margin: 6px 4px 10px; font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+.st-sheet-grip { width: 40px; height: 4px; margin: 4px auto 8px; border-radius: 2px; background: var(--line, rgba(255, 255, 255, .2)); }
+.st-aud-row { display: flex; align-items: center; border-radius: 16px; }
+.st-aud-row.on { background: var(--surface, rgba(255, 255, 255, .06)); }
+.st-aud-row .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px; border: 0; background: transparent; color: inherit; text-align: left; }
+.st-aud-row .radio { width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--sub, #999); }
+.st-aud-row.on .radio { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 45%, transparent 50%); }
+.st-aud-row .txt { display: flex; flex-direction: column; min-width: 0; }
+.st-aud-row .txt b { font-weight: 600; font-size: 15px; }
+.st-aud-row .txt small { color: var(--sub, #aaa); font-size: 12.5px; }
+.st-aud-row .edit { border: 0; background: transparent; color: var(--accent); font-weight: 600; font-size: 13px; padding: 10px 14px; }
+
+.st-tray.pop { position: absolute; right: -4px; bottom: 56px; z-index: 5; gap: 0; padding: 4px 6px; background: rgba(30, 30, 36, .96); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); animation: st-pop-in .16s ease-out; }
+.st-tray.pop button { width: 38px; height: 38px; font-size: 22px; }
+@keyframes st-pop-in { from { opacity: 0; transform: translateY(8px) scale(.92); } }
+
+.st-rain { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 8; }
+.st-drop { position: absolute; top: -48px; line-height: 1; opacity: 0; animation: st-rain var(--t, 2s) cubic-bezier(.4, .1, .9, .7) var(--d, 0s) forwards; }
+@keyframes st-rain {
+  0% { opacity: 0; transform: translateY(0) rotate(0); }
+  8% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(calc(var(--app-height, 100dvh) + 80px)) rotate(var(--r)); }
+}
+@media (prefers-reduced-motion: reduce) { .st-rain { display: none; } .st-tray.pop { animation: none; } }

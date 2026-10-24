@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useBackClose } from './backClose';
 
 /**
  * const [modal, ask] = useModal(T);
@@ -27,6 +28,7 @@ export function useModal(T) {
   };
 
   const cancelValue = state && (state.type === 'confirm' ? false : null);
+  useBackClose(!!state, () => finish(cancelValue));        // back button = Cancel
   const accent = T?.accent || '#fcd34d';
 
   const modal = state ? (

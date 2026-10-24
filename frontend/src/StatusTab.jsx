@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight, BiShow, BiSend } from 'react-icons/bi';
+import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight, BiChevronDown, BiDotsVerticalRounded, BiShow, BiSend } from 'react-icons/bi';
+import { useBackClose } from './backClose';
 import api from './api';
 import Avatar from './Avatar';
 import { getPicUrl, errMsg, formatListTime, shortFile } from './config';
@@ -16,6 +17,13 @@ const AUDIENCES = [
   { key: 'only', label: 'Only share with…', icon: '🎯', color: '#38bdf8' },
   { key: 'close', label: 'Close friends', icon: '💚', color: CLOSE_GREEN },
 ];
+
+const AUD_HINT = {
+  all: 'Everyone you are friends with',
+  except: 'Friends, except the people you pick',
+  only: 'Only the people you pick',
+  close: 'Only your close friends list',
+};
 
 // group the flat status list -> one entry per person, oldest status first
 const groupByUser = (list) => {
@@ -72,6 +80,10 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
   const [hearts, setHearts] = useState([]);
+  const [drops, setDrops] = useState([]);              // emoji rain after a reaction
+  const [trayOpen, setTrayOpen] = useState(false);     // the small reaction picker
+  const [audOpen, setAudOpen] = useState(false);       // "who can see this" sheet
+  const [menuOpen, setMenuOpen] = useState(false);     // 3-dot menu on my status row
 
   const videoRef = useRef(null);
   const viewedSent = useRef(new Set());
@@ -94,7 +106,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const idx = Math.min(viewer?.index || 0, Math.max(items.length - 1, 0));
   const st = vGroup ? items[idx] : null;
   const isMine = !!st && st.user === meId;
-  const paused = replyFocus || showViewers;
+  const paused = replyFocus || showViewers || trayOpen;
 
   // ---------------------------------------------------------- close friends
   const loadClose = async () => {
@@ -145,6 +157,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   };
 
   const cancelUpload = () => {
+    setAudOpen(false);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setUploadFile(null);
     setPreviewUrl('');
@@ -175,7 +188,8 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const closeViewer = () => { setViewer(null); setShowViewers(false); setReplyText(''); setReplyFocus(false); setProgress(0); };
 
   const openGroup = (g, seq) => {
-    const firstUnseen = g.user === meId ? 0 : g.items.findIndex((i) => !i.viewed_by_me);
+    // my own status opens on the newest update; a friend's opens on the first one I have not seen
+    const firstUnseen = g.user === meId ? g.items.length - 1 : g.items.findIndex((i) => !i.viewed_by_me);
     setProgress(0);
     setViewer({ userId: g.user, index: firstUnseen < 0 ? 0 : firstUnseen, seq: seq || [] });
   };
@@ -204,7 +218,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   useEffect(() => { if (viewer && !vGroup) closeViewer(); }, [viewer?.userId, !!vGroup]);
 
   // reset when the story changes
-  useEffect(() => { setProgress(0); setReplyText(''); setShowViewers(false); }, [st?.id]);
+  useEffect(() => { setProgress(0); setReplyText(''); setShowViewers(false); setTrayOpen(false); }, [st?.id]);
 
   // photo timer
   useEffect(() => {
@@ -248,6 +262,21 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     setTimeout(() => setHearts((h) => h.filter((x) => !batch.includes(x))), 2800);
   };
 
+  const rain = (emoji) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    const batch = Array.from({ length: 30 }, (_, i) => ({
+      k: `${id}-${i}`,
+      x: 2 + Math.random() * 94,                  // % across the screen
+      r: `${Math.round(Math.random() * 80 - 40)}deg`,
+      d: Math.random() * 0.9,
+      t: 1.6 + Math.random() * 1.2,
+      size: 20 + Math.round(Math.random() * 20),
+      e: emoji,
+    }));
+    setDrops((p) => [...p, ...batch]);
+    setTimeout(() => setDrops((p) => p.filter((x) => !batch.includes(x))), 3500);
+  };
+
   const doLike = async () => {
     if (!st || busy) return;
     if (!st.liked_by_me) burst();                // hearts pour out the moment you like, not after the server answers
@@ -258,7 +287,8 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
   const doReact = async (emoji) => {
     if (!st || busy) return;
-    if (emoji === '❤️' && st.my_reaction !== '❤️') burst();
+    setTrayOpen(false);
+    if (st.my_reaction !== emoji) rain(emoji);      // the chosen emoji pours down at once
     setBusy(true);
     try { await api.post(`statuses/${st.id}/react/`, { emoji }); await refreshStatuses(); } catch (e) { flash(errMsg(e, 'Failed')); }
     setBusy(false);
@@ -295,6 +325,16 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
   const overlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9500 };
 
+  // the back button / swipe closes the top-most screen instead of leaving the app
+  useBackClose(!!uploadFile, cancelUpload);
+  useBackClose(!!closeOpen, () => setCloseOpen(false));
+  useBackClose(!!viewer, closeViewer);
+  useBackClose(audOpen, () => setAudOpen(false));
+  useBackClose(menuOpen, () => setMenuOpen(false));
+
+  const curAud = AUDIENCES.find((a) => a.key === privacy) || AUDIENCES[0];
+  const curCount = privacy === 'except' ? exceptIds.length : privacy === 'only' ? onlyIds.length : privacy === 'close' ? closeIds.length : null;
+
   // ======================================================================= UI
   return (
     <div>
@@ -317,11 +357,24 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
         </div>
         <label htmlFor="status-upload" className="sc-iconbtn on" style={{ margin: 0, cursor: 'pointer' }} title="Add status" onClick={(e) => e.stopPropagation()} aria-label="Add status"><BiImageAdd /></label>
         <input type="file" id="status-upload" className="d-none" accept="image/*,video/*" onChange={pickFile} />
+        <button type="button" className="sc-dots" aria-label="Status options" aria-expanded={menuOpen} onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}>
+          <BiDotsVerticalRounded />
+        </button>
+        {menuOpen && (
+          <>
+            <div onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
+            <div className="sc-menu" onClick={(e) => e.stopPropagation()}>
+              {[
+                [`💚 Close friends (${closeIds.length})`, 'close'],
+                [`🚫 Hide status from… (${exceptIds.length})`, 'except'],
+                [`🎯 Only share with… (${onlyIds.length})`, 'only'],
+              ].map(([label, mode]) => (
+                <button key={mode} type="button" onClick={() => { setMenuOpen(false); openClose(mode); }}>{label}</button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
-
-      <button type="button" className="sc-btn ghost" style={{ width: '100%', margin: '4px 0 6px', color: CLOSE_GREEN }} onClick={openClose}>
-        Close friends ({closeIds.length})
-      </button>
 
       {/* ---------------- friends' statuses (one row per person) ---------------- */}
       <div className="sc-section">Recent updates</div>
@@ -384,31 +437,44 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
                 onChange={(e) => setCaption(e.target.value)}
               />
 
-              <div className="text-light opacity-75 mb-1" style={{ fontSize: 11 }}>Who can see this?</div>
-              <div className="d-flex flex-column gap-1 mb-2">
-                {AUDIENCES.map((a) => {
-                  const on = privacy === a.key;
-                  const col = a.color || T.accent;
-                  const n = a.key === 'except' ? exceptIds.length : a.key === 'only' ? onlyIds.length : a.key === 'close' ? closeIds.length : null;
-                  return (
-                    <div key={a.key} className="d-flex align-items-center rounded-pill" style={{ border: `1px solid ${col}`, background: on ? col : 'transparent', color: on ? '#101010' : '#fff', padding: '0 4px 0 14px' }}>
-                      <button type="button" className="btn btn-sm text-start flex-grow-1 p-0" style={{ color: 'inherit', fontSize: 13, height: 34 }} onClick={() => setPrivacy(a.key)} aria-pressed={on}>
-                        {a.icon} {a.label}{n !== null ? ` (${n})` : ''}
-                      </button>
-                      {a.key !== 'all' && (
-                        <button type="button" className="btn btn-sm" style={{ color: 'inherit', fontSize: 12, textDecoration: 'underline' }} onClick={() => { setPrivacy(a.key); openClose(a.key); }}>Edit</button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
               {uploadError && <div className="text-danger small mb-2">{uploadError}</div>}
 
-              <button className="btn w-100 fw-bold rounded-pill" disabled={posting} style={{ background: T.accent, color: '#1f2937' }} onClick={postStatus}>
-                {posting ? 'Posting…' : 'Post status'}
-              </button>
+              <div className="st-postrow">
+                <button type="button" className="st-aud" onClick={() => setAudOpen(true)} aria-label="Who can see this status">
+                  <span aria-hidden>{curAud.icon}</span>
+                  <span className="t">{curAud.label}{curCount !== null ? ` (${curCount})` : ''}</span>
+                  <BiChevronDown />
+                </button>
+                <button type="button" className="st-post" disabled={posting} onClick={postStatus}>
+                  {posting ? 'Posting…' : <>Post <BiSend /></>}
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- WHO CAN SEE IT (sheet) ---------------- */}
+      {uploadFile && audOpen && (
+        <div style={{ ...overlay, zIndex: 9650, background: 'rgba(0,0,0,0.6)' }} onClick={() => setAudOpen(false)}>
+          <div className="st-sheet" role="dialog" aria-label="Status privacy" onClick={(e) => e.stopPropagation()}>
+            <div className="st-sheet-grip" />
+            <h6>Who can see your status?</h6>
+            {AUDIENCES.map((a) => {
+              const n = a.key === 'except' ? exceptIds.length : a.key === 'only' ? onlyIds.length : a.key === 'close' ? closeIds.length : null;
+              const on = privacy === a.key;
+              return (
+                <div key={a.key} className={`st-aud-row${on ? ' on' : ''}`}>
+                  <button type="button" className="main" onClick={() => { setPrivacy(a.key); setAudOpen(false); }} aria-pressed={on}>
+                    <span className="radio" aria-hidden />
+                    <span className="txt"><b>{a.icon} {a.label}{n !== null ? ` (${n})` : ''}</b><small>{AUD_HINT[a.key]}</small></span>
+                  </button>
+                  {a.key !== 'all' && (
+                    <button type="button" className="edit" onClick={() => { setPrivacy(a.key); setAudOpen(false); openClose(a.key); }}>Edit</button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -532,13 +598,6 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               </div>
             ) : (
               <div className="st-foot col">
-                <div className="st-tray" role="group" aria-label="React to this status">
-                  {QUICK.map((e) => (
-                    <button key={e} type="button" className={st.my_reaction === e ? 'on' : ''} aria-pressed={st.my_reaction === e}
-                            style={{ opacity: st.my_reaction && st.my_reaction !== e ? 0.5 : 1 }}
-                            onClick={() => doReact(e)}>{e}</button>
-                  ))}
-                </div>
                 <div className="st-reply">
                   <input
                     placeholder={`Reply to ${vGroup.username}…`}
@@ -552,11 +611,37 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
                   {replyText.trim() ? (
                     <button type="button" className="st-like send" onMouseDown={(e) => e.preventDefault()} onClick={doReply} aria-label="Send reply"><BiSend /></button>
                   ) : (
-                    <button type="button" className={`st-like${st.liked_by_me ? ' on' : ''}`} onClick={doLike} aria-label={st.liked_by_me ? 'Unlike' : 'Like'} aria-pressed={!!st.liked_by_me}>
-                      {st.liked_by_me ? '❤️' : '🤍'}
-                    </button>
+                    <>
+                      <div style={{ position: 'relative' }}>
+                        {trayOpen && (
+                          <>
+                            <div onClick={() => setTrayOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 4 }} />
+                            <div className="st-tray pop" role="group" aria-label="React to this status">
+                              {QUICK.map((e) => (
+                                <button key={e} type="button" className={st.my_reaction === e ? 'on' : ''} aria-pressed={st.my_reaction === e} onClick={() => doReact(e)}>{e}</button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        <button type="button" className={`st-like${st.my_reaction ? ' on' : ''}`} style={{ position: 'relative', zIndex: 5 }} onClick={() => setTrayOpen(!trayOpen)} aria-label="React" aria-expanded={trayOpen}>
+                          {st.my_reaction || '😊'}
+                        </button>
+                      </div>
+                      <button type="button" className={`st-like${st.liked_by_me ? ' on' : ''}`} onClick={doLike} aria-label={st.liked_by_me ? 'Unlike' : 'Like'} aria-pressed={!!st.liked_by_me}>
+                        {st.liked_by_me ? '❤️' : '🤍'}
+                      </button>
+                    </>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* emoji rain after a reaction */}
+            {drops.length > 0 && (
+              <div className="st-rain" aria-hidden="true">
+                {drops.map((d) => (
+                  <span key={d.k} className="st-drop" style={{ left: `${d.x}%`, '--r': d.r, '--d': `${d.d}s`, '--t': `${d.t}s`, fontSize: d.size }}>{d.e}</span>
+                ))}
               </div>
             )}
 

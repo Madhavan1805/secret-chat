@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from './api';
 import { Sheet } from './ui';
 import { CHAT_THEMES } from './theme';
+import { useBackClose } from './backClose';
 import { errMsg } from './config';
 
 const MAX_WALLPAPER = 5 * 1024 * 1024;
@@ -28,6 +29,7 @@ const panel = (T) => ({ maxWidth: 380, background: '#1b1016', border: `1px solid
 
 // ------------------------------------------------------------ schedule modal
 function ScheduleModal({ open, T, initialText, chatId, onClose, onScheduled }) {
+  useBackClose(open, onClose);
   const [text, setText] = useState('');
   const [when, setWhen] = useState('');
   const [error, setError] = useState('');
@@ -95,6 +97,7 @@ function ScheduleModal({ open, T, initialText, chatId, onClose, onScheduled }) {
 
 // ------------------------------------------------------------ scheduled list
 function ScheduledListModal({ open, T, items, onClose, onCancel }) {
+  useBackClose(open, onClose);
   if (!open) return null;
   return (
     <div className="d-flex justify-content-center align-items-center px-3" style={overlay} onClick={onClose}>
@@ -120,6 +123,7 @@ function ScheduledListModal({ open, T, items, onClose, onCancel }) {
 
 // ------------------------------------------------------------ "scheduled" confirmation popup
 function ScheduledDoneModal({ info, T, onClose }) {
+  useBackClose(!!info, onClose);
   useEffect(() => {
     if (!info) return undefined;
     const t = setTimeout(onClose, 3500);
