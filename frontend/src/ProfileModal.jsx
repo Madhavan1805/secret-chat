@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { BiX, BiPhoneCall, BiVideo } from 'react-icons/bi';
 import Avatar from './Avatar';
+import { useBackClose } from './backClose';
 import MediaViewer from './MediaViewer';
 import { getPicUrl, lastSeenText, startCall } from './config';
 
 // A friend's profile: photo, name, bio, online / last seen, quick call buttons.
 // (phone number and other private fields are intentionally NOT shown)
 export default function ProfileModal({ user, name, T, online, onClose }) {
+  useBackClose(true, onClose);
   const [photo, setPhoto] = useState(false);
   const pic = getPicUrl(user?.profile_picture);
   const status = online ? '● Online' : (user?.last_seen ? lastSeenText(user.last_seen) : 'Offline');

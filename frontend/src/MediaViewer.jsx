@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BiX, BiDownload } from 'react-icons/bi';
+import { useBackClose } from './backClose';
 
 // Save a file from the server to the phone. A plain <a download> is ignored for files that live on
 // another domain (our API), so fetch the file first and save the blob. If the server does not allow
@@ -28,6 +29,7 @@ export async function downloadFile(url, fileName) {
 
 // Full-screen viewer for chat photos / videos. Rendered into <body> so no parent can clip it.
 export default function MediaViewer({ src, type, name, onClose }) {
+  useBackClose(true, onClose);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {

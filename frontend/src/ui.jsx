@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BiArrowBack } from 'react-icons/bi';
 import { themeVars } from './theme';
+import { useBackClose } from './backClose';
 
 // ---- wax seal: a slightly wobbly blob so it looks hand-stamped, not a perfect circle ----
 const blobPath = (size, seed = 3) => {
@@ -97,6 +98,7 @@ export function SettingRow({ icon, title, sub, onClick, right, danger }) {
 
 // full screen panel rendered in a portal. CSS variables must be re-applied because portals sit outside the screen shell.
 export function Sheet({ T, title, onClose, children, right }) {
+  useBackClose(true, onClose);          // back button closes the sheet instead of leaving the app
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose && onClose(); };
     window.addEventListener('keydown', onKey);

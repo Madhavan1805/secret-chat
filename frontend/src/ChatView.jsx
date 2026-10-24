@@ -14,6 +14,7 @@ import { Seal, SealButton } from './ui';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
+import { useBackClose } from './backClose';
 import { pushLogin } from './push';
 import { playSound } from './sounds';
 import EmojiPicker from './EmojiPicker';
@@ -121,6 +122,10 @@ function ChatView() {
   const [modal, ask] = useModal(T);
   const isGroupChat = !!groupId;
   const locked = !!meta?.is_locked && !unlocked;
+  // the back button closes the search bar / emoji panel / attach menu first
+  useBackClose(searchOpen, () => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); });
+  useBackClose(showEmoji, () => setShowEmoji(false));
+  useBackClose(showAttach, () => setShowAttach(false));
   const extras = useChatExtras({ chatId: meta?.chat_id, ask, messagesLen: messages.length, T, theme: meta?.theme, onTheme: (v) => applyTheme(v) });
 
   // ------------------------------------------------------------- data loaders
@@ -761,9 +766,39 @@ function ChatView() {
   };
 
   const clearChat = async () => {
-    const ok = await ask({ type: 'confirm', title: 'Clear this chat for you?', danger: true, okText: 'Clear' });
-    if (!ok) return;
-    try { await api.post(`chats/${meta.chat_id}/clear_chat/`); setMessages([]); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+    const hasStarred = messages.some((m) => m.is_starred);
+    const hasPinned = !!pinnedMsg;
+    let keep = false;
+    if (hasStarred || hasPinned) {
+      // starred / pinned messages: let the user decide whether they go too
+      const what = hasStarred && hasPinned ? 'starred and pinned' : (hasStarred ? 'starred' : 'pinned');
+      const v = await ask({
+        type: 'choice',
+        title: 'Clear this chat?',
+        message: `You have ${what} messages in this chat. Should they be deleted too?`,
+        choices: [
+          { label: `Keep ${what} messages`, value: 'keep' },
+          { label: `Delete everything, even ${what}`, value: 'all', danger: true },
+        ],
+      });
+      if (!v) return;
+      keep = v === 'keep';
+    } else {
+      const ok = await ask({ type: 'confirm', title: 'Clear this chat for you?', danger: true, okText: 'Clear' });
+      if (!ok) return;
+    }
+    try {
+      await api.post(`chats/${meta.chat_id}/clear_chat/`, keep ? { keep_starred: true, keep_ids: pinnedMsg ? [pinnedMsg.id] : [] } : {});
+      if (keep) {
+        setMessages((prev) => prev.filter((m) => m.is_starred || (pinnedMsg && m.id === pinnedMsg.id)));
+      } else {
+        setMessages([]);
+        if (pinnedMsg) {
+          try { localStorage.removeItem(`pinned_msg_${groupId ? `group_${groupId}` : `user_${friendId}`}`); } catch (e) { /* ignore */ }
+          setPinnedMsg(null);
+        }
+      }
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
   };
 
   const blockToggle = async () => {

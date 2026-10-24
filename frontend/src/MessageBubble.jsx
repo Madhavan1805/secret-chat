@@ -8,10 +8,13 @@ import MediaViewer, { downloadFile } from './MediaViewer';
 import EmojiPicker from './EmojiPicker';
 import { DEFAULT_REACTIONS, getCustomReactions, addCustomReaction, removeCustomReaction } from './reactions';
 import { getPicUrl, formatSize, formatTime } from './config';
+import { useBackClose } from './backClose';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 const MENTION_RE = /(@[\w.\-]+)/g;
 const EDIT_MS = 5 * 60 * 1000;
+const LONG_CHARS = 450;          // longer texts are cut short with "Read more"
+const LONG_LINES = 10;
 
 export const STICKER_PREFIX = '[STICKER]';
 export const GIF_PREFIX = '[GIF]';
@@ -85,6 +88,7 @@ function StatusCard({ st, onOpen }) {
 }
 
 function StatusPeek({ st, onClose }) {
+  useBackClose(true, onClose);
   const src = getPicUrl(st.media_file);
   const [gone, setGone] = useState(!src);          // file missing or expired
   return createPortal(
@@ -129,6 +133,9 @@ export default function MessageBubble({
   const [viewer, setViewer] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);       // tapped the status a reply was about
   const [picker, setPicker] = useState(false);               // "+" -> pick any emoji as a reaction
+  const [expanded, setExpanded] = useState(false);         // long text: "Read more"
+  useBackClose(menu, () => setMenu(false));
+  useBackClose(picker, () => setPicker(false));
   const [custom, setCustom] = useState(getCustomReactions);   // my own saved reactions
   const touch = useRef({ x: 0, y: 0, timer: null });
 
@@ -141,6 +148,7 @@ export default function MessageBubble({
 
   const content = msg.content || '';
   const isViewOnce = content.startsWith('[VIEW_ONCE]');
+  const isLong = content.length > LONG_CHARS || content.split('\n').length > LONG_LINES;
   const isAudio = !!msg.voice_note || msg.message_type === 'audio';
   const isVideo = !!msg.file_url && msg.message_type === 'video';
   const isImage = !!msg.file_url && msg.message_type === 'image';
@@ -265,11 +273,22 @@ export default function MessageBubble({
             {msg.status_preview && <StatusCard st={msg.status_preview} onOpen={() => setStatusOpen(true)} />}
             {isSticker && <div style={{ fontSize: 76, lineHeight: 1.1 }}>{content.slice(STICKER_PREFIX.length)}</div>}
             {isGif && <img src={content.slice(GIF_PREFIX.length)} alt="GIF" style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 12, display: 'block' }} />}
-            {content && !isAudio && !isPoll && !isSticker && !isGif && (
-              <div style={{ whiteSpace: 'pre-wrap', marginTop: isImage || isVideo || isDoc ? 6 : 0 }}>
-                {isLocation ? <a href={content} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>📍 Shared location</a> : renderText(content, mentionNames)}
-              </div>
-            )}
+            {content && !isAudio && !isPoll && !isSticker && !isGif && (() => {
+              const clamp = isLong && !isLocation && !expanded;
+              return (
+                <>
+                  <div style={{ whiteSpace: 'pre-wrap', marginTop: isImage || isVideo || isDoc ? 6 : 0, ...(clamp ? { display: '-webkit-box', WebkitLineClamp: LONG_LINES, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : null) }}>
+                    {isLocation ? <a href={content} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>📍 Shared location</a> : renderText(content, mentionNames)}
+                  </div>
+                  {isLong && !isLocation && (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+                            style={{ display: 'block', marginTop: 4, padding: 0, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, fontSize: 13.5, textDecoration: 'underline', opacity: 0.9 }}>
+                      {expanded ? 'Show less' : 'Read more'}
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
 
