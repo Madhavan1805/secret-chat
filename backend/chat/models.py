@@ -1,5 +1,13 @@
+import secrets
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+
+
+def short_uid():
+    """Public id of a login session (safe to show in the devices list)."""
+    return secrets.token_hex(6)
 
 
 class CustomUser(AbstractUser):
@@ -12,8 +20,28 @@ class CustomUser(AbstractUser):
     public_key = models.TextField(blank=True, null=True)
     typing_with = models.IntegerField(blank=True, null=True)
 
+    # privacy settings
+    PRIVACY_CHOICES = (('everyone', 'Everyone'), ('friends', 'Friends'), ('nobody', 'Nobody'))
+    privacy_last_seen = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='everyone')   # last seen + online dot
+    privacy_photo = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='everyone')       # profile photo
+    read_receipts = models.BooleanField(default=True)                                                  # blue ticks
+
     def __str__(self):
         return self.username
+
+
+# ---------------------------------------- one row per logged-in device (so a device can be signed out)
+class DeviceSession(models.Model):
+    key = models.CharField(max_length=40, primary_key=True)          # the token the app sends
+    uid = models.CharField(max_length=12, unique=True, default=short_uid)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='device_sessions')
+    device_name = models.CharField(max_length=120, blank=True, default='')
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    last_used = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.user.username} on {self.device_name or 'device'}"
 
 
 # --------------------------------------------------------------- NEW: block
@@ -39,6 +67,11 @@ class Chat(models.Model):
     created_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='created_chats')            # NEW
 
+    # group profile + admins (the creator is always an admin)
+    group_description = models.TextField(blank=True, default='')
+    group_photo = models.ImageField(upload_to='group_photos/', null=True, blank=True)
+    admins = models.ManyToManyField(CustomUser, related_name='admin_of_chats', blank=True)
+
     # disappearing messages (server side, shared by everyone in the chat)
     disappearing_time = models.IntegerField(default=0)
     disappearing_started_at = models.DateTimeField(null=True, blank=True)   # NEW
@@ -57,6 +90,8 @@ class ChatUserSetting(models.Model):
     chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='user_settings')
     is_pinned = models.BooleanField(default=False)
     is_muted = models.BooleanField(default=False)
+    muted_until = models.DateTimeField(null=True, blank=True)       # empty = muted until the user unmutes
+    is_archived = models.BooleanField(default=False)
     pin_hash = models.CharField(max_length=128, blank=True, default='')
     unlocked_until = models.DateTimeField(null=True, blank=True)
     failed_attempts = models.IntegerField(default=0)
@@ -85,6 +120,7 @@ class Message(models.Model):
         ('document', 'Document'),
         ('location', 'Location'),
         ('system', 'System'),                                              # NEW
+        ('poll', 'Poll'),
     )
     STATUS_CHOICES = (
         ('sent', 'Sent (Single Tick)'),
@@ -118,11 +154,39 @@ class Message(models.Model):
     edited_at = models.DateTimeField(null=True, blank=True)                # NEW
     forwarded = models.BooleanField(default=False)                         # NEW
     read_by = models.ManyToManyField(CustomUser, related_name='read_messages', blank=True)        # NEW (groups)
+    starred_by = models.ManyToManyField(CustomUser, related_name='starred_messages', blank=True)
+    # set when this message is a reply / reaction to somebody's status (shows a small preview card)
+    status_ref = models.ForeignKey('Status', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.sender.username}: {self.content[:20] if self.content else self.message_type}"
+
+class Poll(models.Model):
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='poll')
+    question = models.CharField(max_length=300)
+    multiple = models.BooleanField(default=False)
+    closed = models.BooleanField(default=False)
+
+
+class PollOption(models.Model):
+    poll = models.ForeignKey(Poll, on_delete=models.CASCADE, related_name='options')
+    text = models.CharField(max_length=100)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+
+class PollVote(models.Model):
+    option = models.ForeignKey(PollOption, on_delete=models.CASCADE, related_name='votes')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='poll_votes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('option', 'user')
+
 
 class ScheduledMessage(models.Model):
     chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='scheduled_messages')
@@ -200,6 +264,15 @@ class StatusView(models.Model):
 
     class Meta:
         unique_together = ('status', 'viewer')
+
+
+# ------------------------------------- people whose statuses I muted (hidden under "Muted updates")
+class StatusMute(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='status_mutes')
+    muted = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='status_muted_by')
+
+    class Meta:
+        unique_together = ('user', 'muted')
 
 
 # ------------------------------------- NEW: Close Friends list (like Instagram)

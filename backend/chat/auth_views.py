@@ -30,7 +30,8 @@ from rest_framework.throttling import AnonRateThrottle
 
 from .auth_utils import (
     OTP_RE, PHONE_RE, check_email, check_phone, check_username, new_otp, normalize_phone)
-from .models import CustomUser, PasswordResetOTP
+from .device_auth import new_device_session
+from .models import CustomUser, DeviceSession, PasswordResetOTP
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +147,8 @@ def login_view(request):
     password = request.data.get('password') or ''
     user = find_user(identifier)
     if user and authenticate(username=user.username, password=password):
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({'status': 'success', 'token': token.key, 'username': user.username, 'id': user.id})
+        session = new_device_session(request, user)      # one token per device
+        return Response({'status': 'success', 'token': session.key, 'username': user.username, 'id': user.id})
     return Response({'error': 'Incorrect user ID or password.'}, status=400)
 
 
@@ -286,4 +287,5 @@ def reset_view(request):
     entry.used = True
     entry.save(update_fields=['used'])
     Token.objects.filter(user=user).delete()        # logs the account out on every device
+    DeviceSession.objects.filter(user=user).delete()
     return Response({'status': 'ok'})

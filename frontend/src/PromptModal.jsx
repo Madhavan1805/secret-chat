@@ -32,14 +32,14 @@ export function useModal(T) {
   const modal = state ? (
     <div
       onClick={() => finish(cancelValue)}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 6000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9800, backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className="text-center"
-        style={{ background: T?.bg || '#3b0e1b', color: T?.text || '#fff', border: `1px solid ${accent}`, borderRadius: 16, padding: 20, width: '100%', maxWidth: 340, maxHeight: '80vh', overflowY: 'auto' }}
+        style={{ background: T?.raised || T?.bg || '#261C33', color: T?.text || '#fff', border: `1px solid ${T?.line || accent}`, borderRadius: 28, padding: 22, boxShadow: '0 24px 60px rgba(0,0,0,.55)', fontFamily: 'var(--font-body, inherit)', width: '100%', maxWidth: 340, maxHeight: '80vh', overflowY: 'auto' }}
       >
-        <h6 className="fw-bold mb-3" style={{ color: accent }}>{state.title}</h6>
+        <h6 className="mb-3" style={{ color: T?.text, fontFamily: 'var(--font-display, inherit)', fontWeight: 700, fontSize: 18 }}>{state.title}</h6>
         {state.message && <p className="small" style={{ color: T?.sub }}>{state.message}</p>}
 
         {state.type === 'prompt' && (
@@ -74,12 +74,12 @@ export function useModal(T) {
 
         <div className="d-flex gap-2 justify-content-center">
           {state.type !== 'alert' && (
-            <button className="btn btn-sm px-3" style={{ color: T?.text, border: `1px solid ${T?.line}` }} onClick={() => finish(cancelValue)}>Cancel</button>
+            <button className="btn px-3" style={{ color: T?.text, border: `1px solid ${T?.line}`, borderRadius: 22 }} onClick={() => finish(cancelValue)}>Cancel</button>
           )}
           {state.type !== 'choice' && (
             <button
-              className={`btn btn-sm px-4 fw-bold ${state.danger ? 'btn-danger' : ''}`}
-              style={state.danger ? {} : { background: accent, color: '#1f2937' }}
+              className={`btn px-4 fw-bold ${state.danger ? 'btn-danger' : ''}`}
+              style={state.danger ? { borderRadius: 22 } : { background: T?.mine || accent, color: T?.mineText || '#fff', borderRadius: 22, border: 0 }}
               onClick={() => finish(state.type === 'prompt' ? value : true)}
             >
               {state.okText || 'OK'}

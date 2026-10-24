@@ -6,8 +6,8 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework.authtoken.models import Token
 
+from .device_auth import user_for_key
 from .models import Block, Chat, ChatRequest, CustomUser, Message
 
 # number of open sockets per user in THIS process (a user may have several tabs).
@@ -71,6 +71,8 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     # ------------------------------------------------------------ helpers
     async def broadcast_presence(self, is_online):
+        if await self.hides_presence():          # "last seen & online: nobody"
+            return
         for fid in await self.friend_ids():
             await self.channel_layer.group_send(
                 f"user_{fid}",
@@ -81,10 +83,11 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     def get_user(self, token):
         if not token:
             return None
-        try:
-            return Token.objects.select_related("user").get(key=token).user
-        except Token.DoesNotExist:
-            return None
+        return user_for_key(token)
+
+    @database_sync_to_async
+    def hides_presence(self):
+        return CustomUser.objects.filter(pk=self.user.pk, privacy_last_seen="nobody").exists()
 
     @database_sync_to_async
     def touch(self):

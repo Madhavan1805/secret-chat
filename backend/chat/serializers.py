@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from .models import CustomUser, Chat, Message, ChatRequest, Status, CallHistory
 
@@ -31,10 +32,13 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source='sender.username', read_only=True)
     # only the SENDER of a group message gets the names of who has seen it
     read_by_names = serializers.SerializerMethodField()
+    is_starred = serializers.SerializerMethodField()
+    poll = serializers.SerializerMethodField()
+    status_preview = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        exclude = ['hidden_for']
+        exclude = ['hidden_for', 'starred_by', 'status_ref']
         read_only_fields = ['sender', 'receiver', 'chat', 'status', 'reactions', 'is_screenshot', 'created_at',
                             'file_name', 'file_size', 'edited_at', 'forwarded', 'read_by']
 
@@ -43,6 +47,50 @@ class MessageSerializer(serializers.ModelSerializer):
         if request and obj.sender_id == request.user.id and obj.chat_id and obj.chat and obj.chat.is_group:
             return [{"id": u.id, "username": u.username} for u in obj.read_by.all()]
         return []
+
+    def get_is_starred(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return False
+        return any(u.id == request.user.id for u in obj.starred_by.all())
+
+    def get_poll(self, obj):
+        if obj.message_type != 'poll':
+            return None
+        try:
+            poll = obj.poll
+        except ObjectDoesNotExist:
+            return None
+        request = self.context.get('request')
+        me = request.user.id if request else None
+        options, voters = [], set()
+        for o in poll.options.all():
+            ids = [v.user_id for v in o.votes.all()]
+            voters.update(ids)
+            options.append({"id": o.id, "text": o.text, "votes": len(ids), "voted_by_me": me in ids})
+        return {"question": poll.question, "multiple": poll.multiple, "closed": poll.closed,
+                "options": options, "total_voters": len(voters)}
+
+    def get_status_preview(self, obj):
+        if not obj.status_ref_id:
+            return None
+        st = obj.status_ref
+        request = self.context.get('request')
+        url = None
+        if st.media_file:
+            url = request.build_absolute_uri(st.media_file.url) if request else st.media_file.url
+        return {"id": st.id, "media_type": st.media_type, "media_file": url,
+                "caption": st.caption, "owner": st.user.username}
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # the receiver switched "read receipts" off: the sender never gets the blue tick
+        request = self.context.get('request')
+        if (request and data.get('status') == 'read' and instance.sender_id == request.user.id
+                and instance.receiver_id and not (instance.chat and instance.chat.is_group)):
+            if instance.receiver and not instance.receiver.read_receipts:
+                data['status'] = 'delivered'
+        return data
 
     def validate(self, attrs):
         if attrs.get('message_type') == 'system':
@@ -90,8 +138,11 @@ class StatusSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'media_type', 'created_at']
 
     def get_profile_picture(self, obj):
+        request = self.context.get('request')
+        if obj.user.privacy_photo == 'nobody' and not (request and request.user.id == obj.user_id):
+            return None
         if obj.user.profile_picture:
-            return _abs(self.context.get('request'), obj.user.profile_picture.url)
+            return _abs(request, obj.user.profile_picture.url)
         return None
 
     def _is_owner(self, obj):
