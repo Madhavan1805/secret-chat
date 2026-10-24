@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import 'bootstrap/dist/css/bootstrap.min.css';
+import './design.css';
 import { setupViewport } from './viewport';
 
 // keyboard-safe height + no pinch zoom (must run before the first render)

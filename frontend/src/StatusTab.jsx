@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BiImageAdd, BiX, BiTrash } from 'react-icons/bi';
+import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import { getPicUrl, errMsg, formatListTime } from './config';
@@ -28,8 +28,8 @@ const groupByUser = (list) => {
 
 function Ring({ color, children }) {
   return (
-    <div style={{ padding: 2, borderRadius: '50%', border: `2px solid ${color}`, lineHeight: 0 }}>
-      {children}
+    <div style={{ padding: 3, borderRadius: '50%', background: color, lineHeight: 0 }}>
+      <div style={{ padding: 2, borderRadius: '50%', background: 'var(--panel)' }}>{children}</div>
     </div>
   );
 }
@@ -46,6 +46,8 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [uploadError, setUploadError] = useState('');
 
   // close friends
+  const [mutedIds, setMutedIds] = useState([]);
+  const [showMuted, setShowMuted] = useState(false);
   const [closeIds, setCloseIds] = useState([]);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeDraft, setCloseDraft] = useState([]);
@@ -69,9 +71,11 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   // ---------------------------------------------------------- derived data
   const groups = groupByUser(statuses);
   const myGroup = groups.find((g) => g.user === meId) || null;
-  const others = groups
+  const allOthers = groups
     .filter((g) => g.user !== meId)
     .sort((a, b) => (Number(a.allViewed) - Number(b.allViewed)) || (new Date(b.latest.created_at) - new Date(a.latest.created_at)));
+  const others = allOthers.filter((g) => !mutedIds.includes(g.user));
+  const mutedGroups = allOthers.filter((g) => mutedIds.includes(g.user));
   const myTotalViews = myGroup ? myGroup.items.reduce((a, i) => a + (i.view_count || 0), 0) : 0;
 
   const vGroup = viewer ? groups.find((g) => g.user === viewer.userId) : null;
@@ -89,6 +93,18 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     } catch (e) { /* ignore */ }
   };
   useEffect(() => { loadClose(); }, []);
+
+  const loadMuted = async () => {
+    try { const r = await api.get('status-mutes/'); setMutedIds(Array.isArray(r.data?.ids) ? r.data.ids : []); } catch (e) { /* ignore */ }
+  };
+  useEffect(() => { loadMuted(); }, []);
+  const toggleMute = async (g) => {
+    try {
+      const r = await api.post('status-mutes/', { user_id: g.user });
+      setMutedIds(Array.isArray(r.data?.ids) ? r.data.ids : []);
+      flash(mutedIds.includes(g.user) ? `Showing ${g.username}'s updates again` : `Muted ${g.username}'s updates`);
+    } catch (e) { flash(errMsg(e, 'Failed')); }
+  };
 
   const openClose = () => { setCloseDraft(closeIds); setCloseError(''); setCloseOpen(true); };
   const toggleDraft = (id) => setCloseDraft((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -239,8 +255,8 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
   // ---------------------------------------------------------- UI helpers
   const ringColor = (g) => {
-    if (g.allViewed) return 'rgba(255,255,255,0.25)';
-    return g.hasClose ? CLOSE_GREEN : T.accent;
+    if (g.allViewed) return 'var(--line)';
+    return g.hasClose ? CLOSE_GREEN : 'var(--seal)';
   };
 
   const overlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9500 };
@@ -248,58 +264,63 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   // ======================================================================= UI
   return (
     <div>
+      {toast && !viewer && <div className="sc-chip-row accent" role="status">{toast}</div>}
+
       {/* ---------------- my status row ---------------- */}
-      <div className="d-flex align-items-center p-2 rounded mb-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
-        <div className="me-3" style={{ cursor: myGroup ? 'pointer' : 'default' }} onClick={() => myGroup && openGroup(myGroup, [])}>
-          {myGroup ? (
-            <Ring color={myGroup.hasClose ? CLOSE_GREEN : T.accent}>
-              <Avatar src={me?.profile_picture} name={currentUsername} size={38} T={T} />
-            </Ring>
-          ) : (
-            <Avatar src={me?.profile_picture} name={currentUsername} size={44} T={T} />
-          )}
-        </div>
-        <div className="flex-grow-1" style={{ minWidth: 0, cursor: myGroup ? 'pointer' : 'default' }} onClick={() => myGroup && openGroup(myGroup, [])}>
-          <h6 className="mb-0 fw-bold text-white" style={{ fontSize: '13px' }}>My Status</h6>
-          <small className="text-light opacity-75" style={{ fontSize: '10px' }}>
+      <div className="sc-row" role="button" tabIndex={0} onClick={() => myGroup && openGroup(myGroup, [])} style={{ cursor: myGroup ? 'pointer' : 'default' }}>
+        {myGroup ? (
+          <Ring color={myGroup.hasClose ? CLOSE_GREEN : 'var(--seal)'}><Avatar src={me?.profile_picture} name={currentUsername} size={46} T={T} /></Ring>
+        ) : (
+          <Avatar src={me?.profile_picture} name={currentUsername} size={58} T={T} />
+        )}
+        <div className="sc-row-main">
+          <h3 className="sc-row-name"><span className="t">My status</span></h3>
+          <span className="sc-row-sub">
             {myGroup
-              ? `${myGroup.items.length} update${myGroup.items.length > 1 ? 's' : ''} • ${formatListTime(myGroup.latest.created_at)} • 👁 ${myTotalViews}`
-              : 'Tap + to add a photo / video status'}
-          </small>
+              ? `${myGroup.items.length} update${myGroup.items.length > 1 ? 's' : ''} · ${formatListTime(myGroup.latest.created_at)} · ${myTotalViews} view${myTotalViews === 1 ? '' : 's'}`
+              : 'Share a photo or video for 24 hours'}
+          </span>
         </div>
-        <label htmlFor="status-upload" className="btn btn-sm rounded-circle d-flex align-items-center justify-content-center m-0" style={{ width: 34, height: 34, background: T.accent, color: '#1f2937', cursor: 'pointer' }} title="Add status">
-          <BiImageAdd className="fs-5" />
-        </label>
+        <label htmlFor="status-upload" className="sc-iconbtn on" style={{ margin: 0, cursor: 'pointer' }} title="Add status" onClick={(e) => e.stopPropagation()} aria-label="Add status"><BiImageAdd /></label>
         <input type="file" id="status-upload" className="d-none" accept="image/*,video/*" onChange={pickFile} />
       </div>
 
-      <button className="btn btn-sm w-100 rounded-pill mb-3 fw-bold" style={{ fontSize: 12, border: `1px solid ${CLOSE_GREEN}`, color: CLOSE_GREEN, background: 'transparent' }} onClick={openClose}>
-        💚 Close Friends ({closeIds.length})
+      <button type="button" className="sc-btn ghost" style={{ width: '100%', margin: '4px 0 6px', color: CLOSE_GREEN }} onClick={openClose}>
+        Close friends ({closeIds.length})
       </button>
 
       {/* ---------------- friends' statuses (one row per person) ---------------- */}
-      <h6 className="text-light mb-2 opacity-75" style={{ fontSize: '12px' }}>Recent Updates</h6>
+      <div className="sc-section">Recent updates</div>
       {others.length > 0 ? (
         others.map((g) => (
-          <div key={g.user} className="d-flex align-items-center p-2 rounded mb-2" style={{ background: rowBg, cursor: 'pointer' }}
-               onClick={() => openGroup(g, others.map((o) => o.user))}>
-            <div className="me-3">
-              <Ring color={ringColor(g)}>
-                <Avatar src={g.profile_picture} name={g.username} size={38} T={T} />
-              </Ring>
+          <div key={g.user} className="sc-row" role="button" tabIndex={0} onClick={() => openGroup(g, others.map((o) => o.user))}>
+            <Ring color={ringColor(g)}><Avatar src={g.profile_picture} name={g.username} size={46} T={T} /></Ring>
+            <div className="sc-row-main">
+              <h3 className="sc-row-name" style={{ opacity: g.allViewed ? 0.7 : 1 }}><span className="t">{g.username}</span>{g.hasClose && <span title="Close friends" style={{ color: CLOSE_GREEN, fontSize: 12 }}>close</span>}</h3>
+              <span className="sc-row-sub" style={!g.allViewed ? { color: 'var(--accent)' } : undefined}>
+                {g.items.length} update{g.items.length > 1 ? 's' : ''} · {formatListTime(g.latest.created_at)}
+              </span>
             </div>
-            <div className="flex-grow-1" style={{ minWidth: 0 }}>
-              <h6 className="mb-0 fw-bold text-white text-truncate" style={{ fontSize: '13px', opacity: g.allViewed ? 0.65 : 1 }}>
-                {g.username} {g.hasClose && <span title="Close friends">💚</span>}
-              </h6>
-              <small style={{ fontSize: '10px', color: g.allViewed ? 'rgba(255,255,255,0.5)' : T.accent }}>
-                {g.items.length} update{g.items.length > 1 ? 's' : ''} • {formatListTime(g.latest.created_at)}
-              </small>
-            </div>
+            <button type="button" className="sc-dots" aria-label={`Mute ${g.username}'s status`} title="Mute updates" onClick={(e) => { e.stopPropagation(); toggleMute(g); }}><BiBellOff /></button>
           </div>
         ))
       ) : (
-        <p className="text-center text-light opacity-50 mt-4" style={{ fontSize: '11px' }}>No recent status updates.</p>
+        <div className="sc-empty"><b>No new updates</b>When friends post a status, it shows up here.</div>
+      )}
+
+      {mutedGroups.length > 0 && (
+        <>
+          <button type="button" className="sc-section" style={{ border: 0, background: 'transparent', display: 'flex', alignItems: 'center', gap: 4, width: '100%', textAlign: 'left' }} onClick={() => setShowMuted((v) => !v)}>
+            Muted updates ({mutedGroups.length}) <BiChevronRight style={{ transform: showMuted ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
+          </button>
+          {showMuted && mutedGroups.map((g) => (
+            <div key={g.user} className="sc-row" role="button" tabIndex={0} style={{ opacity: 0.75 }} onClick={() => openGroup(g, mutedGroups.map((o) => o.user))}>
+              <Ring color="var(--line)"><Avatar src={g.profile_picture} name={g.username} size={46} T={T} /></Ring>
+              <div className="sc-row-main"><h3 className="sc-row-name"><span className="t">{g.username}</span></h3><span className="sc-row-sub">{g.items.length} update{g.items.length > 1 ? 's' : ''}</span></div>
+              <button type="button" className="sc-dots" aria-label={`Unmute ${g.username}'s status`} title="Unmute" onClick={(e) => { e.stopPropagation(); toggleMute(g); }}><BiBell /></button>
+            </div>
+          ))}
+        </>
       )}
 
       {/* ---------------- UPLOAD PREVIEW ---------------- */}

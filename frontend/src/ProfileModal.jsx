@@ -24,7 +24,7 @@ export default function ProfileModal({ user, name, T, online, onClose }) {
       <div
         onClick={(e) => e.stopPropagation()}
         className="position-relative text-center"
-        style={{ width: '100%', maxWidth: 340, background: T.light ? '#fff' : '#26121a', color: T.light ? '#1f2937' : '#fff', border: `1px solid ${T.accent}`, borderRadius: 20, padding: '28px 20px 20px' }}
+        style={{ width: '100%', maxWidth: 340, background: T.light ? '#fff' : (T.raised || '#261C33'), color: T.light ? '#1f2937' : '#fff', border: `1px solid ${T.accent}`, borderRadius: 28, padding: '28px 20px 20px' }}
       >
         <button type="button" className="btn p-0 border-0 position-absolute" style={{ top: 10, right: 12, color: 'inherit' }} onClick={onClose} title="Close"><BiX size={26} /></button>
 

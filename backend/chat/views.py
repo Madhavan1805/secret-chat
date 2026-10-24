@@ -24,11 +24,12 @@ from .serializers import (
 )
 from .realtime import notify_users, send_to_user
 from .push import send_push
+from .privacy import visible, effective_muted
 
 UNLOCK_MINUTES = 10
 MAX_UPLOAD = 25 * 1024 * 1024
 BLOCKED_EXT = {'.exe', '.bat', '.cmd', '.sh', '.msi', '.js', '.vbs', '.scr', '.jar', '.apk', '.com', '.ps1'}
-CHAT_THEMES = {'default', 'ocean', 'forest', 'rose', 'midnight', 'light'}
+CHAT_THEMES = {'default', 'ocean', 'forest', 'rose', 'midnight', 'light', 'classic'}
 EDIT_WINDOW = timedelta(minutes=5)
 
 
@@ -178,6 +179,14 @@ def message_preview(msg):
     t = msg.message_type
     if t == 'system':
         return c[:80]
+    if c.startswith('[STICKER]'):
+        return (c[9:].strip()[:8] + ' Sticker').strip()
+    if c.startswith('[GIF]'):
+        return '🎞️ GIF'
+    if t == 'poll':
+        return '📊 ' + (c[:60] or 'Poll')
+    if msg.status_ref_id:
+        return ('↩️ ' + c)[:80]
     if t == 'image':
         return '📷 ' + (c[:60] or 'Photo')
     if t == 'video':
@@ -208,11 +217,11 @@ def notify_message(chat, msg, action, message_id=None):
             "message_id": message_id or msg.id, "sender_id": msg.sender_id,
             "sender_name": msg.sender.username, "title": title, "mine": uid == msg.sender_id,
             "body": 'New message' if (s and s.pin_hash) else preview,
-            "muted": bool(s and s.is_muted),
+            "muted": effective_muted(s),
         })
         # phone push: only new messages from others, never system messages, never muted chats
         if (action == 'new' and uid != msg.sender_id and msg.message_type != 'system'
-                and not (s and s.is_muted)):
+                and not effective_muted(s)):
             (push_locked if (s and s.pin_hash) else push_normal).append(uid)
     data = {"chat_id": chat.id}
 
@@ -274,6 +283,8 @@ class UserViewSet(viewsets.ModelViewSet):
         for s in locked.select_related('chat').prefetch_related('chat__participants'):
             locked_ids.update(p.id for p in s.chat.participants.all())
 
+        my_friends = friend_ids_of(request.user)
+        privacy = {r['id']: r for r in CustomUser.objects.values('id', 'privacy_last_seen', 'privacy_photo')}
         for u in data:
             u['unread_count'] = unread_map.get(u['id'], 0)
             u['is_locked'] = u['id'] in locked_ids
@@ -282,6 +293,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 u['is_online'] = False
                 u['typing_with'] = None
                 u['last_seen'] = None
+            p = privacy.get(u['id'])
+            if p:
+                if not visible(p['privacy_last_seen'], request.user.id, u['id'], my_friends):
+                    u['is_online'] = False
+                    u['last_seen'] = None
+                if not visible(p['privacy_photo'], request.user.id, u['id'], my_friends):
+                    u['profile_picture'] = None
         return Response(data)
 
     def retrieve(self, request, *args, **kwargs):
@@ -291,6 +309,12 @@ class UserViewSet(viewsets.ModelViewSet):
             data['is_online'] = False
             data['typing_with'] = None
             data['last_seen'] = None
+        my_friends = friend_ids_of(request.user)
+        if not visible(user.privacy_last_seen, request.user.id, user.id, my_friends):
+            data['is_online'] = False
+            data['last_seen'] = None
+        if not visible(user.privacy_photo, request.user.id, user.id, my_friends):
+            data['profile_picture'] = None
         return Response(data)
 
     @action(detail=False, methods=['get'])
@@ -444,16 +468,24 @@ class ChatViewSet(viewsets.ModelViewSet):
                 },
                 "unread_count": unread,
                 "is_pinned": bool(s and s.is_pinned),
-                "is_muted": bool(s and s.is_muted),
+                "is_muted": effective_muted(s),
+                "is_archived": bool(s and s.is_archived),
                 "is_locked": locked,
                 "disappearing_time": chat.disappearing_time,
                 "theme": chat.theme,
             }
             if chat.is_group:
-                row.update({"group_name": chat.group_name, "member_count": len(chat.participants.all())})
+                row.update({
+                    "group_name": chat.group_name, "member_count": len(chat.participants.all()),
+                    "group_photo": request.build_absolute_uri(chat.group_photo.url) if chat.group_photo else None,
+                })
                 groups.append(row)
             else:
                 row["friend_id"] = other.id
+                # the friend switched read receipts off: no blue tick on my last message
+                if (row["last_message"] and row["last_message"]["status"] == 'read'
+                        and row["last_message"]["sender_id"] == user.id and not other.read_receipts):
+                    row["last_message"]["status"] = 'delivered'
                 direct.append(row)
         return Response({"direct": direct, "groups": groups})
 
@@ -491,8 +523,16 @@ class ChatViewSet(viewsets.ModelViewSet):
             "is_locked": bool(s.pin_hash),
             "is_unlocked": (not s.pin_hash) or bool(s.unlocked_until and s.unlocked_until > now),
             "is_pinned": s.is_pinned,
-            "is_muted": s.is_muted,
+            "is_muted": effective_muted(s),
+            "muted_until": s.muted_until,
+            "is_archived": s.is_archived,
             "participants": [{"id": p.id, "username": p.username} for p in chat.participants.all()],
+            "group_description": chat.group_description,
+            "group_photo": request.build_absolute_uri(chat.group_photo.url) if chat.group_photo else None,
+            "admin_ids": sorted(set(chat.admins.values_list('id', flat=True))
+                                | ({chat.created_by_id} if chat.created_by_id else set())) if chat.is_group else [],
+            "is_admin": bool(chat.is_group and (chat.created_by_id == user.id
+                                                or chat.admins.filter(id=user.id).exists())),
             "blocked_by_me": False,
             "blocked_me": False,
         }
@@ -512,8 +552,18 @@ class ChatViewSet(viewsets.ModelViewSet):
             s.is_pinned = to_bool(request.data.get('is_pinned'))
         if 'is_muted' in request.data:
             s.is_muted = to_bool(request.data.get('is_muted'))
+            s.muted_until = None
+        if 'mute_hours' in request.data:           # 0 = unmute, -1 = until I unmute, N = N hours
+            hours = to_int(request.data.get('mute_hours'))
+            if hours is None or hours < -1 or hours > 24 * 365:
+                return Response({"error": "Invalid mute time"}, status=400)
+            s.is_muted = hours != 0
+            s.muted_until = timezone.now() + timedelta(hours=hours) if hours > 0 else None
+        if 'is_archived' in request.data:
+            s.is_archived = to_bool(request.data.get('is_archived'))
         s.save()
-        return Response({"is_pinned": s.is_pinned, "is_muted": s.is_muted})
+        return Response({"is_pinned": s.is_pinned, "is_muted": effective_muted(s),
+                         "muted_until": s.muted_until, "is_archived": s.is_archived})
 
     # ------------------------------------------------ secure chat lock
     @action(detail=False, methods=['post'])
@@ -697,7 +747,8 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        base = Message.objects.select_related('sender', 'chat').prefetch_related('read_by')
+        base = (Message.objects.select_related('sender', 'receiver', 'chat', 'status_ref__user')
+                .prefetch_related('read_by', 'starred_by', 'poll__options__votes'))
 
         if self.action != 'list':
             return base.filter(Q(sender=user) | Q(receiver=user) | Q(chat__participants=user)).distinct()
@@ -807,7 +858,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         if sender_id:
             updated = Message.objects.filter(
                 sender_id=sender_id, receiver=request.user).exclude(status='read').update(status='read')
-            if updated:
+            if updated and request.user.read_receipts:
                 notify_users([sender_id], 'read', reader_id=request.user.id)
         return Response({"status": "read updated"})
 
@@ -981,9 +1032,10 @@ class StatusViewSet(viewsets.ModelViewSet):
         return row, created
 
     def _chat_note(self, st, user, text):
-        """Drop a message into the status owner's chat (used for reactions and replies)."""
+        """Drop a message into the status owner's chat (used for reactions and replies).
+        The message keeps a link to the status, so the chat can show a small preview of it."""
         chat = get_or_create_direct_chat(user, st.user)
-        msg = Message.objects.create(chat=chat, sender=user, receiver=st.user, content=text)
+        msg = Message.objects.create(chat=chat, sender=user, receiver=st.user, content=text, status_ref=st)
         notify_message(chat, msg, 'new')      # live event + phone push (= the notification)
         return msg
 
@@ -1047,7 +1099,7 @@ class StatusViewSet(viewsets.ModelViewSet):
         # always remove the older reaction line first -> the chat keeps only the latest reaction
         self._drop_reaction_note(row)
         if row.reaction:
-            msg = self._chat_note(st, user, f"{row.reaction} Reacted to your status ({self._status_label(st)})")
+            msg = self._chat_note(st, user, f"{row.reaction} Reacted to your status")
             row.reaction_message = msg
             row.save(update_fields=['reaction_message'])
         notify_users([st.user_id], 'status_view', status_id=st.id)
@@ -1066,7 +1118,7 @@ class StatusViewSet(viewsets.ModelViewSet):
         if blocked_between(user.id, st.user_id):
             raise PermissionDenied("You can't message this user.")
         self._my_view_row(st, user)
-        self._chat_note(st, user, f"↩️ Replied to your status ({self._status_label(st)}): {text}")
+        self._chat_note(st, user, text)
         return Response({"status": "reply sent"})
 
     # ---- Close Friends list (GET = my list, POST {ids:[..]} = save) -------

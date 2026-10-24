@@ -1,20 +1,21 @@
 import React, { useEffect } from 'react';
 import { BiShow, BiHide } from 'react-icons/bi';
 import { passwordStrength } from './auth';
+import { Seal } from './ui';
 
 /* Shared shell for Login / Register / Forgot password.
    Self-contained styles (no Bootstrap needed). Same maroon + gold as Home and ChatView. */
 
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
 
 .au-root{
-  --wine:#3b0e1b; --wine-deep:#2a0813; --gold:#fcd34d; --gold-d:#d4af37; --ivory:#fdfbf7;
-  --mute:rgba(253,251,247,.7); --line:rgba(252,211,77,.28); --err:#ff9b8f; --ok:#6ee7a0;
+  --wine:#0F0B14; --wine-deep:#0A0710; --gold:#FF6477; --gold-d:#E8405A; --ivory:#F6F0FB;
+  --mute:rgba(246,240,251,.66); --line:rgba(246,240,251,.14); --err:#ff9b8f; --ok:#6ee7a0;
   width:100%; min-height:100vh; min-height:100dvh; box-sizing:border-box; padding:28px 16px 40px;
   display:flex; justify-content:center;
-  background:radial-gradient(120% 70% at 15% 0%, #5c1429 0%, var(--wine) 48%, var(--wine-deep) 100%);
-  color:var(--ivory); font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  background:radial-gradient(70% 50% at 10% 0%, rgba(232,64,90,.28), transparent 70%), radial-gradient(60% 50% at 100% 100%, rgba(122,92,255,.16), transparent 70%), var(--wine);
+  color:var(--ivory); font-family:'Instrument Sans','Noto Sans Tamil',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
 }
 .au-root *{box-sizing:border-box}
 .au-wrap{
@@ -24,19 +25,20 @@ const CSS = `
 
 /* ---- brand ---- */
 .au-brand{grid-area:brand; text-align:center}
-.au-logo{display:flex; align-items:baseline; justify-content:center; line-height:1}
-.au-logo-a{font-family:'Playfair Display',Georgia,serif; font-weight:700; font-size:2rem; letter-spacing:.5px}
-.au-logo-b{font-family:'Great Vibes','Apple Chancery','URW Chancery L','Z003',cursive; font-size:2.7rem; margin-left:6px;
-  color:var(--gold); text-shadow:0 0 14px rgba(252,211,77,.45)}
+.au-logo{display:flex; align-items:center; justify-content:center; gap:12px; line-height:1}
+.au-logo-a{font-family:'Bricolage Grotesque','Noto Sans Tamil',system-ui,sans-serif; font-weight:800; font-size:2.1rem; letter-spacing:-.03em}
+.au-logo-b{display:none}
+.au-seal-intro{animation:au-stamp .6s .1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes au-stamp{0%{transform:scale(1.5) rotate(14deg);opacity:0}60%{transform:scale(.92) rotate(-3deg);opacity:1}100%{transform:none}}
 .au-tag{display:none; margin:16px 0 0; max-width:28ch; color:var(--mute); font-size:1.08rem; line-height:1.6}
 
 /* ---- card ---- */
 .au-card{
-  grid-area:card; align-self:start; padding:28px 24px 24px; border-radius:18px;
-  background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
+  grid-area:card; align-self:start; padding:28px 24px 24px; border-radius:30px;
+  background:#1B1424;
   border:1px solid var(--line); box-shadow:0 24px 60px rgba(0,0,0,.35);
 }
-.au-h{font-family:'Playfair Display',Georgia,serif; font-weight:600; font-size:1.7rem; line-height:1.2; margin:0 0 8px}
+.au-h{font-family:'Bricolage Grotesque','Noto Sans Tamil',system-ui,sans-serif; font-weight:600; font-size:1.7rem; line-height:1.2; margin:0 0 8px}
 .au-sub{margin:0 0 22px; color:var(--mute); font-size:.95rem; line-height:1.55}
 
 /* ---- fields ---- */
@@ -45,12 +47,12 @@ const CSS = `
 .au-input-wrap{position:relative; display:flex; align-items:center}
 .au-ico{position:absolute; left:13px; font-size:1.15rem; color:var(--gold); opacity:.85; pointer-events:none}
 .au-input{
-  width:100%; height:46px; padding:0 46px 0 40px; border-radius:10px; font-size:1rem; outline:none;
-  color:var(--ivory); background:rgba(0,0,0,.24); border:1px solid var(--line);
+  width:100%; height:50px; padding:0 46px 0 42px; border-radius:18px; font-size:1rem; outline:none;
+  color:var(--ivory); background:#261C33; border:1px solid transparent;
   transition:border-color .15s, box-shadow .15s;
 }
 .au-input::placeholder{color:rgba(253,251,247,.5)}
-.au-input:focus-visible{border-color:var(--gold); box-shadow:0 0 0 3px rgba(252,211,77,.25)}
+.au-input:focus-visible{border-color:var(--gold); box-shadow:0 0 0 3px rgba(255,100,119,.25)}
 .au-input[aria-invalid="true"]{border-color:var(--err)}
 .au-eye{
   position:absolute; right:5px; width:36px; height:36px; display:grid; place-items:center; border:0; border-radius:8px;
@@ -66,7 +68,7 @@ const CSS = `
   background:rgba(0,0,0,.25); border:1px solid var(--line)}
 .au-seg button{height:38px; border:0; border-radius:9px; background:transparent; color:var(--mute);
   font-size:.92rem; font-weight:600; cursor:pointer}
-.au-seg button[aria-pressed="true"]{background:rgba(252,211,77,.16); color:var(--gold); box-shadow:inset 0 0 0 1px var(--line)}
+.au-seg button[aria-pressed="true"]{background:rgba(255,100,119,.16); color:var(--gold); box-shadow:inset 0 0 0 1px var(--line)}
 .au-seg button:focus-visible{outline:2px solid var(--gold)}
 
 .au-meter{display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-top:8px}
@@ -76,9 +78,9 @@ const CSS = `
 
 /* ---- buttons, links, alerts ---- */
 .au-btn{
-  width:100%; height:48px; margin-top:6px; border:0; border-radius:12px; cursor:pointer;
-  font-size:1rem; font-weight:700; color:var(--wine);
-  background:linear-gradient(135deg, var(--gold-d), var(--gold)); transition:filter .15s, transform .08s;
+  width:100%; height:52px; margin-top:6px; border:0; border-radius:26px; cursor:pointer;
+  font-size:1.02rem; font-weight:700; color:#fff; font-family:'Bricolage Grotesque','Noto Sans Tamil',system-ui,sans-serif;
+  background:linear-gradient(150deg,#E8405A,#A3153A); box-shadow:0 10px 24px rgba(160,20,50,.35); transition:filter .15s, transform .08s;
 }
 .au-btn:hover:not(:disabled){filter:brightness(1.07)}
 .au-btn:active:not(:disabled){transform:translateY(1px)}
@@ -99,15 +101,15 @@ const CSS = `
 .au-sign{grid-area:sign; display:flex; align-items:center; justify-content:center; gap:14px}
 .au-seal{
   flex:none; width:46px; height:46px; display:grid; place-items:center; border-radius:50%;
-  font-family:'Playfair Display',Georgia,serif; font-weight:700; font-size:1.3rem; color:var(--wine);
-  background:radial-gradient(circle at 32% 28%, #fff1b0, var(--gold) 45%, var(--gold-d) 100%);
-  box-shadow:0 0 0 3px rgba(59,14,27,.95), 0 0 0 4.5px rgba(252,211,77,.55), 0 8px 20px rgba(0,0,0,.45);
+  font-family:'Bricolage Grotesque','Noto Sans Tamil',system-ui,sans-serif; font-weight:700; font-size:1.3rem; color:#fff;
+  background:radial-gradient(circle at 32% 26%, #FF8795 0%, #E03A50 52%, #8E1230 100%);
+  box-shadow:0 0 0 3px rgba(15,11,20,.95), 0 0 0 4.5px rgba(255,100,119,.5), 0 8px 20px rgba(0,0,0,.45);
 }
 .au-sign-by{font-size:.8rem; color:var(--mute)}
 .au-sign-name{
   display:inline-block; padding:0 .25em .08em 0; line-height:1.15; font-size:2.7rem;
   font-family:'Great Vibes','Apple Chancery','URW Chancery L','Z003',cursive;
-  color:var(--gold); text-shadow:0 0 16px rgba(252,211,77,.4);
+  color:var(--gold); text-shadow:0 0 16px rgba(255,100,119,.4);
   transform:rotate(-2deg); transform-origin:left center;
   clip-path:inset(-15% 100% -15% 0); animation:au-write 1.5s .35s cubic-bezier(.4,.1,.2,1) forwards;
 }
@@ -123,8 +125,7 @@ const CSS = `
   }
   .au-brand{text-align:left; align-self:start; padding-top:12px}
   .au-logo{justify-content:flex-start}
-  .au-logo-a{font-size:4rem}
-  .au-logo-b{font-size:5.4rem; margin-left:10px}
+  .au-logo-a{font-size:3.6rem}
   .au-tag{display:block}
   .au-card{align-self:center}
   .au-sign{justify-content:flex-start; gap:18px; align-self:end}
@@ -153,8 +154,8 @@ export default function AuthLayout({ title, subtitle, children }) {
       <div className="au-wrap">
         <header className="au-brand">
           <div className="au-logo">
-            <span className="au-logo-a">Secret</span>
-            <span className="au-logo-b">Chat</span>
+            <span className="au-seal-intro" style={{ display: 'inline-grid' }}><Seal size={56} keyhole /></span>
+            <span className="au-logo-a">Secret Chat</span>
           </div>
           <p className="au-tag">Private conversations with the people you choose to add. Nothing else.</p>
         </header>

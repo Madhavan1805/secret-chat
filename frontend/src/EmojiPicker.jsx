@@ -31,13 +31,13 @@ export default function EmojiPicker({ T, onPick, height = 230 }) {
   const keep = (e) => e.preventDefault();
 
   return (
-    <div style={{ background: light ? '#fff' : '#26121a', border: `1px solid ${T?.accent || '#fcd34d'}`, borderRadius: 14, overflow: 'hidden', color: light ? '#1f2937' : '#fff' }}>
-      <div className="d-flex" style={{ borderBottom: `1px solid ${T?.accent || '#fcd34d'}33` }}>
+    <div style={{ background: light ? '#fff' : (T?.raised || '#261C33'), border: `1px solid ${T?.accent || '#FF6477'}`, borderRadius: 14, overflow: 'hidden', color: light ? '#1f2937' : '#fff' }}>
+      <div className="d-flex" style={{ borderBottom: `1px solid ${T?.accent || '#FF6477'}33` }}>
         {CATEGORIES.map((c) => (
           <button
             key={c.key} type="button" title={c.label} onMouseDown={keep} onClick={() => setCat(c.key)}
             className="btn p-1 border-0 flex-fill"
-            style={{ fontSize: 18, borderRadius: 0, background: cat === c.key ? `${T?.accent || '#fcd34d'}33` : 'transparent' }}
+            style={{ fontSize: 18, borderRadius: 0, background: cat === c.key ? `${T?.accent || '#FF6477'}33` : 'transparent' }}
           >{c.icon}</button>
         ))}
       </div>

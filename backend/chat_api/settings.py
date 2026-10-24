@@ -135,7 +135,7 @@ AUTH_USER_MODEL = 'chat.CustomUser'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'chat.device_auth.DeviceTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
 }

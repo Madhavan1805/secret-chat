@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BsCheck, BsCheckAll } from 'react-icons/bs';
+import { BiStar } from 'react-icons/bi';
+import { Seal } from './ui';
 import AudioPlayer from './AudioPlayer';
 import MediaViewer, { downloadFile } from './MediaViewer';
 import EmojiPicker from './EmojiPicker';
@@ -8,19 +10,81 @@ import { DEFAULT_REACTIONS, getCustomReactions, addCustomReaction, removeCustomR
 import { getPicUrl, formatSize, formatTime } from './config';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
+const MENTION_RE = /(@[\w.\-]+)/g;
 const EDIT_MS = 5 * 60 * 1000;
 
-const renderText = (text) =>
-  (text || '').split(URL_RE).map((part, i) =>
-    /^https?:\/\//.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline', wordBreak: 'break-all' }}>{part}</a>
-      : <span key={i}>{part}</span>);
+export const STICKER_PREFIX = '[STICKER]';
+export const GIF_PREFIX = '[GIF]';
+
+const renderText = (text, mentionNames) =>
+  (text || '').split(URL_RE).map((part, i) => {
+    if (/^https?:\/\//.test(part)) {
+      return <a key={i} href={part} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline', wordBreak: 'break-all' }}>{part}</a>;
+    }
+    return (
+      <span key={i}>
+        {part.split(MENTION_RE).map((seg, j) => (
+          /^@[\w.\-]+$/.test(seg) && mentionNames && mentionNames.has(seg.slice(1).toLowerCase())
+            ? <b key={j} style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 6, padding: '0 4px' }}>{seg}</b>
+            : <span key={j}>{seg}</span>
+        ))}
+      </span>
+    );
+  });
+
+function PollCard({ poll, onVote }) {
+  const total = poll.options.reduce((a, o) => a + o.votes, 0) || 0;
+  return (
+    <div style={{ minWidth: 220 }}>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, marginBottom: 2 }}>{poll.question}</div>
+      <div style={{ fontSize: 11.5, opacity: 0.75, marginBottom: 8 }}>
+        {poll.closed ? 'Poll closed' : (poll.multiple ? 'Choose one or more' : 'Choose one')} · {poll.total_voters} {poll.total_voters === 1 ? 'vote' : 'votes'}
+      </div>
+      {poll.options.map((o) => {
+        const pct = total ? Math.round((o.votes / total) * 100) : 0;
+        return (
+          <button
+            key={o.id} type="button" disabled={poll.closed}
+            onClick={(e) => { e.stopPropagation(); if (onVote) onVote(o.id); }}
+            style={{
+              position: 'relative', overflow: 'hidden', display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, padding: '9px 12px',
+              border: o.voted_by_me ? '1.5px solid currentColor' : '1.5px solid rgba(255,255,255,0.22)', borderRadius: 12, background: 'rgba(0,0,0,0.16)', color: 'inherit', fontSize: 14,
+            }}
+          >
+            <span style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${pct}%`, background: 'rgba(255,255,255,0.18)', transition: 'width .35s' }} />
+            <span style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <span>{o.voted_by_me ? '✓ ' : ''}{o.text}</span>
+              <b>{o.votes}</b>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusCard({ st }) {
+  const src = getPicUrl(st.media_file);
+  return (
+    <div className="d-flex gap-2 mb-1 p-1 pe-2 align-items-center" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, borderLeft: '3px solid currentColor' }}>
+      {src && st.media_type === 'image' && <img src={src} alt="" style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 8 }} />}
+      {src && st.media_type === 'video' && <video src={src} muted playsInline preload="metadata" style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 8 }} />}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700 }}>Status · {st.owner}</div>
+        <div className="text-truncate" style={{ fontSize: 12, opacity: 0.8, maxWidth: 170 }}>{st.caption || (st.media_type === 'text' ? 'Text status' : 'Photo / video')}</div>
+      </div>
+    </div>
+  );
+}
 
 export default function MessageBubble({
   msg, isMe, isGroup, T, replyMsg, highlighted, pinned,
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
+  onStar, onInfo, onVote, mentionNames,
 }) {
   const [menu, setMenu] = useState(false);
+  const [up, setUp] = useState(false);                        // open the menu above the bubble when there is no room below
+  const rowRef = useRef(null);
   const [viewer, setViewer] = useState(false);
   const [picker, setPicker] = useState(false);               // "+" -> pick any emoji as a reaction
   const [custom, setCustom] = useState(getCustomReactions);   // my own saved reactions
@@ -29,9 +93,7 @@ export default function MessageBubble({
   // ---------------------------------------------------------------- system line
   if (msg.message_type === 'system') {
     return (
-      <div id={`msg-${msg.id}`} className="text-center my-2">
-        <span className="px-3 py-1 rounded-pill small" style={{ background: T.panel, color: T.sub, fontSize: 12 }}>{msg.content}</span>
-      </div>
+      <div id={`msg-${msg.id}`} className="sc-note">{msg.content}</div>
     );
   }
 
@@ -42,8 +104,18 @@ export default function MessageBubble({
   const isImage = !!msg.file_url && msg.message_type === 'image';
   const isDoc = !!msg.file_url && msg.message_type === 'document';
   const isLocation = msg.message_type === 'location';
-  const canEdit = isMe && msg.message_type === 'text' && !isViewOnce && !msg.is_screenshot
+  const isPoll = msg.message_type === 'poll' && !!msg.poll;
+  const isSticker = content.startsWith(STICKER_PREFIX);
+  const isGif = content.startsWith(GIF_PREFIX);
+  const canEdit = isMe && msg.message_type === 'text' && !isViewOnce && !isSticker && !isGif && !msg.is_screenshot
     && Date.now() - new Date(msg.created_at).getTime() < EDIT_MS;
+
+  const openMenu = () => {
+    const r = rowRef.current && rowRef.current.getBoundingClientRect();
+    const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    setUp(!!r && r.bottom + 330 > h - 80 && r.top > 330);
+    setMenu(true);
+  };
 
   // ------------------------------------------------ gestures (own refs => no stale state)
   const start = (e) => {
@@ -51,7 +123,7 @@ export default function MessageBubble({
     clearTimeout(touch.current.timer);
     touch.current.x = t.clientX;
     touch.current.y = t.clientY;
-    touch.current.timer = setTimeout(() => setMenu(true), 550);       // long press
+    touch.current.timer = setTimeout(openMenu, 550);       // long press
   };
   const move = (e) => {
     const t = e.touches[0];
@@ -79,24 +151,20 @@ export default function MessageBubble({
     return <BsCheck size={14} />;
   };
 
-  const bubbleStyle = isMe
-    ? { background: T.mine, color: T.mineText, borderBottomRightRadius: 4 }
-    : { background: T.other, color: T.text, borderBottomLeftRadius: 4 };
-
   const act = (fn) => () => { setMenu(false); fn(); };
 
   return (
     <div
       id={`msg-${msg.id}`}
+      ref={rowRef}
       className={`d-flex flex-column ${isMe ? 'align-items-end' : 'align-items-start'} mb-2 position-relative`}
       style={{ transition: 'background .4s', background: highlighted ? 'rgba(250,204,21,0.25)' : 'transparent', borderRadius: 8 }}
     >
       {isGroup && !isMe && <small style={{ color: T.accent, fontSize: 11, marginLeft: 6 }}>{msg.sender_name}</small>}
 
       <div
-        className="px-3 py-2 shadow-sm position-relative"
-        style={{ ...bubbleStyle, maxWidth: '78%', borderRadius: 16, userSelect: 'none', wordBreak: 'break-word' }}
-        onContextMenu={(e) => { e.preventDefault(); setMenu(true); }}
+        className={`sc-bubble ${isMe ? 'mine' : 'theirs'}${isSticker ? ' sticker' : ''} position-relative`}
+        onContextMenu={(e) => { e.preventDefault(); openMenu(); }}
         onTouchStart={start}
         onTouchMove={move}
         onTouchEnd={end}
@@ -113,12 +181,13 @@ export default function MessageBubble({
 
         {isViewOnce ? (
           <button
+            type="button"
             disabled={isMe}
             onClick={() => !isMe && onOpenViewOnce(msg)}
-            className="btn btn-sm rounded-pill px-3 py-1 fw-bold"
-            style={{ border: `1px solid ${isMe ? T.mineText : T.accent}`, color: isMe ? T.mineText : T.accent }}
+            className="sc-sealed"
           >
-            {isMe ? '💣 View Once sent' : '💣 Tap to View Once'}
+            <Seal size={34} seed={5} />
+            {isMe ? 'Sealed photo sent' : 'Tap to break the seal'}
           </button>
         ) : (
           <>
@@ -150,19 +219,24 @@ export default function MessageBubble({
                 <span>⬇</span>
               </a>
             )}
-            {content && !isAudio && (
+            {isPoll && <PollCard poll={msg.poll} onVote={onVote} />}
+            {msg.status_preview && <StatusCard st={msg.status_preview} />}
+            {isSticker && <div style={{ fontSize: 76, lineHeight: 1.1 }}>{content.slice(STICKER_PREFIX.length)}</div>}
+            {isGif && <img src={content.slice(GIF_PREFIX.length)} alt="GIF" style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 12, display: 'block' }} />}
+            {content && !isAudio && !isPoll && !isSticker && !isGif && (
               <div style={{ whiteSpace: 'pre-wrap', marginTop: isImage || isVideo || isDoc ? 6 : 0 }}>
-                {isLocation ? <a href={content} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>📍 Shared location</a> : renderText(content)}
+                {isLocation ? <a href={content} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>📍 Shared location</a> : renderText(content, mentionNames)}
               </div>
             )}
           </>
         )}
 
         <div className="d-flex justify-content-end align-items-center gap-1" style={{ fontSize: 10, opacity: 0.8, marginTop: 2 }}>
+          {msg.is_starred && <BiStar size={12} />}
           {msg.edited_at && <span>edited</span>}
           <span>{formatTime(msg.created_at)}</span>
           {renderMeta()}
-          <button onClick={() => setMenu(true)} className="btn p-0 border-0" style={{ fontSize: 12, color: 'inherit', lineHeight: 1 }}>⌄</button>
+          <button type="button" aria-label="Message options" onClick={openMenu} className="btn p-0 border-0" style={{ fontSize: 12, color: 'inherit', lineHeight: 1 }}>⌄</button>
         </div>
       </div>
 
@@ -177,7 +251,7 @@ export default function MessageBubble({
         >
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 380 }}>
             {custom.length > 0 && (
-              <div className="mb-2 p-2" style={{ background: T.light ? '#fff' : '#26121a', border: `1px solid ${T.accent}`, borderRadius: 14, color: T.light ? '#1f2937' : '#fff' }}>
+              <div className="mb-2 p-2" style={{ background: T.light ? '#fff' : (T.raised || '#261C33'), border: `1px solid ${T.accent}`, borderRadius: 14, color: T.light ? '#1f2937' : '#fff' }}>
                 <div className="small mb-1" style={{ opacity: 0.7 }}>My reactions (tap ✕ to remove)</div>
                 <div className="d-flex flex-wrap gap-2">
                   {custom.map((e) => (
@@ -200,7 +274,7 @@ export default function MessageBubble({
       )}
 
       {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-        <div className="d-flex gap-1 px-2 rounded-pill shadow-sm" style={{ marginTop: -6, fontSize: 12, background: T.light ? '#fff' : '#1f1f1f', border: `1px solid ${T.accent}66`, zIndex: 1 }}>
+        <div className="d-flex gap-1 px-2 rounded-pill shadow-sm" style={{ marginTop: -8, fontSize: 13, background: 'var(--raised)', border: '1px solid var(--line)', zIndex: 1, padding: '1px 6px' }}>
           {Object.values(msg.reactions).map((e, i) => <span key={i}>{e}</span>)}
         </div>
       )}
@@ -210,29 +284,29 @@ export default function MessageBubble({
           <div onClick={() => setMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 1900 }} />
           <div
             className="shadow-lg"
-            style={{ position: 'absolute', zIndex: 2000, top: '100%', [isMe ? 'right' : 'left']: 0, background: T.light ? '#fff' : '#26121a', color: T.text, border: `1px solid ${T.accent}`, borderRadius: 14, padding: 8, minWidth: 220 }}
+            style={{ position: 'absolute', zIndex: 2000, [up ? 'bottom' : 'top']: '100%', [isMe ? 'right' : 'left']: 0, background: 'var(--raised)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: 18, padding: 8, minWidth: 220, boxShadow: '0 18px 40px rgba(0,0,0,.45)' }}
           >
+            {!isViewOnce && !msg.is_screenshot && (
+              <div className="d-flex flex-wrap align-items-center gap-1 pb-2 mb-2" style={{ maxWidth: 260, borderBottom: '1px solid var(--line)' }}>
+                {[...DEFAULT_REACTIONS, ...custom].map((e) => (
+                  <button key={e} type="button" className="btn p-0 border-0" style={{ fontSize: 22, lineHeight: 1.15, width: 33, height: 36 }} onClick={act(() => onReact(msg, e))}>{e}</button>
+                ))}
+                <button type="button" aria-label="More reactions" className="sc-iconbtn" style={{ width: 32, height: 32, fontSize: 18 }} onClick={act(() => setPicker(true))}>+</button>
+              </div>
+            )}
             <div className="d-flex flex-wrap justify-content-between align-items-center mb-2" style={{ maxWidth: 260 }}>
-              {[...DEFAULT_REACTIONS, ...custom].map((e) => (
-                <button key={e} className="btn p-1" style={{ fontSize: 20 }} onClick={act(() => onReact(msg, e))}>{e}</button>
-              ))}
-              <button
-                className="btn p-0 d-flex align-items-center justify-content-center" title="Add a reaction"
-                style={{ width: 28, height: 28, borderRadius: '50%', fontSize: 18, lineHeight: 1, background: 'rgba(128,128,128,0.25)', color: T.text }}
-                onClick={() => { setMenu(false); setPicker(true); }}
-              >+</button>
-            </div>
-            <div className="d-flex flex-column">
               {[
-                ['↩ Reply', () => onReply(msg), true],
-                ['↪ Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot],
-                ['📋 Copy', () => onCopy(msg), !!content && !isViewOnce],
-                ['✏️ Edit', () => onEdit(msg), canEdit],
-                [pinned ? '📌 Unpin' : '📌 Pin', () => onPin(msg), !isViewOnce],
-                ['👁 Seen by', () => onSeenBy(msg), isMe && isGroup],
-                ['🗑 Delete', () => onDelete(msg), true],
+                ['Reply', () => onReply(msg), true],
+                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll],
+                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll],
+                [msg.is_starred ? 'Remove star' : 'Star', () => onStar && onStar(msg), !!onStar && !isViewOnce],
+                ['Edit', () => onEdit(msg), canEdit],
+                [pinned ? 'Unpin' : 'Pin', () => onPin(msg), !isViewOnce],
+                ['Seen by', () => onSeenBy(msg), isMe && isGroup],
+                ['Message info', () => onInfo && onInfo(msg), !!onInfo && isMe && !isGroup && !msg.is_screenshot],
+                ['Delete', () => onDelete(msg), true],
               ].filter((x) => x[2]).map(([label, fn]) => (
-                <button key={label} className="btn btn-sm text-start" style={{ color: label.startsWith('🗑') ? '#f87171' : T.text }} onClick={act(fn)}>
+                <button key={label} className="btn btn-sm text-start" style={{ color: label === 'Delete' ? '#ff7d8c' : 'var(--text)' }} onClick={act(fn)}>
                   {label}
                 </button>
               ))}

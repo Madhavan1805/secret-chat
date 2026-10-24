@@ -279,13 +279,13 @@ export default function CallManager() {
 
   // ------------------------------------------------------------------ UI
   const overlay = { position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(20,5,10,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
-  const card = { background: '#3b0e1b', border: '1px solid #fcd34d', borderRadius: 20, padding: 28, width: '100%', maxWidth: 340, textAlign: 'center', color: '#fff', boxShadow: '0 0 40px rgba(252,211,77,0.35)' };
-  const avatar = { width: 84, height: 84, borderRadius: '50%', margin: '0 auto 14px', background: 'linear-gradient(135deg,#d4af37,#fcd34d)', color: '#3b0e1b', fontSize: 36, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' };
+  const card = { background: '#1B1424', border: '1px solid rgba(255,100,119,.45)', borderRadius: 28, padding: 28, width: '100%', maxWidth: 340, textAlign: 'center', color: '#fff', boxShadow: '0 24px 60px rgba(0,0,0,.55)' };
+  const avatar = { width: 84, height: 84, borderRadius: '50%', margin: '0 auto 14px', background: 'linear-gradient(150deg,#E8405A,#A3153A)', color: '#fff', fontSize: 36, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
   return (
     <>
       {toast && (
-        <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10002, background: '#1f1f1f', color: '#fff', border: '1px solid #fcd34d', borderRadius: 24, padding: '8px 18px', fontSize: 13 }}>
+        <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10002, background: '#1f1f1f', color: '#fff', border: '1px solid rgba(255,100,119,.5)', borderRadius: 24, padding: '8px 18px', fontSize: 13 }}>
           {toast}
         </div>
       )}
@@ -295,7 +295,7 @@ export default function CallManager() {
           <div style={card}>
             <div style={avatar}>{(incoming.is_group ? '👥' : incoming.caller_name || '?').toString().charAt(0).toUpperCase()}</div>
             <h5 className="fw-bold mb-1">{incoming.caller_name}</h5>
-            <p className="mb-1" style={{ color: '#fcd34d' }}>
+            <p className="mb-1" style={{ color: '#FF6477' }}>
               {incoming.is_group ? `${incoming.group_name || 'Group'} ${incoming.call_type} call` : `Incoming ${incoming.call_type} call…`}
             </p>
             <p className="small opacity-50 mb-4">{incoming.call_type === 'video' ? '📹' : '📞'} ringing</p>
@@ -312,7 +312,7 @@ export default function CallManager() {
           <div style={card}>
             <div style={avatar}>{(outgoing.name || '?').charAt(0).toUpperCase()}</div>
             <h5 className="fw-bold mb-1">{outgoing.name}</h5>
-            <p className="mb-4" style={{ color: '#fcd34d' }}>{outgoing.call.call_type === 'video' ? '📹 Video' : '📞 Voice'} calling…</p>
+            <p className="mb-4" style={{ color: '#FF6477' }}>{outgoing.call.call_type === 'video' ? '📹 Video' : '📞 Voice'} calling…</p>
             <button onClick={cancelOutgoing} className="btn btn-danger rounded-pill px-4 fw-bold">Cancel</button>
           </div>
         </div>

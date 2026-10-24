@@ -8,6 +8,7 @@ import ChatView from './ChatView';
 import CallManager from './CallManager';
 import GlobalEvents from './GlobalEvents';
 import { getToken } from './config';
+import LockGate from './LockGate';
 
 // pages that need a logged-in user: no token -> back to the login page
 function RequireAuth({ children }) {
@@ -21,6 +22,7 @@ export default function App() {
 
   return (
     <Shell>
+      <LockGate>
       <CallManager />
       <GlobalEvents />
       <Routes>
@@ -31,6 +33,7 @@ export default function App() {
         <Route path="/chat/:contactName" element={<RequireAuth><ChatView /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </LockGate>
     </Shell>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { BsCheckAll } from 'react-icons/bs';
-import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPaperclip, BiSearch, BiLock } from 'react-icons/bi';
+import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPlus, BiSearch, BiLock, BiArrowBack, BiSend, BiCheck, BiSmile, BiVolumeMute } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
@@ -9,7 +9,9 @@ import ForwardModal from './ForwardModal';
 import { useModal } from './PromptModal';
 import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime } from './config';
-import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme } from './theme';
+import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme, themeVars } from './theme';
+import { Seal, SealButton } from './ui';
+import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
 import { pushLogin } from './push';
@@ -76,6 +78,13 @@ function ChatView() {
   const [forwardMsg, setForwardMsg] = useState(null);
   const [pinnedMsg, setPinnedMsg] = useState(null);
   const [highlightId, setHighlightId] = useState(null);
+  const [showGallery, setShowGallery] = useState(false);
+  const [showGroup, setShowGroup] = useState(false);
+  const [showPoll, setShowPoll] = useState(false);
+  const [infoMsg, setInfoMsg] = useState(null);
+  const [panelTab, setPanelTab] = useState('emoji');
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [stamp, setStamp] = useState(0);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -407,9 +416,22 @@ function ChatView() {
   };
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
+    if (isGroupChat) {
+      const m = e.target.value.slice(0, e.target.selectionStart).match(/(^|\s)@([\w.\-]*)$/);
+      setMentionQuery(m ? m[2] : null);
+    }
     if (Date.now() - lastTypingSent.current > 1500) { lastTypingSent.current = Date.now(); sendTyping(true); }
     clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => { lastTypingSent.current = 0; sendTyping(false); }, 1800);
+  };
+
+  const pickMention = (name) => {
+    const pos = caretRef.current == null ? newMessage.length : Math.min(caretRef.current, newMessage.length);
+    const before = newMessage.slice(0, pos).replace(/@([\w.\-]*)$/, `@${name} `);
+    setNewMessage(before + newMessage.slice(pos));
+    caretRef.current = before.length;
+    setMentionQuery(null);
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 30);
   };
 
   // emoji button: put the emoji where the cursor was (or at the end)
@@ -485,6 +507,8 @@ function ChatView() {
         statusSeen.current.set(response.data.id, response.data.status);
       }
       playSound('send');
+      setStamp((k) => k + 1);
+      setMentionQuery(null);
       setShowEmoji(false);
       caretRef.current = null;
       setNewMessage('');
@@ -602,16 +626,35 @@ function ChatView() {
     try { await navigator.clipboard.writeText((msg.content || '').replace('[VIEW_ONCE]', '')); } catch (e) { /* ignore */ }
   };
 
-  const onSeenBy = (msg) => {
-    const seen = (msg.read_by_names || []).map((u) => u.username);
-    const seenIds = (msg.read_by || []);
-    const others = (meta?.participants || []).filter((p) => p.id !== msg.sender && !seenIds.includes(p.id)).map((p) => p.username);
-    ask({
-      type: 'alert',
-      title: '👁 Seen by',
-      message: `${seen.length ? seen.join(', ') : 'Nobody yet'}${others.length ? `  |  Not yet: ${others.join(', ')}` : ''}`,
-    });
+  // seen-by (groups) and message info (direct) share one screen
+  const onSeenBy = (msg) => setInfoMsg(msg);
+
+  const onStar = async (msg) => {
+    try {
+      const r = await api.post('messages/star/', { message_id: msg.id });
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, is_starred: !!r.data.starred } : m)));
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not star this message') }); }
   };
+
+  const onVote = async (optionId) => {
+    try {
+      const r = await api.post('polls/vote/', { option_id: optionId });
+      if (r.data && r.data.id) setMessages((prev) => prev.map((m) => (m.id === r.data.id ? r.data : m)));
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not vote') }); }
+  };
+
+  const createPoll = async (payload) => {
+    try {
+      const r = await api.post('polls/create/', { chat_id: meta.chat_id, ...payload });
+      if (r.data && r.data.id) setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
+      playSound('send');
+      setTimeout(() => scrollToBottom(true), 100);
+      return true;
+    } catch (e) { await handleSendError(e, 'Could not create the poll'); return false; }
+  };
+
+  const sendSticker = (emoji) => sendMessage(null, `[STICKER]${emoji}`);
+  const sendGif = (url) => sendMessage(null, `[GIF]${url}`);
 
   const closeViewOnce = async () => {
     if (!viewOnceData) return;
@@ -743,10 +786,6 @@ function ChatView() {
     try { await api.post('users/unfriend/', { user_id: friendId }); navigate('/home'); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
   };
 
-  const showMembers = () => {
-    ask({ type: 'alert', title: `👥 ${contactName} (${(meta?.participants || []).length})`, message: (meta?.participants || []).map((p) => p.username).join(', ') });
-  };
-
   const exitGroup = async () => {
     const ok = await ask({ type: 'confirm', title: 'Exit this group?', danger: true, okText: 'Exit' });
     if (!ok) return;
@@ -759,25 +798,47 @@ function ChatView() {
     try { await api.delete(`chats/${groupId}/`); navigate('/home'); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Only the group creator can delete the group') }); }
   };
 
+  const muteMenu = async () => {
+    if (!meta) return;
+    if (meta.is_muted) {
+      try { await api.post('chats/settings/', { chat_id: meta.chat_id, mute_hours: 0 }); await fetchMeta(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+      return;
+    }
+    const hours = await ask({ type: 'choice', title: 'Mute notifications for', choices: [{ label: '8 hours', value: 8 }, { label: '1 week', value: 168 }, { label: 'Always', value: -1 }] });
+    if (hours == null) return;
+    try { await api.post('chats/settings/', { chat_id: meta.chat_id, mute_hours: hours }); await fetchMeta(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+  };
+
+  const archiveToggle = async () => {
+    try {
+      await api.post('chats/settings/', { chat_id: meta.chat_id, is_archived: !meta.is_archived });
+      if (!meta.is_archived) navigate('/home'); else fetchMeta();
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+  };
+
+  const doExport = () => exportChatText(contactName, messages);
+
   const menuItems = !meta ? [] : [
-    ...(!isGroupChat ? [['👤 View profile', () => setProfileOpen(true)]] : []),
-    ['🔍 Search messages', () => { setSearchOpen(true); }],
-    ...(isGroupChat ? [['👥 Group members', showMembers]] : []),
-    [`⏳ Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],
-    [meta.is_locked ? '🔐 Chat lock (change / remove)' : '🔐 Chat lock', lockMenu],
-    ['🎨 Chat theme', themeMenu],
-    ['🖼 Wallpaper (colours)', extras.chooseWallpaper],
-    ['📷 Wallpaper from photo', extras.pickWallpaperPhoto],
-    [`⏰ Scheduled messages (${extras.scheduledCount})`, extras.openScheduledList],
-    [meta.is_pinned ? '📌 Unpin chat' : '📌 Pin chat', () => toggleSetting('is_pinned')],
-    [meta.is_muted ? '🔔 Unmute' : '🔇 Mute', () => toggleSetting('is_muted')],
-    ['🧹 Clear chat (for me)', clearChat, true],
+    ...(!isGroupChat ? [['View profile', () => setProfileOpen(true)]] : [['Group info and members', () => setShowGroup(true)]]),
+    ['Search messages', () => { setSearchOpen(true); }],
+    ['Media, docs and links', () => setShowGallery(true)],
+    [`Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],
+    [meta.is_locked ? 'Chat lock (change or remove)' : 'Chat lock', lockMenu],
+    ['Chat theme', themeMenu],
+    ['Wallpaper colours', extras.chooseWallpaper],
+    ['Wallpaper from photo', extras.pickWallpaperPhoto],
+    [`Scheduled messages (${extras.scheduledCount})`, extras.openScheduledList],
+    [meta.is_pinned ? 'Unpin chat' : 'Pin chat', () => toggleSetting('is_pinned')],
+    [meta.is_muted ? 'Unmute' : 'Mute…', muteMenu],
+    [meta.is_archived ? 'Unarchive' : 'Archive chat', archiveToggle],
+    ['Export chat (.txt)', doExport],
+    ['Clear chat (for me)', clearChat, true],
     ...(!isGroupChat ? [
-      [meta.blocked_by_me ? '✅ Unblock' : '🚫 Block', blockToggle, !meta.blocked_by_me],
-      ['➖ Unfriend', unfriend, true],
+      [meta.blocked_by_me ? 'Unblock' : 'Block', blockToggle, !meta.blocked_by_me],
+      ['Unfriend', unfriend, true],
     ] : [
-      ['🚪 Exit group', exitGroup, true],
-      ...(meta.created_by === me?.id ? [['🗑️ Delete group', deleteGroup, true]] : []),
+      ['Exit group', exitGroup, true],
+      ...(meta.created_by === me?.id ? [['Delete group', deleteGroup, true]] : []),
     ]),
   ];
 
@@ -797,23 +858,24 @@ function ChatView() {
 
   const typingNames = Object.keys(groupTyping).filter((n) => n !== me?.username);
   const subtitle = isGroupChat
-    ? (typingNames.length ? `✍️ ${typingNames.join(', ')} ${typingNames.length > 1 ? 'are' : 'is'} typing...` : `${(meta?.participants || []).length} members`)
-    : (meta?.blocked_me ? '' : (friendTyping ? '✍️ Typing...' : (receiver?.is_online ? '● Online' : (receiver?.last_seen ? `last seen ${formatListTime(receiver.last_seen)}` : 'Offline'))));
+    ? (typingNames.length ? `${typingNames.join(', ')} ${typingNames.length > 1 ? 'are' : 'is'} typing…` : `${(meta?.participants || []).length} members`)
+    : (meta?.blocked_me ? '' : (friendTyping ? 'typing…' : (receiver?.is_online ? 'Online' : (receiver?.last_seen ? `last seen ${formatListTime(receiver.last_seen)}` : 'Offline'))));
   const online = !isGroupChat && !friendTyping && !!receiver?.is_online && !meta?.blocked_me;
 
   let lastDisplayedDate = null;
 
   // ------------------------------------------------------------- render
-  const wrapStyle = { backgroundColor: T.bg };
-  // NOTE: height is set by the .chat-card CSS class (88dvh) so it works on phones too.
-  const cardStyle = { maxWidth: '450px', overflow: 'hidden', border: `1px solid ${T.accent}33`, ...(T.light ? { background: T.panel } : {}) };
+  const shellClass = `chat-shell ${T.light ? 't-light' : ''}`;
+  const vars = themeVars(T);
 
   if (booting || notFound) {
     return (
-      <div className={`d-flex justify-content-center align-items-center vh-100 px-3 ${T.light ? 't-light' : ''}`} style={wrapStyle}>
+      <div className={shellClass} style={{ ...vars, alignItems: 'center' }}>
         <style>{THEME_CSS}</style>
-        <div className="text-center text-white">
-          {booting ? <p>Loading chat…</p> : (<><p>Chat kedaikkala 😕</p><button className="btn btn-sm btn-outline-light rounded-pill" onClick={() => navigate('/home')}>← Back</button></>)}
+        <div style={{ textAlign: 'center', alignSelf: 'center', color: 'var(--text)' }}>
+          {booting ? (<><Seal size={64} keyhole /><p style={{ marginTop: 14, color: 'var(--sub)' }}>Opening chat…</p></>) : (
+            <><p>Could not find this chat.</p><button type="button" className="sc-btn" onClick={() => navigate('/home')}>Back to chats</button></>
+          )}
         </div>
       </div>
     );
@@ -821,22 +883,20 @@ function ChatView() {
 
   if (locked) {
     return (
-      <div className={`d-flex justify-content-center align-items-center vh-100 px-3 ${T.light ? 't-light' : ''}`} style={wrapStyle}>
+      <div className={shellClass} style={vars}>
         <style>{THEME_CSS}</style>
-        <div className="glass-card p-4 text-center w-100" style={{ maxWidth: 340, ...(T.light ? { background: T.panel } : {}), border: `1px solid ${T.accent}55` }}>
-          <BiLock style={{ fontSize: 44, color: T.accent }} />
-          <h6 className="text-white fw-bold mt-2">{contactName} chat locked</h6>
-          <form onSubmit={submitPin}>
-            <input
-              autoFocus type="password" inputMode="numeric" maxLength={4} value={pinEntry} placeholder="••••"
+        <div className="sc-card" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 28, gap: 6 }}>
+          <Seal size={84} keyhole />
+          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, margin: '14px 0 2px' }}>{contactName} is locked</h2>
+          <p style={{ color: 'var(--sub)', margin: 0 }}>Enter this chat's 4-digit PIN</p>
+          <form onSubmit={submitPin} style={{ width: '100%', maxWidth: 260 }}>
+            <input autoFocus type="password" inputMode="numeric" maxLength={4} value={pinEntry} placeholder="••••" aria-label="Chat PIN"
               onChange={(e) => setPinEntry(e.target.value.replace(/\D/g, ''))}
-              className="form-control text-white text-center my-3 fs-4"
-              style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.accent}`, letterSpacing: 10 }}
-            />
-            {pinError && <div className="text-danger small mb-2">{pinError}</div>}
-            <div className="d-flex gap-2 justify-content-center">
-              <button type="button" className="btn btn-outline-light rounded-pill px-3" onClick={() => navigate('/home')}>← Back</button>
-              <button type="submit" disabled={pinEntry.length !== 4} className="btn fw-bold rounded-pill px-4" style={{ background: T.accent, color: '#1f2937' }}>Unlock</button>
+              className="sc-field" style={{ textAlign: 'center', fontSize: 26, letterSpacing: 12, height: 56, margin: '18px 0 8px' }} />
+            {pinError && <div style={{ color: '#ff7d8c', fontSize: 14, marginBottom: 8 }}>{pinError}</div>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button type="button" className="sc-btn ghost" onClick={() => navigate('/home')}>Back</button>
+              <button type="submit" className="sc-btn" disabled={pinEntry.length !== 4}>Unlock</button>
             </div>
           </form>
         </div>
@@ -845,9 +905,11 @@ function ChatView() {
     );
   }
 
+  const mentionNames = isGroupChat ? new Set((meta?.participants || []).map((p) => p.username.toLowerCase())) : null;
   const bubbleCommon = {
     isGroup: isGroupChat,
     T,
+    mentionNames,
     onReply: (m) => { setEditing(null); setReplyingTo(m); setTimeout(() => inputRef.current && inputRef.current.focus(), 50); },
     onDelete,
     onReact,
@@ -856,15 +918,20 @@ function ChatView() {
     onEdit,
     onCopy,
     onSeenBy,
+    onInfo: (m) => setInfoMsg(m),
+    onStar,
+    onVote,
     onOpenViewOnce: (m) => setViewOnceData(m),
   };
 
+  const hasText = !!newMessage.trim() || !!selectedFile;
+  const closePanels = () => { setShowAttach(false); setShowEmoji(false); };
+  const replyPreview = (m) => (m.content ? m.content.replace('[VIEW_ONCE]', '').replace('[STICKER]', '') : (m.file_name || 'Media'));
+
   return (
-    <div className={`chat-shell px-3 position-relative ${T.light ? 't-light' : ''}`} style={wrapStyle}>
+    <div className={`${shellClass} position-relative`} style={vars}>
       <style>
         {`
-        .hide-scroll::-webkit-scrollbar { display: none; }
-        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes blinker { 50% { opacity: 0; } }
         .blink-anim { animation: blinker 1s linear infinite; }
         @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
@@ -877,122 +944,92 @@ function ChatView() {
       {extras.modals}
       {extras.wallpaperInput}
       {forwardMsg && (
-        <ForwardModal
-          msg={forwardMsg}
-          T={T}
-          onClose={(sent) => { setForwardMsg(null); if (sent) ask({ type: 'alert', title: 'Forwarded ✅' }); }}
-        />
+        <ForwardModal msg={forwardMsg} T={T} onClose={(sent) => { setForwardMsg(null); if (sent) ask({ type: 'alert', title: 'Forwarded' }); }} />
       )}
 
       {profileOpen && !isGroupChat && (
         <ProfileModal user={receiver} name={contactName} T={T} online={online} onClose={() => setProfileOpen(false)} />
       )}
+      {showGallery && <GallerySheet T={T} chatId={meta.chat_id} onClose={() => setShowGallery(false)} />}
+      {showGroup && isGroupChat && <GroupSheet T={T} meta={meta} me={me} ask={ask} onClose={() => setShowGroup(false)} onChanged={fetchMeta} />}
+      {showPoll && <PollSheet T={T} onClose={() => setShowPoll(false)} onCreate={createPoll} />}
+      {infoMsg && <InfoSheet T={T} msg={infoMsg} isGroup={isGroupChat} participants={meta?.participants} onClose={() => setInfoMsg(null)} />}
 
       {viewOnceData && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center"
-             style={{ background: 'rgba(20, 5, 10, 0.95)', backdropFilter: 'blur(10px)', zIndex: 9000 }}>
-          <div className="p-4 rounded-4 text-center position-relative pop-anim"
-               style={{ border: '2px solid #fcd34d', boxShadow: '0 0 40px rgba(252, 211, 77, 0.6)', background: 'linear-gradient(135deg, rgba(59,14,27,0.9), rgba(0,0,0,0.95))', maxWidth: '90%', width: '450px' }}>
-            <BiX className="position-absolute top-0 end-0 m-3 text-white fs-2 rounded-circle" style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.1)' }} onClick={closeViewOnce} />
-            <h4 className="text-warning fw-bold mb-4 mt-2" style={{ textShadow: '0 0 15px #fcd34d' }}>✨ Secret View ✨</h4>
-            <div className="d-flex flex-column justify-content-center align-items-center w-100">
-              {viewOnceData.file_url && viewOnceData.message_type === 'video' && (
-                <video src={getPicUrl(viewOnceData.file_url)} controls autoPlay className="img-fluid rounded border border-warning" style={{ maxHeight: '50vh' }} />
-              )}
-              {viewOnceData.file_url && viewOnceData.message_type === 'image' && (
-                <img src={getPicUrl(viewOnceData.file_url)} className="img-fluid rounded border border-warning" style={{ maxHeight: '50vh' }} alt="View Once" />
-              )}
-              {viewOnceData.file_url && viewOnceData.message_type === 'document' && (
-                <a href={getPicUrl(viewOnceData.file_url)} target="_blank" rel="noreferrer" className="btn btn-warning">📄 {viewOnceData.file_name || 'Open document'}</a>
-              )}
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(8,4,12,.96)', backdropFilter: 'blur(10px)' }}>
+          <div className="pop-anim" style={{ position: 'relative', width: '100%', maxWidth: 440, padding: 22, borderRadius: 28, background: 'var(--raised)', border: '1px solid var(--line)', textAlign: 'center', color: 'var(--text)' }}>
+            <button type="button" className="sc-iconbtn" style={{ position: 'absolute', top: 12, right: 12 }} aria-label="Close and destroy" onClick={closeViewOnce}><BiX /></button>
+            <Seal size={52} seed={7} style={{ margin: '0 auto' }} />
+            <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, margin: '10px 0 16px' }}>Seal broken</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {viewOnceData.file_url && viewOnceData.message_type === 'video' && <video src={getPicUrl(viewOnceData.file_url)} controls autoPlay style={{ maxWidth: '100%', maxHeight: '50vh', borderRadius: 16 }} />}
+              {viewOnceData.file_url && viewOnceData.message_type === 'image' && <img src={getPicUrl(viewOnceData.file_url)} alt="View once" style={{ maxWidth: '100%', maxHeight: '50vh', borderRadius: 16 }} />}
+              {viewOnceData.file_url && viewOnceData.message_type === 'document' && <a href={getPicUrl(viewOnceData.file_url)} target="_blank" rel="noreferrer" className="sc-btn">{viewOnceData.file_name || 'Open document'}</a>}
               {viewOnceData.content && viewOnceData.content.replace('[VIEW_ONCE]', '') && (
-                <div className="text-white fs-3 fw-bold mt-4 text-center text-break w-100" style={{ whiteSpace: 'pre-wrap' }}>
-                  {viewOnceData.content.replace('[VIEW_ONCE]', '')}
-                </div>
+                <div style={{ fontSize: 22, fontWeight: 600, marginTop: 16, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{viewOnceData.content.replace('[VIEW_ONCE]', '')}</div>
               )}
             </div>
-            <div className="mt-4 pt-3 border-top border-warning opacity-75 text-light" style={{ fontSize: '11px' }}>
-              <BiTimer className="fs-5 me-1" /> This message will self-destruct upon closing.
-            </div>
+            <p style={{ margin: '18px 0 0', color: 'var(--sub)', fontSize: 13 }}><BiTimer /> This message is destroyed when you close it.</p>
           </div>
         </div>
       )}
 
-      <div className="glass-card chat-card p-3 d-flex flex-column w-100 position-relative" style={cardStyle}>
+      <div className="sc-card">
 
         {/* ---------------------------------------------------------- header */}
-        <div className="d-flex justify-content-between align-items-center pb-2 border-bottom flex-shrink-0" style={{ borderColor: `${T.accent}33` }}>
-          <div className="d-flex align-items-center" style={{ minWidth: 0 }}>
-            <button className="btn btn-sm btn-outline-light me-2 rounded-pill px-2 py-0" onClick={() => navigate('/home')} style={{ borderColor: 'rgba(255,255,255,0.2)' }}>←</button>
-            {isGroupChat ? (
-              <div className="rounded-circle d-flex justify-content-center align-items-center me-2 shadow" style={{ width: '38px', height: '38px', background: T.accent, flexShrink: 0 }}>👥</div>
-            ) : (
-              <div className="me-2" style={{ cursor: 'pointer' }} onClick={() => setProfileOpen(true)}><Avatar src={receiver?.profile_picture} name={contactName} size={38} online={online} T={T} /></div>
+        <header className="sc-chat-top">
+          <button type="button" className="sc-iconbtn" style={{ background: 'transparent' }} aria-label="Back to chats" onClick={() => navigate('/home')}><BiArrowBack /></button>
+          <div className="sc-chat-id" role="button" tabIndex={0} style={{ cursor: 'pointer' }}
+               onClick={() => (isGroupChat ? setShowGroup(true) : setProfileOpen(true))}
+               onKeyDown={(e) => { if (e.key === 'Enter') (isGroupChat ? setShowGroup(true) : setProfileOpen(true)); }}>
+            {isGroupChat
+              ? (meta?.group_photo ? <Avatar src={meta.group_photo} name={contactName} size={42} T={T} /> : <Seal size={42} keyhole seed={4} />)
+              : <Avatar src={receiver?.profile_picture} name={contactName} size={42} online={online} T={T} />}
+            <div style={{ minWidth: 0 }}>
+              <h2 className="sc-chat-name">
+                <span className="t">{contactName}</span>
+                {meta?.is_muted && <BiVolumeMute style={{ color: 'var(--sub)', fontSize: 16 }} aria-label="Muted" />}
+                {meta?.is_locked && <BiLock style={{ color: 'var(--accent)', fontSize: 15 }} aria-label="Locked" />}
+                {dTime > 0 && <span className="sc-badge" style={{ height: 18, minWidth: 0, fontSize: 10, gap: 3, display: 'inline-flex', alignItems: 'center' }}><BiTimer />{humanDuration(dTime)}</span>}
+              </h2>
+              <span className={`sc-chat-sub${online ? ' on' : ''}`}>{subtitle}</span>
+            </div>
+          </div>
+          <button type="button" className="sc-iconbtn" aria-label="Voice call"
+            onClick={() => startCall(isGroupChat ? { group: true, chatId: groupId, name: contactName, callType: 'audio' } : { friendId, name: contactName, callType: 'audio' })}><BiPhoneCall /></button>
+          <button type="button" className="sc-iconbtn" aria-label="Video call"
+            onClick={() => startCall(isGroupChat ? { group: true, chatId: groupId, name: contactName, callType: 'video' } : { friendId, name: contactName, callType: 'video' })}><BiVideo /></button>
+          <div style={{ position: 'relative' }}>
+            <button type="button" className="sc-iconbtn" aria-label="More options" onClick={() => setShowTopMenu(!showTopMenu)}><BiDotsVerticalRounded /></button>
+            {showTopMenu && (
+              <>
+                <div onClick={() => setShowTopMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
+                <div className="sc-menu hide-scroll" style={{ top: '110%', right: 0, minWidth: 250, maxHeight: '65vh', overflowY: 'auto' }}>
+                  {menuItems.map(([label, fn, danger]) => (
+                    <button key={label} type="button" className={danger ? 'danger' : ''} onClick={() => { setShowTopMenu(false); fn(); }}>{label}</button>
+                  ))}
+                </div>
+              </>
             )}
-            <div className="ms-1" style={{ minWidth: 0, cursor: isGroupChat ? 'default' : 'pointer' }} onClick={() => { if (!isGroupChat) setProfileOpen(true); }}>
-              <h6 className="mb-0 fw-bold text-white lh-1 d-flex align-items-center">
-                <span className="text-truncate" style={{ maxWidth: 130 }}>{contactName}</span>
-                {dTime > 0 && (
-                  <span className="badge ms-2 rounded-pill shadow-sm d-flex align-items-center gap-1" style={{ fontSize: '9px', background: T.accent, color: '#1f2937' }}>
-                    <BiTimer /> {humanDuration(dTime)}
-                  </span>
-                )}
-                {meta?.is_pinned && <span className="ms-1" style={{ fontSize: 10 }}>📌</span>}
-                {meta?.is_muted && <span className="ms-1" style={{ fontSize: 10 }}>🔇</span>}
-                {meta?.is_locked && <BiLock className="ms-1" style={{ color: T.accent }} />}
-              </h6>
-              <small className={online ? 'text-success fw-bold' : 'text-light opacity-50'} style={{ fontSize: '10px' }}>{subtitle}</small>
-            </div>
           </div>
-
-          <div className="d-flex gap-1 align-items-center flex-shrink-0">
-            <button className="btn btn-sm rounded-circle p-1" style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.accent}66` }}
-                    title="Voice call"
-                    onClick={() => startCall(isGroupChat ? { group: true, chatId: groupId, name: contactName, callType: 'audio' } : { friendId, name: contactName, callType: 'audio' })}>
-              <BiPhoneCall className="fs-5" style={{ color: T.accent }} />
-            </button>
-            <button className="btn btn-sm rounded-circle p-1" style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.accent}66` }}
-                    title="Video call"
-                    onClick={() => startCall(isGroupChat ? { group: true, chatId: groupId, name: contactName, callType: 'video' } : { friendId, name: contactName, callType: 'video' })}>
-              <BiVideo className="fs-5" style={{ color: T.accent }} />
-            </button>
-            <div className="position-relative">
-              <button className="btn btn-sm text-light rounded-circle p-1" style={{ background: 'rgba(255,255,255,0.05)' }} onClick={() => setShowTopMenu(!showTopMenu)}>
-                <BiDotsVerticalRounded className="fs-4" style={{ color: T.accent }} />
-              </button>
-              {showTopMenu && (
-                <>
-                  <div onClick={() => setShowTopMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
-                  <div className="shadow-lg p-1 rounded-3" style={{ position: 'absolute', right: 0, top: '115%', zIndex: 901, background: T.light ? '#fff' : '#26121a', border: `1px solid ${T.accent}`, minWidth: 230, maxHeight: '60vh', overflowY: 'auto' }}>
-                    {menuItems.map(([label, fn, danger]) => (
-                      <button key={label} className="btn btn-sm w-100 text-start" style={{ fontSize: 12, color: danger ? '#f87171' : (T.light ? '#1f2937' : '#fff') }}
-                              onClick={() => { setShowTopMenu(false); fn(); }}>{label}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        </header>
 
         {/* ---------------------------------------------------------- search */}
         {searchOpen && (
-          <div className="flex-shrink-0 pt-2">
-            <div className="d-flex gap-2 align-items-center">
-              <BiSearch className="text-light" />
-              <input autoFocus className="form-control form-control-sm text-white" placeholder="Search in this chat…" value={searchQ} onChange={(e) => doSearch(e.target.value)}
-                     style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${T.accent}55`, fontSize: 12 }} />
-              <BiX className="text-white fs-4" style={{ cursor: 'pointer' }} onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); }} />
+          <div style={{ flexShrink: 0, padding: '8px 12px 0' }}>
+            <div className="sc-search" style={{ margin: 0 }}>
+              <BiSearch style={{ fontSize: 20 }} />
+              <input autoFocus placeholder="Search in this chat" value={searchQ} onChange={(e) => doSearch(e.target.value)} aria-label="Search in this chat" />
+              <button type="button" className="sc-dots" aria-label="Close search" onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); }}><BiX /></button>
             </div>
             {searchQ.trim() && (
-              <div className="mt-2 rounded hide-scroll" style={{ maxHeight: 160, overflowY: 'auto', background: 'rgba(0,0,0,0.25)' }}>
-                {searchResults.length === 0 && <div className="p-2 text-white-50 small">No messages found.</div>}
+              <div className="sc-set-group hide-scroll" style={{ maxHeight: 180, overflowY: 'auto', margin: '8px 0 0' }}>
+                {searchResults.length === 0 && <div style={{ padding: 14, color: 'var(--sub)' }}>No messages found.</div>}
                 {searchResults.map((m) => (
-                  <div key={m.id} className="p-2 border-bottom border-secondary text-white" style={{ cursor: 'pointer', fontSize: 12 }}
-                       onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); setTimeout(() => jumpTo(m.id), 100); }}>
-                    <b style={{ color: T.accent }}>{m.sender_name}</b> <span className="opacity-50">• {formatListTime(m.created_at)}</span>
-                    <div className="text-truncate">{m.content}</div>
-                  </div>
+                  <button key={m.id} type="button" className="sc-set" style={{ padding: '10px 14px' }}
+                    onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); setTimeout(() => jumpTo(m.id), 100); }}>
+                    <span className="txt"><small style={{ color: 'var(--accent)', fontWeight: 600 }}>{m.sender_name} · {formatListTime(m.created_at)}</small><b style={{ fontWeight: 500, fontFamily: 'var(--font-body)' }} className="text-truncate">{m.content}</b></span>
+                  </button>
                 ))}
               </div>
             )}
@@ -1001,26 +1038,24 @@ function ChatView() {
 
         {/* ---------------------------------------------------------- messages */}
         <div
-          className="flex-grow-1 p-2 overflow-auto d-flex flex-column gap-1 hide-scroll"
-          style={{ minHeight: 0, borderRadius: 12, ...extras.wallpaperStyle }}
+          className="sc-msgs hide-scroll"
+          style={extras.wallpaperStyle}
           ref={chatContainerRef}
           onScroll={handleScroll}
           onLoadCapture={() => { if (!isUserScrolling.current) scrollToBottom(false); }}
         >
-
           {pinnedMsg && (
-            <div className="d-flex justify-content-between align-items-center bg-dark p-2 mb-2 rounded border-start border-3 shadow-sm" style={{ borderColor: T.accent, fontSize: '11px', position: 'sticky', top: 0, zIndex: 100 }}>
-              <div className="text-white text-truncate" style={{ maxWidth: '85%', cursor: 'pointer' }} onClick={() => jumpTo(pinnedMsg.id)}>
-                <strong>📌 Pinned: </strong>
-                <span className="opacity-75">{pinnedMsg.content ? pinnedMsg.content.replace('[VIEW_ONCE]', '') : (pinnedMsg.file_name || 'Media Message')}</span>
+            <div className="sc-chip-row accent" style={{ position: 'sticky', top: 0, zIndex: 100, margin: '0 0 8px' }}>
+              <div className="text-truncate" style={{ flex: 1, cursor: 'pointer' }} onClick={() => jumpTo(pinnedMsg.id)}>
+                <b>Pinned </b><span style={{ color: 'var(--sub)' }}>{pinnedMsg.content ? pinnedMsg.content.replace('[VIEW_ONCE]', '') : (pinnedMsg.file_name || 'Media message')}</span>
               </div>
-              <BiX className="text-white fs-5" style={{ cursor: 'pointer' }} onClick={() => onPin(pinnedMsg)} />
+              <button type="button" className="sc-dots" aria-label="Unpin" onClick={() => onPin(pinnedMsg)}><BiX /></button>
             </div>
           )}
 
-          <div className="text-center text-light opacity-75 mb-2 p-1 rounded" style={{ fontSize: '10px', background: 'rgba(255,255,255,0.03)' }}>
-            🔒 Secret chat. Swipe right to reply. Long press (or ⌄) for options.
-          </div>
+          <div className="sc-note"><BiLock style={{ verticalAlign: '-2px' }} /> Private chat. Swipe a message right to reply, long-press for more.</div>
+
+          {isGroupChat && meta?.group_description && <div className="sc-note">{meta.group_description}</div>}
 
           {visible.map((msg) => {
             const label = formatDateLabel(msg.created_at);
@@ -1029,11 +1064,7 @@ function ChatView() {
             const replyMsg = msg.reply_to ? messages.find((m) => m.id === msg.reply_to) : null;
             return (
               <React.Fragment key={msg.id}>
-                {showDate && (
-                  <div className="d-flex justify-content-center my-1 w-100">
-                    <div className="px-2 rounded-pill shadow-sm" style={{ background: 'rgba(255,255,255,0.1)', fontSize: '10px', color: T.light ? '#374151' : '#ddd' }}>{label}</div>
-                  </div>
-                )}
+                {showDate && <div className="sc-datechip">{label}</div>}
                 <MessageBubble
                   msg={msg}
                   isMe={msg.sender === me?.id}
@@ -1050,32 +1081,35 @@ function ChatView() {
 
         {/* ---------------------------------------------------------- composer */}
         {meta?.blocked_by_me ? (
-          <div className="pt-2 flex-shrink-0 text-center text-white-50 small">
-            🚫 You blocked {contactName}. <button className="btn btn-sm btn-outline-light rounded-pill ms-2" onClick={blockToggle}>Unblock</button>
+          <div className="sc-composer" style={{ textAlign: 'center', color: 'var(--sub)' }}>
+            You blocked {contactName}. <button type="button" className="sc-btn ghost" style={{ height: 34, marginLeft: 8 }} onClick={blockToggle}>Unblock</button>
           </div>
         ) : meta?.blocked_me ? (
-          <div className="pt-2 flex-shrink-0 text-center text-white-50 small">You can't send messages to this contact.</div>
+          <div className="sc-composer" style={{ textAlign: 'center', color: 'var(--sub)' }}>You can't send messages to this contact.</div>
         ) : (
-          <form onSubmit={sendMessage} className="pt-2 flex-shrink-0 position-relative">
+          <form onSubmit={sendMessage} className="sc-composer">
+            {mentionQuery !== null && isGroupChat && (
+              <MentionList names={(meta?.participants || []).map((p) => p.username).filter((n) => n !== me?.username)} query={mentionQuery} onPick={pickMention} />
+            )}
             {replyingTo && (
-              <div className="w-100 bg-dark p-2 mb-1 rounded d-flex justify-content-between align-items-center border-start border-3" style={{ borderColor: T.accent }}>
-                <div className="text-white" style={{ fontSize: '11px', minWidth: 0 }}>
-                  <strong>Replying to {replyingTo.sender_name}</strong><br />
-                  <span className="opacity-75 text-truncate d-block" style={{ maxWidth: 260 }}>{replyingTo.content ? replyingTo.content.replace('[VIEW_ONCE]', '') : (replyingTo.file_name || 'Media')}</span>
-                </div>
-                <BiX className="text-white fs-5" style={{ cursor: 'pointer' }} onClick={() => setReplyingTo(null)} />
+              <div className="sc-chip-row accent">
+                <div style={{ flex: 1, minWidth: 0 }}><b>Replying to {replyingTo.sender_name}</b><div className="text-truncate" style={{ color: 'var(--sub)' }}>{replyPreview(replyingTo)}</div></div>
+                <button type="button" className="sc-dots" aria-label="Cancel reply" onClick={() => setReplyingTo(null)}><BiX /></button>
               </div>
             )}
             {editing && (
-              <div className="w-100 bg-dark p-2 mb-1 rounded d-flex justify-content-between align-items-center border-start border-3" style={{ borderColor: '#38bdf8' }}>
-                <div className="text-white" style={{ fontSize: '11px' }}><strong>✏️ Editing message</strong></div>
-                <BiX className="text-white fs-5" style={{ cursor: 'pointer' }} onClick={() => { setEditing(null); setNewMessage(''); }} />
+              <div className="sc-chip-row accent"><b style={{ flex: 1 }}>Editing message</b>
+                <button type="button" className="sc-dots" aria-label="Cancel edit" onClick={() => { setEditing(null); setNewMessage(''); }}><BiX /></button>
               </div>
             )}
             {selectedFile && (
-              <div className="text-success mb-1 d-flex align-items-center gap-2" style={{ fontSize: '11px' }}>
-                📎 {selectedFile.name} ready
-                <BiX className="text-white fs-5" style={{ cursor: 'pointer' }} onClick={() => setSelectedFile(null)} />
+              <div className="sc-chip-row"><span className="text-truncate" style={{ flex: 1 }}>{selectedFile.name} is ready to send</span>
+                <button type="button" className="sc-dots" aria-label="Remove attachment" onClick={() => setSelectedFile(null)}><BiX /></button>
+              </div>
+            )}
+            {isViewOnce && (
+              <div className="sc-chip-row accent"><Seal size={22} seed={5} /><span style={{ flex: 1 }}>Sealed: disappears after they open it</span>
+                <button type="button" className="sc-dots" aria-label="Turn off sealed mode" onClick={() => setIsViewOnce(false)}><BiX /></button>
               </div>
             )}
 
@@ -1083,68 +1117,66 @@ function ChatView() {
             <input ref={docInputRef} type="file" className="d-none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json" onChange={(e) => { setSelectedFile(e.target.files[0] || null); e.target.value = ''; setShowAttach(false); }} />
 
             {showEmoji && !isRecording && (
-              <div className="mb-2"><EmojiPicker T={T} onPick={insertEmoji} /></div>
+              <div style={{ marginBottom: 8 }}>
+                <div className="sc-choice" style={{ marginBottom: 8 }}>
+                  <button type="button" aria-pressed={panelTab === 'emoji'} onClick={() => setPanelTab('emoji')}>Emoji</button>
+                  <button type="button" aria-pressed={panelTab === 'sticker'} onClick={() => setPanelTab('sticker')}>Stickers{gifsOn ? ' and GIFs' : ''}</button>
+                </div>
+                {panelTab === 'emoji' ? <EmojiPicker T={T} onPick={insertEmoji} /> : <StickerPanel onSticker={sendSticker} onGif={sendGif} />}
+              </div>
             )}
 
-            <div className="d-flex gap-2 align-items-center">
-              {isRecording ? (
-                <div className="d-flex align-items-center w-100 bg-dark rounded-pill px-3 py-1" style={{ border: `1px solid ${T.accent}88` }}>
-                  <div className="text-danger fw-bold me-auto d-flex align-items-center gap-2">
-                    <div className="rounded-circle bg-danger blink-anim" style={{ width: '10px', height: '10px' }}></div>
-                    {formatRec(recordingTime)}
-                  </div>
-                  <button type="button" className="btn btn-sm text-light px-2" onClick={cancelRecording} title="Cancel Recording"><BiTrash className="fs-5" /></button>
-                  <button type="button" className="btn btn-sm text-success px-2" onClick={sendRecording} title="Send Audio"><BsCheckAll className="fs-4" /></button>
+            {isRecording ? (
+              <div className="sc-pill" style={{ alignItems: 'center', padding: '8px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, color: '#ff7d8c', fontWeight: 700 }}>
+                  <span className="blink-anim" style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff4d6a' }} />{formatRec(recordingTime)}
                 </div>
-              ) : (
-                <>
-                  <div className="position-relative">
-                    <button type="button" className="btn btn-outline-light rounded-circle p-1" onClick={() => setShowAttach(!showAttach)} title="Attach"><BiPaperclip className="fs-5" /></button>
+                <button type="button" className="sc-tool" onClick={cancelRecording} aria-label="Cancel recording"><BiTrash /></button>
+                <button type="button" className="sc-tool on" onClick={sendRecording} aria-label="Send voice message"><BsCheckAll /></button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                <div className="sc-pill" style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ position: 'relative' }}>
+                    <button type="button" className={`sc-tool${showAttach ? ' on' : ''}`} onClick={() => { setShowEmoji(false); setShowAttach(!showAttach); }} aria-label="Attach"><BiPlus /></button>
                     {showAttach && (
                       <>
                         <div onClick={() => setShowAttach(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
-                        <div className="shadow-lg p-1 rounded-3" style={{ position: 'absolute', bottom: '120%', left: 0, zIndex: 901, background: T.light ? '#fff' : '#26121a', border: `1px solid ${T.accent}`, minWidth: 160 }}>
+                        <div className="sc-menu" style={{ bottom: '120%', top: 'auto', left: 0, right: 'auto', minWidth: 210 }}>
                           {[
-                            ['🖼 Photo / Video', () => photoInputRef.current && photoInputRef.current.click()],
-                            ['📄 Document', () => docInputRef.current && docInputRef.current.click()],
-                            ['📍 Location', shareLocation],
-                            ['⏰ Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
-                          ].map(([l, fn]) => (
-                            <button type="button" key={l} className="btn btn-sm w-100 text-start" style={{ fontSize: 12, color: T.light ? '#1f2937' : '#fff' }} onClick={fn}>{l}</button>
-                          ))}
+                            ['Photo or video', () => photoInputRef.current && photoInputRef.current.click()],
+                            ['Document', () => docInputRef.current && docInputRef.current.click()],
+                            ['Location', shareLocation],
+                            ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
+                            [isViewOnce ? 'Sealed mode: on (tap to turn off)' : 'Send sealed (view once)', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],
+                            ['Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
+                          ].map(([l, fn]) => <button type="button" key={l} onClick={fn}>{l}</button>)}
                         </div>
                       </>
                     )}
                   </div>
-
-                  <button type="button" className={`btn rounded-circle p-1 ${isViewOnce ? 'btn-danger shadow' : 'btn-outline-secondary'}`} onClick={() => setIsViewOnce(!isViewOnce)} title="View Once Message">💣</button>
-
-                  <button type="button" className={`btn rounded-circle p-1 ${showEmoji ? 'btn-warning' : 'btn-outline-light'}`}
-                          onMouseDown={(e) => e.preventDefault()} onClick={toggleEmoji} title="Emoji" style={{ lineHeight: 1, fontSize: 18, width: 34, height: 34 }}>😊</button>
-
+                  <button type="button" className={`sc-tool${showEmoji ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={toggleEmoji} aria-label="Emoji and stickers"><BiSmile /></button>
                   <textarea
                     ref={inputRef}
                     rows={1}
-                    className="form-control px-2 py-1 text-white form-control-sm"
-                    placeholder={editing ? 'Edit message...' : 'Type a message...'}
+                    placeholder={editing ? 'Edit message' : 'Message'}
+                    aria-label="Message"
                     value={newMessage}
                     onChange={(e) => { caretRef.current = e.target.selectionStart; handleTyping(e); }}
                     onSelect={(e) => { caretRef.current = e.target.selectionStart; }}
-                    onFocus={() => setShowEmoji(false)}
+                    onFocus={closePanels}
                     onKeyDown={onComposerKey}
-                    style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.accent}55`, fontSize: '12px', resize: 'none', overflowY: 'auto', maxHeight: 120, lineHeight: 1.4 }}
                   />
-
-                  {!newMessage.trim() && !selectedFile ? (
-                    <button type="button" className="btn btn-outline-warning rounded-circle p-1" onClick={startRecording} style={{ borderColor: T.accent }}>
-                      <BiMicrophone className="fs-5" style={{ color: T.accent }} />
-                    </button>
-                  ) : (
-                    <button type="submit" disabled={sending} className="btn px-3 fw-bold rounded-pill btn-sm" style={{ background: T.accent, color: '#1f2937', fontSize: '12px' }}>{editing ? 'Save' : 'Send'}</button>
-                  )}
-                </>
-              )}
-            </div>
+                </div>
+                {hasText ? (
+                  <SealButton label={editing ? 'Save edit' : 'Send'} disabled={sending} stampKey={stamp} onClick={sendMessage}>
+                    {editing ? <BiCheck /> : <BiSend />}
+                  </SealButton>
+                ) : (
+                  <button type="button" className="sc-iconbtn" style={{ width: 46, height: 46, background: 'var(--mine)', color: 'var(--mine-text)' }} onClick={startRecording} aria-label="Record voice message"><BiMicrophone /></button>
+                )}
+              </div>
+            )}
           </form>
         )}
       </div>
