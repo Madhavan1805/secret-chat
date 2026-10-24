@@ -12,7 +12,7 @@ def short_uid():
 
 class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
-    profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
+    profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True, max_length=255)
     profile_picture_old = models.URLField(blank=True, null=True)
     bio = models.CharField(max_length=255, blank=True, default="Available")
     is_online = models.BooleanField(default=False)
@@ -69,7 +69,7 @@ class Chat(models.Model):
 
     # group profile + admins (the creator is always an admin)
     group_description = models.TextField(blank=True, default='')
-    group_photo = models.ImageField(upload_to='group_photos/', null=True, blank=True)
+    group_photo = models.ImageField(upload_to='group_photos/', null=True, blank=True, max_length=255)
     admins = models.ManyToManyField(CustomUser, related_name='admin_of_chats', blank=True)
 
     # disappearing messages (server side, shared by everyone in the chat)
@@ -135,11 +135,11 @@ class Message(models.Model):
     message_type = models.CharField(max_length=20, choices=MESSAGE_TYPES, default='text')
 
     content = models.TextField(blank=True, null=True)
-    file_url = models.FileField(upload_to='chat_media/', blank=True, null=True)
+    file_url = models.FileField(upload_to='chat_media/', blank=True, null=True, max_length=255)
     file_name = models.CharField(max_length=255, blank=True, null=True)    # NEW (documents)
     file_size = models.BigIntegerField(blank=True, null=True)              # NEW
 
-    voice_note = models.FileField(upload_to='voice_notes/', blank=True, null=True)
+    voice_note = models.FileField(upload_to='voice_notes/', blank=True, null=True, max_length=255)
     reply_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies')
     reactions = models.JSONField(default=dict, blank=True)
     is_screenshot = models.BooleanField(default=False)
@@ -242,12 +242,16 @@ class Status(models.Model):
     PRIVACY_CHOICES = (
         ('all', 'All friends'),
         ('close', 'Close friends only'),
+        ('except', 'All friends except...'),
+        ('only', 'Only share with...'),
     )
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='statuses')
-    media_file = models.FileField(upload_to='status_media/')
+    media_file = models.FileField(upload_to='status_media/', max_length=255)
     media_type = models.CharField(max_length=10, default='image')  # 'image' or 'video'
     caption = models.CharField(max_length=300, blank=True, default='')            # NEW
     privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='all')   # NEW
+    # for privacy 'except' = friends who must NOT see it, for 'only' = the only friends who can
+    privacy_users = models.ManyToManyField(CustomUser, related_name='+', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
 

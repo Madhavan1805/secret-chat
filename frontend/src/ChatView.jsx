@@ -8,8 +8,8 @@ import MessageBubble from './MessageBubble';
 import ForwardModal from './ForwardModal';
 import { useModal } from './PromptModal';
 import { useRealtime, sendSocket, isSocketOpen } from './socket';
-import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime } from './config';
-import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme, themeVars } from './theme';
+import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, shortFile } from './config';
+import { CHAT_THEMES, THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
 import { Seal, SealButton } from './ui';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
@@ -495,7 +495,7 @@ function ChatView() {
 
     if (isViewOnce) content = `[VIEW_ONCE]${content}`;
     if (content.trim()) formData.append('content', content);
-    if (selectedFile) formData.append('file_url', selectedFile);
+    if (selectedFile) formData.append('file_url', shortFile(selectedFile));
     if (msgType !== 'text') formData.append('message_type', msgType);
     if (replyingTo) formData.append('reply_to', replyingTo.id);
 
@@ -537,7 +537,7 @@ function ChatView() {
     const formData = new FormData();
     if (groupId) formData.append('chat', groupId);
     else formData.append('receiver', friendId);
-    formData.append('voice_note', blob, `voicenote.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`);
+    formData.append('voice_note', blob, `voice.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`);
     formData.append('message_type', 'audio');
     if (replyingTo) formData.append('reply_to', replyingTo.id);
     setReplyingTo(null);
@@ -867,6 +867,7 @@ function ChatView() {
   // ------------------------------------------------------------- render
   const shellClass = `chat-shell ${T.light ? 't-light' : ''}`;
   const vars = themeVars(T);
+  useEffect(() => { paintPage(T); }, [T.bg]);
 
   if (booting || notFound) {
     return (

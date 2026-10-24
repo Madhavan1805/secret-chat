@@ -7,7 +7,7 @@ import { PrivacySheet, DevicesSheet, LockSheet, QrSheet, StarredSheet, BlockedSh
 import { APP_MODES, CHAT_THEMES } from './theme';
 import { lockEnabled } from './appLock';
 import { soundsEnabled, setSoundsEnabled } from './sounds';
-import { getMe, errMsg } from './config';
+import { getMe, errMsg, shortFile } from './config';
 
 const chev = <BiChevronRight style={{ fontSize: 20, color: 'var(--sub)' }} />;
 
@@ -47,7 +47,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
     const file = e.target.files[0];
     if (!file) return;
     const fd = new FormData();
-    fd.append('profile_picture', file);
+    fd.append('profile_picture', shortFile(file));
     try { await api.patch('users/update_profile/', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); await getMe(true); refresh(); } catch (err) { ask({ type: 'alert', title: errMsg(err, 'Upload failed') }); }
   };
   const removePic = async () => {
@@ -66,35 +66,40 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
   return (
     <div style={{ padding: '4px 6px 20px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '8px 8px 18px' }}>
-        <Avatar src={me?.profile_picture} name={currentUsername} size={96} T={T} />
-        <input type="file" id="dp-upload" className="d-none" accept="image/*" onChange={upload} />
-        <div style={{ display: 'flex', gap: 8, margin: '12px 0 4px' }}>
-          <label htmlFor="dp-upload" className="sc-btn ghost" style={{ height: 36, fontSize: 13, margin: 0, cursor: 'pointer' }}><BiCamera /> Change photo</label>
-          {me?.profile_picture && <button type="button" className="sc-btn ghost" style={{ height: 36, fontSize: 13 }} onClick={removePic}>Remove</button>}
-        </div>
-        {editing ? (
-          <div style={{ width: '100%', textAlign: 'left' }}>
-            <label className="sc-label">Secret ID</label>
-            <input className="sc-field" value={name} onChange={(e) => setName(e.target.value)} />
-            <label className="sc-label">Bio</label>
-            <textarea className="sc-field" rows="2" value={bio} onChange={(e) => setBio(e.target.value)} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button type="button" className="sc-btn" style={{ flex: 1 }} onClick={save}>Save</button>
-              <button type="button" className="sc-btn ghost" style={{ flex: 1 }} onClick={() => setEditing(false)}>Cancel</button>
-            </div>
+      <div style={{ borderRadius: 26, overflow: 'hidden', background: 'var(--panel)', border: '1px solid var(--line)', marginBottom: 18 }}>
+        <div style={{ height: 84, background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 35%, var(--panel)))', opacity: 0.9 }} />
+        <div style={{ padding: '0 18px 18px', marginTop: -48, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <div style={{ position: 'relative', borderRadius: '50%', border: '4px solid var(--panel)', lineHeight: 0 }}>
+            <Avatar src={me?.profile_picture} name={currentUsername} size={92} T={T} />
+            <input type="file" id="dp-upload" className="d-none" accept="image/*" onChange={upload} />
+            <label htmlFor="dp-upload" aria-label="Change photo" style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#161616', display: 'grid', placeItems: 'center', cursor: 'pointer', border: '3px solid var(--panel)', fontSize: 16, margin: 0 }}><BiCamera /></label>
           </div>
-        ) : (
-          <>
-            <h2 style={{ margin: '8px 0 2px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 26, letterSpacing: '-.02em' }}>{currentUsername}</h2>
-            <p style={{ margin: 0, color: 'var(--sub)', fontSize: 14, maxWidth: 280 }}>{me?.bio || 'Add a short bio so friends know who you are.'}</p>
-            <button type="button" className="sc-btn ghost" style={{ marginTop: 12, height: 38, fontSize: 14 }} onClick={() => { setName(currentUsername); setBio(me?.bio || ''); setEditing(true); }}><BiEdit /> Edit profile</button>
-          </>
-        )}
+          {editing ? (
+            <div style={{ width: '100%', textAlign: 'left', marginTop: 14 }}>
+              <label className="sc-label">Secret ID</label>
+              <input className="sc-field" value={name} onChange={(e) => setName(e.target.value)} />
+              <label className="sc-label">Bio</label>
+              <textarea className="sc-field" rows="2" value={bio} onChange={(e) => setBio(e.target.value)} />
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button type="button" className="sc-btn" style={{ flex: 1 }} onClick={save}>Save</button>
+                <button type="button" className="sc-btn ghost" style={{ flex: 1 }} onClick={() => setEditing(false)}>Cancel</button>
+              </div>
+              {me?.profile_picture && <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 8, height: 36, fontSize: 13 }} onClick={removePic}>Remove photo</button>}
+            </div>
+          ) : (
+            <>
+              <h2 style={{ margin: '12px 0 2px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, letterSpacing: '-.02em' }}>{currentUsername}</h2>
+              <p style={{ margin: '0 0 14px', color: 'var(--sub)', fontSize: 14, maxWidth: 280, lineHeight: 1.45 }}>{me?.bio || 'No bio yet'}</p>
+              <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                <button type="button" className="sc-btn" style={{ flex: 1, height: 40, fontSize: 14 }} onClick={() => { setName(currentUsername); setBio(me?.bio || ''); setEditing(true); }}><BiEdit /> Edit profile</button>
+                <button type="button" className="sc-btn ghost" style={{ flex: 1, height: 40, fontSize: 14 }} onClick={() => setSheet('qr')}><BiQrScan /> My QR</button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="sc-set-group">
-        <SettingRow icon={<BiQrScan />} title="QR code" sub="Add friends by scanning" onClick={() => setSheet('qr')} right={chev} />
         <SettingRow icon={<BiStar />} title="Starred messages" onClick={() => setSheet('starred')} right={chev} />
       </div>
 

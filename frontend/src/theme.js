@@ -62,3 +62,16 @@ export const THEME_CSS = `
 .t-light .btn-outline-light { color:#3b3144 !important; border-color:#a79fb0 !important; }
 .t-light .border-secondary { border-color:rgba(27,19,34,0.14) !important; }
 `;
+
+// Colours the page behind the app and the browser / status-bar colour, so nothing white shows when the keyboard resizes the screen.
+export const paintPage = (T) => {
+  try {
+    const root = document.documentElement;
+    root.style.setProperty('--page-bg', T.bg);
+    root.style.backgroundColor = T.bg;
+    document.body.style.backgroundColor = T.bg;
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) { meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta); }
+    meta.content = T.bg;
+  } catch (e) { /* ignore */ }
+};

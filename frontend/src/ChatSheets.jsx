@@ -4,7 +4,7 @@ import api from './api';
 import Avatar from './Avatar';
 import { Sheet, Choice, SettingRow, Seal } from './ui';
 import MediaViewer from './MediaViewer';
-import { getPicUrl, errMsg, formatSize, formatListTime, formatTime, asList } from './config';
+import { getPicUrl, errMsg, formatSize, formatListTime, formatTime, asList, shortFile } from './config';
 
 // ------------------------------------------------------------------ media gallery
 export function GallerySheet({ T, chatId, onClose }) {
@@ -155,7 +155,7 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
     call(async () => {
-      const fd = new FormData(); fd.append('chat_id', meta.chat_id); fd.append('photo', f);
+      const fd = new FormData(); fd.append('chat_id', meta.chat_id); fd.append('photo', shortFile(f));
       await api.post('groups/update/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
     }, 'Could not upload');
   };

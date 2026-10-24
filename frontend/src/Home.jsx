@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BiSearch, BiCheck, BiX, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus } from 'react-icons/bi';
+import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import StatusTab from './StatusTab';
 import { useModal } from './PromptModal';
 import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
 import { getMe, clearMe, errMsg, formatListTime, formatDuration, startCall } from './config';
-import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars } from './theme';
+import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage } from './theme';
 import { Seal, Sheet } from './ui';
 import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
+import { RequestsSheet, FindPeopleSheet } from './People';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
 
@@ -73,6 +74,9 @@ function Home() {
   const [activeTab, setActiveTab] = useState('chats');
   const [showArchived, setShowArchived] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
+  const [showFind, setShowFind] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [muteFor, setMuteFor] = useState(null);
   const [rowMenu, setRowMenu] = useState(null);
@@ -99,6 +103,7 @@ function Home() {
   const T = resolveTheme(appTheme);
   const rowBg = T.light ? '#ffffff' : 'rgba(255,255,255,0.06)';
   const [modal, ask] = useModal(T);
+  useEffect(() => { paintPage(T); }, [appTheme]);
 
   const currentUsername = me?.username || localStorage.getItem('username') || 'User';
 
@@ -220,31 +225,19 @@ function Home() {
   }, [activeTab]);
 
   // ---------------------------------------------------------------- actions
-  const handleSearch = async (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    if (query.length > 0) {
-      try {
-        const response = await api.get(`users/?search=${encodeURIComponent(query)}`);
-        const results = Array.isArray(response.data) ? response.data : [];
-        const friendIds = new Set(friends.map((f) => f.id));
-        setSearchResults(results.filter((u) => u.id !== me?.id && !friendIds.has(u.id)));
-      } catch (error) { /* ignore */ }
-    } else {
-      setSearchResults([]);
-    }
-  };
+  const handleSearch = (e) => setSearchQuery(e.target.value);
 
   const sendRequest = async (receiverId) => {
     try {
       await api.post('requests/', { receiver: receiverId });
-      setSearchQuery('');
-      setSearchResults([]);
-      refresh();
-      ask({ type: 'alert', title: 'Secret Request Sent! 🚀' });
+      await refresh();
     } catch (error) {
       ask({ type: 'alert', title: errMsg(error, 'Request failed!') });
     }
+  };
+
+  const cancelRequest = async (req) => {
+    try { await api.delete(`requests/${req.id}/`); await refresh(); } catch (error) { ask({ type: 'alert', title: errMsg(error, 'Could not cancel') }); }
   };
 
   // used by the QR scanner and the "Add" box: look the person up, then send a request
@@ -443,13 +436,13 @@ function Home() {
 
   const tabTitle = { chats: 'Chats', groups: 'Groups', status: 'Status', calls: 'Calls', profile: 'You' }[activeTab];
   const tabSub = {
-    chats: pendingRequests.length ? `${pendingRequests.length} new request${pendingRequests.length > 1 ? 's' : ''}` : `Hi ${currentUsername}`,
+    chats: `Hi ${currentUsername}`,
     groups: `${groups.length} group${groups.length === 1 ? '' : 's'}`,
     status: 'Disappears after 24 hours',
     calls: missedCalls ? `${missedCalls} missed` : 'Recent calls',
     profile: 'Your profile and settings',
   }[activeTab];
-  const badges = { chats: hasNewMessage || pendingRequests.length > 0, groups: groupUnread, calls: missedCalls > 0 };
+  const badges = { chats: hasNewMessage, groups: groupUnread, calls: missedCalls > 0 };
 
   return (
     <div className={`home-shell ${T.light ? 't-light' : ''}`} style={themeVars(T)}>
@@ -458,13 +451,13 @@ function Home() {
 
       <div className="sc-card">
         <header className="sc-top">
-          <div className="sc-brand">
-            <Seal size={34} keyhole />
-            <span className="sc-wordmark">Secret Chat</span>
-          </div>
+          <span className="sc-wordmark" aria-label="Secret Chat"><span className="w1">Secret</span><span className="w2">Chat</span></span>
           <div className="sc-top-actions">
-            <button type="button" className="sc-iconbtn" aria-label="Scan or show QR code" onClick={() => setShowQr(true)}><BiQrScan /></button>
-            <button type="button" className="sc-iconbtn" aria-label="New group" onClick={() => setShowNewGroup(true)}><BiPlus /></button>
+            <button type="button" className="sc-iconbtn" style={{ position: 'relative' }} aria-label={`Requests${pendingRequests.length ? ` (${pendingRequests.length})` : ''}`} onClick={() => setShowRequests(true)}>
+              <BiBell />
+              {pendingRequests.length > 0 && <span className="sc-badge" style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, fontSize: 11 }}>{pendingRequests.length}</span>}
+            </button>
+            <button type="button" className="sc-iconbtn" aria-label="Find people" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /></button>
           </div>
         </header>
 
@@ -477,36 +470,9 @@ function Home() {
             <>
               <label className="sc-search">
                 <BiSearch style={{ fontSize: 20 }} />
-                <input type="text" placeholder="Search chats or add by Secret ID" value={searchQuery}
+                <input type="text" placeholder="Search your chats" value={searchQuery}
                   onChange={handleSearch} aria-label="Search chats" />
               </label>
-
-              {pendingRequests.length > 0 && !ql && (
-                <>
-                  <div className="sc-section">Friend requests</div>
-                  {pendingRequests.map((req) => (
-                    <div key={req.id} className="sc-row" style={{ cursor: 'default' }}>
-                      <Avatar src={req.sender_profile_picture} name={req.sender_name} size={46} T={T} />
-                      <div className="sc-row-main"><h3 className="sc-row-name"><span className="t">{req.sender_name}</span></h3><span className="sc-row-sub">wants to connect</span></div>
-                      <button type="button" className="sc-iconbtn on" aria-label={`Accept ${req.sender_name}`} onClick={() => handleRequestAction(req.id, 'accepted')}><BiCheck /></button>
-                      <button type="button" className="sc-iconbtn" aria-label={`Decline ${req.sender_name}`} onClick={() => handleRequestAction(req.id, 'declined')}><BiX /></button>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {ql && searchResults.length > 0 && (
-                <>
-                  <div className="sc-section">Add people</div>
-                  {searchResults.map((user) => (
-                    <div key={user.id} className="sc-row" style={{ cursor: 'default' }}>
-                      <Avatar src={user.profile_picture} name={user.username} size={46} T={T} />
-                      <div className="sc-row-main"><h3 className="sc-row-name"><span className="t">{user.username}</span></h3></div>
-                      <button type="button" className="sc-btn" style={{ height: 36, fontSize: 14 }} onClick={() => sendRequest(user.id)}>Add</button>
-                    </div>
-                  ))}
-                </>
-              )}
 
               {!ql && archivedCount > 0 && (
                 <div className="sc-row" role="button" tabIndex={0} onClick={() => setShowArchived((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter') setShowArchived((v) => !v); }}>
@@ -520,24 +486,19 @@ function Home() {
               {liveFriends.filter((f) => byQuery(f.username)).map(friendRow)}
               {ql && liveGroups.filter((g) => byQuery(g.group_name)).map(groupRow)}
 
-              {!ql && sentRequests.length > 0 && (
-                <>
-                  <div className="sc-section">Waiting for them to accept</div>
-                  {sentRequests.map((req) => (
-                    <div key={req.id} className="sc-row" style={{ cursor: 'default' }}>
-                      <div className="sc-row-main"><h3 className="sc-row-name"><span className="t">{req.receiver_name}</span></h3></div>
-                      <span className="sc-row-time">Pending</span>
-                    </div>
-                  ))}
-                </>
+              {ql && liveFriends.filter((f) => byQuery(f.username)).length === 0 && liveGroups.filter((g) => byQuery(g.group_name)).length === 0 && (
+                <div className="sc-empty">
+                  <b>No chat named "{searchQuery.trim()}"</b>
+                  <button type="button" className="sc-btn" style={{ marginTop: 12 }} onClick={() => { setFindQuery(searchQuery.trim()); setShowFind(true); }}><BiUserPlus /> Find "{searchQuery.trim()}" in people</button>
+                </div>
               )}
 
               {friends.length === 0 && !ql && (
                 <div className="sc-empty">
                   <Seal size={64} keyhole style={{ margin: '0 auto' }} />
                   <b>No chats yet</b>
-                  Search a Secret ID above, or scan a friend's QR code to say hi.
-                  <div style={{ marginTop: 16 }}><button type="button" className="sc-btn" onClick={() => setShowQr(true)}><BiQrScan /> Scan or share my code</button></div>
+                  Add a friend with their Secret ID or QR code to start chatting.
+                  <div style={{ marginTop: 16 }}><button type="button" className="sc-btn" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /> Find people</button></div>
                 </div>
               )}
             </>
@@ -546,6 +507,7 @@ function Home() {
           {/* ------------------------------------------------ GROUPS */}
           {activeTab === 'groups' && (
             <>
+              <button type="button" className="sc-btn ghost" style={{ width: '100%', margin: '2px 0 8px' }} onClick={() => setShowNewGroup(true)}><BiPlus /> New group</button>
               {liveGroups.map(groupRow)}
               {liveGroups.length === 0 && (
                 <div className="sc-empty"><BiGroup style={{ fontSize: 40, color: 'var(--accent)' }} /><b>No groups yet</b>Create one and add your friends.
@@ -603,6 +565,15 @@ function Home() {
         <NavBar tab={activeTab} setTab={(t) => { setRowMenu(null); setActiveTab(t); }} badges={badges} />
       </div>
 
+      {showRequests && (
+        <RequestsSheet T={T} pending={pendingRequests} sent={sentRequests} onClose={() => setShowRequests(false)}
+          onAccept={(r) => handleRequestAction(r.id, 'accepted')} onDecline={(r) => handleRequestAction(r.id, 'declined')} onCancel={cancelRequest} />
+      )}
+      {showFind && (
+        <FindPeopleSheet T={T} me={me} friends={friends} pending={pendingRequests} sent={sentRequests} initialQuery={findQuery}
+          onAdd={(u) => sendRequest(u.id)} onCancel={cancelRequest} onAccept={(r) => handleRequestAction(r.id, 'accepted')}
+          onUnfriend={doUnfriend} onOpenQr={() => setShowQr(true)} onClose={() => setShowFind(false)} />
+      )}
       {showQr && <QrSheet T={T} me={me} onClose={() => setShowQr(false)} onAddUser={(u) => { setShowQr(false); addByUsername(u); }} />}
 
       {showNewGroup && (

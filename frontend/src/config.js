@@ -123,3 +123,13 @@ export const formatDuration = formatCallDuration;
 //   startCall({ friendId, name, callType: 'audio' | 'video' })
 //   startCall({ group: true, chatId, name, callType })
 export const startCall = (detail) => window.dispatchEvent(new CustomEvent('chat:start-call', { detail }));
+
+// Phones name videos like "VID_20261024_134512_very_long_name_(1).mp4". The server stores at most 255 characters,
+// so every upload is renamed to a short safe name (keeps the extension and the file type).
+export const shortFile = (file) => {
+  if (!file || !file.name) return file;
+  const dot = file.name.lastIndexOf('.');
+  const ext = dot > 0 ? file.name.slice(dot).toLowerCase().replace(/[^a-z0-9.]/g, '').slice(0, 8) : '';
+  if (file.name.length <= 60 && /^[\w .()-]+$/.test(file.name)) return file;
+  try { return new File([file], `file_${Date.now().toString(36)}${ext}`, { type: file.type, lastModified: file.lastModified }); } catch (e) { return file; }
+};
