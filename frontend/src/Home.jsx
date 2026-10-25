@@ -15,6 +15,7 @@ import { RequestsSheet, FindPeopleSheet } from './People';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
 import { useBackClose } from './backClose';
+import { NotesStrip, NoteSheet } from './Notes';
 import { forgetAccount, listAccounts, switchAccount, wipeSession } from './accounts';
 import { BsCheck, BsCheckAll } from 'react-icons/bs';
 
@@ -94,6 +95,7 @@ function Home() {
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [notes, setNotes] = useState({ mine: null, friends: [] });
+  const [noteOpen, setNoteOpen] = useState(false);
 
   const [groupName, setGroupName] = useState('');
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
@@ -189,24 +191,6 @@ function Home() {
       const res = await api.get('notes/');
       if (res?.data) setNotes({ mine: res.data.mine || null, friends: res.data.friends || [] });
     } catch (e) { /* ignore */ }
-  };
-
-  const editNote = async () => {
-    let text = notes.mine?.text || '';
-    if (notes.mine) {
-      const pick = await ask({ type: 'choice', title: 'Your note', message: 'Visible to friends for 24 hours.', choices: [
-        { label: 'Edit note', value: 'edit' }, { label: 'Delete note', value: 'del', danger: true }] });
-      if (!pick) return;
-      if (pick === 'del') {
-        try { await api.delete('notes/'); fetchNotes(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not delete') }); }
-        return;
-      }
-    }
-    const v = await ask({ type: 'prompt', title: 'Share a note', message: 'Friends see it above your photo for 24 hours.', placeholder: 'What is on your mind?', maxLength: 60, initial: text, okText: 'Share' });
-    if (v === null) return;
-    text = v.trim();
-    if (!text) return;
-    try { await api.post('notes/', { text }); fetchNotes(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not share note') }); }
   };
 
   const scheduleRefresh = () => {
@@ -432,16 +416,10 @@ function Home() {
     const ov = friend.ov;
     const typedText = lastText(ov, me?.id, true);
     const key = `f${friend.id}`;
-    const note = notes.friends.find((n) => n.user_id === friend.id);
     return (
       <ChatRow
         key={friend.id}
-        avatar={(
-          <div className="nt-wrap">
-            {note && <span className="nt-bubble" title={note.text}>{note.text}</span>}
-            <Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />
-          </div>
-        )}
+        avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />}
         title={friend.username}
         subtitle={ov?.is_locked ? 'Locked chat' : (typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
@@ -524,19 +502,7 @@ function Home() {
                   onChange={handleSearch} aria-label="Search chats" />
               </label>
 
-              {!ql && (
-                <div className="sc-row" role="button" tabIndex={0} onClick={editNote} onKeyDown={(e) => { if (e.key === 'Enter') editNote(); }}>
-                  <div className="nt-wrap">
-                    {notes.mine && <span className="nt-bubble mine">{notes.mine.text}</span>}
-                    <Avatar src={me?.profile_picture} name={me?.username || currentUsername} size={52} T={T} />
-                  </div>
-                  <div className="sc-row-main">
-                    <h3 className="sc-row-name"><span className="t">Your note</span></h3>
-                    <span className="sc-row-sub">{notes.mine ? 'Tap to edit or delete' : 'Share a short note for 24 hours'}</span>
-                  </div>
-                  {!notes.mine && <BiPlus style={{ fontSize: 22, color: 'var(--accent)' }} aria-hidden />}
-                </div>
-              )}
+              {!ql && <NotesStrip T={T} me={me} notes={notes} friends={friends} onEditMine={() => setNoteOpen(true)} />}
 
               {!ql && archivedCount > 0 && (
                 <div className="sc-row" role="button" tabIndex={0} onClick={() => setShowArchived((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter') setShowArchived((v) => !v); }}>
@@ -638,6 +604,7 @@ function Home() {
           onAdd={(u) => sendRequest(u.id)} onCancel={cancelRequest} onAccept={(r) => handleRequestAction(r.id, 'accepted')}
           onUnfriend={doUnfriend} onOpenQr={() => setShowQr(true)} onClose={() => setShowFind(false)} />
       )}
+      {noteOpen && <NoteSheet T={T} current={notes.mine} onClose={() => setNoteOpen(false)} onSaved={fetchNotes} />}
       {showQr && <QrSheet T={T} me={me} onClose={() => setShowQr(false)} onAddUser={(u) => { setShowQr(false); addByUsername(u); }} />}
 
       {showNewGroup && (

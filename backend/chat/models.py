@@ -261,7 +261,10 @@ class Status(models.Model):
 # ------------------------------------- Instagram-style note: one short line friends see for 24 hours
 class Note(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='note')
-    text = models.CharField(max_length=60)
+    text = models.CharField(max_length=60, blank=True, default='')
+    music_file = models.FileField(upload_to='note_music/', max_length=255, null=True, blank=True)
+    music_title = models.CharField(max_length=80, blank=True, default='')
+    music_artist = models.CharField(max_length=60, blank=True, default='')
     created_at = models.DateTimeField(default=timezone.now)          # reset whenever the note is edited
 
     def __str__(self):
