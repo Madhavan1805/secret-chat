@@ -252,7 +252,20 @@ class Status(models.Model):
     privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='all')   # NEW
     # for privacy 'except' = friends who must NOT see it, for 'only' = the only friends who can
     privacy_users = models.ManyToManyField(CustomUser, related_name='+', blank=True)
+    # optional song on a photo status: an audio file the owner picked from the phone
+    music_file = models.FileField(upload_to='status_music/', max_length=255, null=True, blank=True)
+    music_title = models.CharField(max_length=80, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+# ------------------------------------- Instagram-style note: one short line friends see for 24 hours
+class Note(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='note')
+    text = models.CharField(max_length=60)
+    created_at = models.DateTimeField(default=timezone.now)          # reset whenever the note is edited
+
+    def __str__(self):
+        return f"note of {self.user.username}"
 
 
 # ------------------------------------- who viewed a status (+ like / emoji reaction)

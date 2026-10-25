@@ -21,7 +21,7 @@ export default function ProfileModal({ user, name, T, online, onClose }) {
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9400, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      style={{ position: 'fixed', top: 'var(--app-top, 0px)', left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9400, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}

@@ -5,6 +5,7 @@ from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
     StatusViewSet, CallViewSet,
 )
+from .notes import notes_view
 from .extras import wallpaper_view, schedule_view, scheduled_list_view, cancel_scheduled_view
 from .features import (
     privacy_view, devices_view, device_revoke_view, device_revoke_others_view, logout_view,
@@ -48,6 +49,7 @@ urlpatterns = [
     path('polls/create/', poll_create_view, name='poll-create'),
     path('polls/vote/', poll_vote_view, name='poll-vote'),
     path('status-mutes/', status_mutes_view, name='status-mutes'),
+    path('notes/', notes_view, name='notes'),
 
     path('', include(router.urls)),
 ]

@@ -96,7 +96,7 @@ function StatusPeek({ st, onClose }) {
       role="dialog"
       aria-label={`${st.owner}'s status`}
       onClick={onClose}
-      style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 30000, background: '#000', display: 'flex', flexDirection: 'column' }}
+      style={{ position: 'fixed', top: 'var(--app-top, 0px)', left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 30000, background: '#000', display: 'flex', flexDirection: 'column' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(var(--safe-top, 0px) + 12px) 14px 10px', color: '#fff', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -310,7 +310,7 @@ export default function MessageBubble({
       {picker && createPortal(
         <div
           onClick={() => setPicker(false)}
-          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 30000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+          style={{ position: 'fixed', top: 'var(--app-top, 0px)', left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 30000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
         >
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 380 }}>
             {custom.length > 0 && (

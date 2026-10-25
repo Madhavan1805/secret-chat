@@ -132,10 +132,10 @@ class StatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Status
         fields = ['id', 'user', 'username', 'profile_picture', 'media_file', 'media_type',
-                  'caption', 'privacy', 'created_at',
+                  'caption', 'privacy', 'created_at', 'music_file', 'music_title',
                   'view_count', 'like_count', 'viewers',
                   'viewed_by_me', 'liked_by_me', 'my_reaction']
-        read_only_fields = ['user', 'media_type', 'created_at']
+        read_only_fields = ['user', 'media_type', 'created_at', 'music_title']
 
     def get_profile_picture(self, obj):
         request = self.context.get('request')

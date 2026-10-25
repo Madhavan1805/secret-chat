@@ -991,6 +991,10 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 
 # ================================================================ status
+AUDIO_EXTS = {'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'weba'}
+MAX_MUSIC_BYTES = 12 * 1024 * 1024
+
+
 class StatusViewSet(viewsets.ModelViewSet):
     queryset = Status.objects.all()
     serializer_class = StatusSerializer
@@ -1049,7 +1053,21 @@ class StatusViewSet(viewsets.ModelViewSet):
         else:
             audience = friends
 
-        st = serializer.save(user=user, media_type=media_type, privacy=privacy, caption=caption)
+        # optional song (photo statuses only): an audio file from the phone
+        music = self.request.FILES.get('music_file')
+        music_kwargs = {"music_file": None, "music_title": ""}
+        if music and media_type == 'image':
+            ext = (music.name.rsplit('.', 1)[-1] if '.' in music.name else '').lower()
+            if not ((music.content_type or '').startswith('audio') or ext in AUDIO_EXTS):
+                raise ValidationError({"error": "Please choose an audio file for the song."})
+            if music.size > MAX_MUSIC_BYTES:
+                raise ValidationError({"error": "That song is too big (max 12 MB)."})
+            title = (self.request.data.get('music_title') or '').strip()[:80]
+            if not title:
+                title = music.name.rsplit('.', 1)[0].replace('_', ' ').strip()[:80] or 'Song'
+            music_kwargs = {"music_file": music, "music_title": title}
+
+        st = serializer.save(user=user, media_type=media_type, privacy=privacy, caption=caption, **music_kwargs)
         if privacy in ('only', 'except'):
             st.privacy_users.set(picked)
         notify_users(list(audience), 'status')

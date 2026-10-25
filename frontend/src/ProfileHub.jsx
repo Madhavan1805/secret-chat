@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera } from 'react-icons/bi';
+import { BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import { Sheet, Toggle, SettingRow } from './ui';
 import { PrivacySheet, DevicesSheet, LockSheet, QrSheet, StarredSheet, BlockedSheet } from './Sheets';
 import { APP_MODES, CHAT_THEMES } from './theme';
 import { lockEnabled } from './appLock';
+import AccountsSheet from './Accounts';
+import { listAccounts } from './accounts';
 import { soundsEnabled, setSoundsEnabled } from './sounds';
 import { getMe, errMsg, shortFile } from './config';
 
@@ -100,6 +102,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       </div>
 
       <div className="sc-set-group">
+        <SettingRow icon={<BiUserCircle />} title="Switch account" sub={listAccounts().length > 1 ? `${listAccounts().length} accounts on this phone` : 'Add another account'} onClick={() => setSheet('accounts')} right={chev} />
         <SettingRow icon={<BiStar />} title="Starred messages" onClick={() => setSheet('starred')} right={chev} />
       </div>
 
@@ -124,6 +127,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       </div>
       <p style={{ textAlign: 'center', color: 'var(--sub)', fontSize: 12, margin: '18px 0 0' }}>Secret Chat · Designed and built by Madhavan</p>
 
+      {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'privacy' && <PrivacySheet T={T} onClose={close} ask={ask} />}
       {sheet === 'devices' && <DevicesSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'lock' && <LockSheet T={T} onClose={() => { close(); }} ask={ask} />}

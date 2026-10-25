@@ -14,10 +14,11 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const notice = (location.state && location.state.notice) || '';
+  const addMode = !!(location.state && location.state.addAccount);       // adding a second account from "Switch account"
 
   // already logged in? skip this page. A token that the server no longer accepts is thrown away.
   useEffect(() => {
-    if (!hasToken()) return undefined;
+    if (addMode || !hasToken()) return undefined;
     let live = true;
     sessionIsValid().then((ok) => {
       if (!live) return;
@@ -25,7 +26,7 @@ export default function Login() {
       else if (ok === false) dropSession();
     });
     return () => { live = false; };
-  }, [navigate]);
+  }, [navigate, addMode]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -38,7 +39,8 @@ export default function Login() {
     try {
       const res = await api.post('login/', { username: identifier.trim(), password });
       saveSession(res.data);
-      navigate('/home', { replace: true });
+      if (addMode) window.location.assign('/home');       // reload so the whole app starts fresh as the new account
+      else navigate('/home', { replace: true });
     } catch (err) {
       setError(apiErrors(err, 'Could not log in. Try again.').general);
     } finally {
@@ -47,7 +49,7 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Log in with your user ID, email or mobile number.">
+    <AuthLayout title={addMode ? 'Add account' : 'Welcome back'} subtitle={addMode ? 'Log in to another Secret ID. Your current account stays saved on this phone.' : 'Log in with your user ID, email or mobile number.'}>
       <form onSubmit={onSubmit} noValidate>
         {notice && !error && <Alert tone="ok">{notice}</Alert>}
         {error && <Alert tone="err">{error}</Alert>}
@@ -81,9 +83,13 @@ export default function Login() {
         <SubmitButton busy={busy}>Log in</SubmitButton>
       </form>
 
-      <p className="au-alt">
-        New here? <Link className="au-link" to="/register">Create an account</Link>
-      </p>
+      {addMode ? (
+        <p className="au-alt"><Link className="au-link" to="/home" replace>Cancel</Link></p>
+      ) : (
+        <p className="au-alt">
+          New here? <Link className="au-link" to="/register">Create an account</Link>
+        </p>
+      )}
     </AuthLayout>
   );
 }
