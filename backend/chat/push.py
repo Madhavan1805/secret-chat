@@ -1,4 +1,4 @@
-"""OneSignal push helper for Secret Chat.
+"""OneSignal push helper for Chatzy.
 
 Put this file at: backend/chat/push.py
 
@@ -14,7 +14,7 @@ import urllib.request
 
 ONESIGNAL_URL = "https://api.onesignal.com/notifications?c=push"
 
-# Secret chat: do not leak message text on the lock screen by default.
+# Chatzy: do not leak message text on the lock screen by default.
 SHOW_PREVIEW = True
 
 

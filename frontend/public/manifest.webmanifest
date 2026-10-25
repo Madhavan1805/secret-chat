@@ -1,6 +1,6 @@
 {
-  "name": "Secret Chat",
-  "short_name": "Secret Chat",
+  "name": "Chatzy",
+  "short_name": "Chatzy",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

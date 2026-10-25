@@ -323,7 +323,7 @@ const describe = (m) => {
 };
 
 export function exportChatText(title, messages) {
-  const lines = [`Secret Chat export: ${title}`, `Exported ${new Date().toLocaleString()}`, ''];
+  const lines = [`Chatzy export: ${title}`, `Exported ${new Date().toLocaleString()}`, ''];
   messages.filter((m) => m.message_type !== 'system' || m.content).forEach((m) => {
     const d = new Date(m.created_at);
     const stamp = `${d.toLocaleDateString('en-GB')} ${formatTime(m.created_at)}`;

@@ -105,7 +105,7 @@ def send_email_via_brevo(to_email, subject, text):
     """Sends over HTTPS (port 443) with Brevo's API. Railway / Render block SMTP ports, so Gmail SMTP
     never delivers there. Needs BREVO_API_KEY and BREVO_SENDER_EMAIL (a sender verified in Brevo)."""
     payload = json.dumps({
-        'sender': {'name': 'Secret Chat', 'email': settings.BREVO_SENDER_EMAIL},
+        'sender': {'name': 'Chatzy', 'email': settings.BREVO_SENDER_EMAIL},
         'to': [{'email': to_email}],
         'subject': subject,
         'textContent': text,
@@ -119,9 +119,9 @@ def send_email_via_brevo(to_email, subject, text):
 
 
 def deliver_otp(user, code):
-    text = (f'Your Secret Chat code is {code}. It expires in 10 minutes. '
+    text = (f'Your Chatzy code is {code}. It expires in 10 minutes. '
             'If you did not ask to reset your password, ignore this message.')
-    subject = 'Your Secret Chat password reset code'
+    subject = 'Your Chatzy password reset code'
     if user.email:
         try:
             if getattr(settings, 'BREVO_API_KEY', '') and getattr(settings, 'BREVO_SENDER_EMAIL', ''):

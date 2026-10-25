@@ -95,7 +95,7 @@ export default function LockGate({ children }) {
       {shielded && !locked && <div className="sc-shield" style={themeVars(T)}><Seal size={96} keyhole /></div>}
       {locked && (
         <div className="sc-lock" style={themeVars(T)} role="dialog" aria-label="App locked">
-          <PinPad title="Secret Chat is locked" hint="Enter your 4-digit PIN" onComplete={tryPin} error={err} />
+          <PinPad title="Chatzy is locked" hint="Enter your 4-digit PIN" onComplete={tryPin} error={err} />
         </div>
       )}
     </>

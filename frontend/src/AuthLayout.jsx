@@ -26,8 +26,8 @@ const CSS = `
 .au-brand{grid-area:brand; text-align:center}
 .au-logo{display:flex; align-items:center; justify-content:center; gap:12px; line-height:1}
 .au-logo{align-items:baseline; gap:0}
-.au-logo-a{font-family:'Playfair Display',Georgia,serif; font-weight:700; font-size:2rem; letter-spacing:.5px}
-.au-logo-b{display:block; font-family:'Great Vibes','Apple Chancery','URW Chancery L','Z003',cursive; font-size:2.7rem; margin-left:6px; color:var(--gold); text-shadow:0 0 14px rgba(255,100,119,.45)}
+.au-logo-a{font-family:'Fredoka','Bricolage Grotesque',system-ui,sans-serif; font-weight:700; font-size:2.6rem; letter-spacing:-.01em}
+.au-logo-b{display:block; font-family:'Fredoka','Bricolage Grotesque',system-ui,sans-serif; font-weight:700; font-size:2.6rem; margin-left:0; color:var(--gold); text-shadow:0 0 14px rgba(255,100,119,.45)}
 .au-seal-intro{animation:au-stamp .6s .1s cubic-bezier(.2,.8,.2,1) both}
 @keyframes au-stamp{0%{transform:scale(1.5) rotate(14deg);opacity:0}60%{transform:scale(.92) rotate(-3deg);opacity:1}100%{transform:none}}
 .au-tag{display:none; margin:16px 0 0; max-width:28ch; color:var(--mute); font-size:1.08rem; line-height:1.6}
@@ -125,8 +125,8 @@ const CSS = `
   }
   .au-brand{text-align:left; align-self:start; padding-top:12px}
   .au-logo{justify-content:flex-start}
-  .au-logo-a{font-size:4rem}
-  .au-logo-b{font-size:5.4rem; margin-left:10px}
+  .au-logo-a{font-size:5rem}
+  .au-logo-b{font-size:5rem; margin-left:0}
   .au-tag{display:block}
   .au-card{align-self:center}
   .au-sign{justify-content:flex-start; gap:18px; align-self:end}
@@ -148,15 +148,15 @@ export function Signature() {
 }
 
 export default function AuthLayout({ title, subtitle, children }) {
-  useEffect(() => { document.title = `${title} - Secret Chat`; }, [title]);
+  useEffect(() => { document.title = `${title} - Chatzy`; }, [title]);
   return (
     <div className="au-root">
       <style>{CSS}</style>
       <div className="au-wrap">
         <header className="au-brand">
           <div className="au-logo">
-            <span className="au-logo-a">Secret</span>
-            <span className="au-logo-b">Chat</span>
+            <span className="au-logo-a">Chat</span>
+            <span className="au-logo-b">zy</span>
           </div>
           <p className="au-tag">Private conversations with the people you choose to add. Nothing else.</p>
         </header>
