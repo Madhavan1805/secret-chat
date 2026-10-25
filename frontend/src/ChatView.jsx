@@ -64,7 +64,8 @@ function ChatView() {
   const [pinError, setPinError] = useState('');
 
   const [newMessage, setNewMessage] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);       // photos, videos, audio, documents waiting to be sent
+  const [sendProg, setSendProg] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [editing, setEditing] = useState(null);
   const [isViewOnce, setIsViewOnce] = useState(false);
@@ -118,6 +119,7 @@ function ChatView() {
   const searchTimer = useRef(null);
   const photoInputRef = useRef(null);
   const docInputRef = useRef(null);
+  const audioInputRef = useRef(null);
   const inputRef = useRef(null);
   const caretRef = useRef(null);          // last cursor position in the message box (for emojis)
   const markedAt = useRef(0);
@@ -508,26 +510,35 @@ function ChatView() {
     if (sending) return;
     if (editing) { submitEdit(); return; }
     let content = customContent != null ? customContent : newMessage;
-    if (!content.trim() && !selectedFile) return;
+    if (!content.trim() && selectedFiles.length === 0) return;
 
-    const formData = new FormData();
-    if (groupId) formData.append('chat', groupId);
-    else formData.append('receiver', friendId);
-
-    if (isViewOnce) content = `[VIEW_ONCE]${content}`;
-    if (content.trim()) formData.append('content', content);
-    if (selectedFile) formData.append('file_url', shortFile(selectedFile));
-    if (msgType !== 'text') formData.append('message_type', msgType);
-    if (replyingTo) formData.append('reply_to', replyingTo.id);
-    if (sendMode?.unlock_at) formData.append('unlock_at', sendMode.unlock_at);
-    if (sendMode?.whisper) sendMode.whisper.forEach((id) => formData.append('whisper_to', id));
-
+    // every picked file goes out as its own message; the typed text / reply rides on the first one
+    const jobs = selectedFiles.length ? selectedFiles : [null];
     setSending(true);
     try {
-      const response = await api.post('messages/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (response?.data) {
-        setMessages((prev) => (prev.some((m) => m.id === response.data.id) ? prev : [...prev, response.data]));
-        statusSeen.current.set(response.data.id, response.data.status);
+      for (let i = 0; i < jobs.length; i += 1) {
+        const f = jobs[i];
+        const first = i === 0;
+        const text = first ? content : '';
+        const formData = new FormData();
+        if (groupId) formData.append('chat', groupId);
+        else formData.append('receiver', friendId);
+        const body = isViewOnce ? `[VIEW_ONCE]${text}` : text;
+        if (body.trim()) formData.append('content', body);
+        if (f) formData.append('file_url', shortFile(f));
+        if (msgType !== 'text' && first) formData.append('message_type', msgType);
+        if (replyingTo && first) formData.append('reply_to', replyingTo.id);
+        if (sendMode?.unlock_at) formData.append('unlock_at', sendMode.unlock_at);
+        if (sendMode?.whisper) sendMode.whisper.forEach((id) => formData.append('whisper_to', id));
+        if (jobs.length > 1) setSendProg(`${i + 1}/${jobs.length}`);
+
+        const response = await api.post('messages/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        if (response?.data) {
+          setMessages((prev) => (prev.some((m) => m.id === response.data.id) ? prev : [...prev, response.data]));
+          statusSeen.current.set(response.data.id, response.data.status);
+        }
+        if (f) setSelectedFiles((prev) => prev.slice(1));          // this one is sent: the rest stay for a retry
+        if (first) { setNewMessage(''); setReplyingTo(null); }
       }
       playSound('send');
       setStamp((k) => k + 1);
@@ -535,7 +546,7 @@ function ChatView() {
       setShowEmoji(false);
       caretRef.current = null;
       setNewMessage('');
-      setSelectedFile(null);
+      setSelectedFiles([]);
       setReplyingTo(null);
       setIsViewOnce(false);
       setSendMode(null);
@@ -544,7 +555,20 @@ function ChatView() {
       isUserScrolling.current = false;
       setTimeout(() => scrollToBottom(true), 100);
     } catch (error) { await handleSendError(error, 'Failed to send message!'); }
+    setSendProg('');
     setSending(false);
+  };
+
+  // pick several files at once (photos, videos, audio, documents); they are added to what is already waiting
+  const MAX_FILES = 10;
+  const addFiles = (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = '';
+    setShowAttach(false);
+    if (!picked.length) return;
+    const room = MAX_FILES - selectedFiles.length;
+    if (picked.length > room) ask({ type: 'alert', title: `You can send up to ${MAX_FILES} files at once` });
+    setSelectedFiles((prev) => [...prev, ...picked.slice(0, Math.max(room, 0))]);
   };
 
   const shareLocation = () => {
@@ -1003,7 +1027,7 @@ function ChatView() {
     onOpenViewOnce: (m) => setViewOnceData(m),
   };
 
-  const hasText = !!newMessage.trim() || !!selectedFile;
+  const hasText = !!newMessage.trim() || selectedFiles.length > 0;
   const closePanels = () => { setShowAttach(false); setShowEmoji(false); };
   const replyPreview = (m) => (m.content ? m.content.replace('[VIEW_ONCE]', '').replace('[STICKER]', '') : (m.file_name || 'Media'));
 
@@ -1189,9 +1213,20 @@ function ChatView() {
                 <button type="button" className="sc-dots" aria-label="Cancel edit" onClick={() => { setEditing(null); setNewMessage(''); }}><BiX /></button>
               </div>
             )}
-            {selectedFile && (
-              <div className="sc-chip-row"><span className="text-truncate" style={{ flex: 1 }}>{selectedFile.name} is ready to send</span>
-                <button type="button" className="sc-dots" aria-label="Remove attachment" onClick={() => setSelectedFile(null)}><BiX /></button>
+            {selectedFiles.length > 0 && (
+              <div className="sc-chip-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <b style={{ flex: 1 }}>{sendProg ? `Sending ${sendProg}…` : `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} ready to send`}</b>
+                  {!sending && <button type="button" className="sc-dots" aria-label="Remove all attachments" onClick={() => setSelectedFiles([])}><BiX /></button>}
+                </div>
+                <div className="px-files">
+                  {selectedFiles.map((f, i) => (
+                    <span key={`${f.name}-${i}`} className="px-file">
+                      <span className="n">{f.type.startsWith('image') ? '🖼️' : f.type.startsWith('video') ? '🎬' : f.type.startsWith('audio') ? '🎵' : '📄'} {f.name}</span>
+                      {!sending && <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setSelectedFiles((p) => p.filter((_, j) => j !== i))}><BiX /></button>}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
             {isViewOnce && (
@@ -1200,8 +1235,9 @@ function ChatView() {
               </div>
             )}
 
-            <input ref={photoInputRef} type="file" className="d-none" accept="image/*,video/*" onChange={(e) => { setSelectedFile(e.target.files[0] || null); e.target.value = ''; setShowAttach(false); }} />
-            <input ref={docInputRef} type="file" className="d-none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json" onChange={(e) => { setSelectedFile(e.target.files[0] || null); e.target.value = ''; setShowAttach(false); }} />
+            <input ref={photoInputRef} type="file" multiple className="d-none" accept="image/*,video/*" onChange={(e) => addFiles(e)} />
+            <input ref={audioInputRef} type="file" multiple className="d-none" accept="audio/*" onChange={(e) => addFiles(e)} />
+            <input ref={docInputRef} type="file" multiple className="d-none" accept="*/*" onChange={(e) => addFiles(e)} />
 
             {showEmoji && !isRecording && (
               <div style={{ marginBottom: 8 }}>
@@ -1232,7 +1268,8 @@ function ChatView() {
                         <div className="sc-menu" style={{ bottom: '120%', top: 'auto', left: 0, right: 'auto', minWidth: 210 }}>
                           {[
                             ['Photo or video', () => photoInputRef.current && photoInputRef.current.click()],
-                            ['Document', () => docInputRef.current && docInputRef.current.click()],
+                            ['Audio', () => audioInputRef.current && audioInputRef.current.click()],
+                            ['Document or any file', () => docInputRef.current && docInputRef.current.click()],
                             ['Location', shareLocation],
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
                             [isViewOnce ? 'Sealed mode: on (tap to turn off)' : 'Send sealed (view once)', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],

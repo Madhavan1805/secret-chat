@@ -455,3 +455,9 @@ html, body { background: var(--page-bg, #0F0B14); }
   100% { opacity: 0; transform: translate(var(--sway), 112vh) rotate(40deg); }
 }
 .nt-heart { position: absolute; top: -2px; right: -4px; z-index: 3; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); color: var(--text); }
+
+/* ---- several files waiting to be sent ---- */
+.px-files { display: flex; flex-wrap: wrap; gap: 6px; max-height: 96px; overflow-y: auto; }
+.px-file { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); font-size: 12.5px; }
+.px-file .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+.px-file button { border: 0; background: transparent; color: inherit; display: grid; place-items: center; font-size: 16px; padding: 0 2px; }
