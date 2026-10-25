@@ -993,6 +993,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 # ================================================================ status
 AUDIO_EXTS = {'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'weba'}
 MAX_MUSIC_BYTES = 12 * 1024 * 1024
+from .music import clean_music_url, clean_text      # noqa: E402
 
 
 class StatusViewSet(viewsets.ModelViewSet):
@@ -1055,7 +1056,12 @@ class StatusViewSet(viewsets.ModelViewSet):
 
         # optional song (photo statuses only): an audio file from the phone
         music = self.request.FILES.get('music_file')
-        music_kwargs = {"music_file": None, "music_title": ""}
+        music_kwargs = {"music_file": None, "music_title": "", "music_artist": "", "music_url": ""}
+        picked_url = clean_music_url(self.request.data.get('music_url'))     # a song chosen from the search
+        if picked_url and media_type == 'image' and not music:
+            music_kwargs = {"music_file": None, "music_url": picked_url,
+                            "music_title": clean_text(self.request.data.get('music_title'), 80) or 'Song',
+                            "music_artist": clean_text(self.request.data.get('music_artist'), 60)}
         if music and media_type == 'image':
             ext = (music.name.rsplit('.', 1)[-1] if '.' in music.name else '').lower()
             if not ((music.content_type or '').startswith('audio') or ext in AUDIO_EXTS):
@@ -1065,7 +1071,8 @@ class StatusViewSet(viewsets.ModelViewSet):
             title = (self.request.data.get('music_title') or '').strip()[:80]
             if not title:
                 title = music.name.rsplit('.', 1)[0].replace('_', ' ').strip()[:80] or 'Song'
-            music_kwargs = {"music_file": music, "music_title": title}
+            music_kwargs = {"music_file": music, "music_url": "", "music_title": title,
+                            "music_artist": clean_text(self.request.data.get('music_artist'), 60)}
 
         st = serializer.save(user=user, media_type=media_type, privacy=privacy, caption=caption, **music_kwargs)
         if privacy in ('only', 'except'):

@@ -255,6 +255,8 @@ class Status(models.Model):
     # optional song on a photo status: an audio file the owner picked from the phone
     music_file = models.FileField(upload_to='status_music/', max_length=255, null=True, blank=True)
     music_title = models.CharField(max_length=80, blank=True, default='')
+    music_artist = models.CharField(max_length=60, blank=True, default='')
+    music_url = models.URLField(max_length=500, blank=True, default='')          # or a searched song (30 s preview)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
@@ -265,6 +267,7 @@ class Note(models.Model):
     music_file = models.FileField(upload_to='note_music/', max_length=255, null=True, blank=True)
     music_title = models.CharField(max_length=80, blank=True, default='')
     music_artist = models.CharField(max_length=60, blank=True, default='')
+    music_url = models.URLField(max_length=500, blank=True, default='')          # or a searched song (30 s preview)
     created_at = models.DateTimeField(default=timezone.now)          # reset whenever the note is edited
 
     def __str__(self):

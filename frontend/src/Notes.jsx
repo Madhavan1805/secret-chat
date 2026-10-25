@@ -4,16 +4,9 @@ import api from './api';
 import Avatar from './Avatar';
 import { Sheet } from './ui';
 import { errMsg, getPicUrl } from './config';
+import SongPicker from './SongPicker';
 
 const MAX = 60;
-
-// "Artist - Song.mp3" -> { artist, title }
-function parseSong(file) {
-  const base = (file.name || '').replace(/\.[^.]+$/, '').replace(/_/g, ' ').trim();
-  const i = base.indexOf(' - ');
-  if (i > 0) return { artist: base.slice(0, i).trim().slice(0, 60), title: base.slice(i + 3).trim().slice(0, 80) };
-  return { artist: '', title: base.slice(0, 80) };
-}
 
 function Bars() {
   return <span className="nt-bars" aria-hidden><i /><i /><i /></span>;
@@ -22,7 +15,7 @@ function Bars() {
 function Bubble({ note, mine, playing }) {
   return (
     <span className={`nt-bubble${mine ? ' mine' : ''}`}>
-      {note.music_file && (
+      {(note.music_file || note.music_url) && (
         <span className="nt-song">
           <Bars />
           <span className="nt-st"><b>{note.music_title || 'Song'}</b>{note.music_artist && <small>{note.music_artist}</small>}</span>
@@ -43,10 +36,11 @@ export function NotesStrip({ T, me, notes, friends, onEditMine }) {
 
   const stop = () => { if (audioRef.current) audioRef.current.pause(); setPlayingId(null); };
   const toggle = (n) => {
-    if (!n.music_file) return;
+    const src = n.music_file || n.music_url;
+    if (!src) return;
     if (playingId === n.user_id) { stop(); return; }
     if (audioRef.current) audioRef.current.pause();
-    const a = new Audio(getPicUrl(n.music_file));
+    const a = new Audio(n.music_url || getPicUrl(n.music_file));
     a.onended = () => setPlayingId(null);
     audioRef.current = a;
     setPlayingId(n.user_id);
@@ -85,19 +79,10 @@ export function NotesStrip({ T, me, notes, friends, onEditMine }) {
 // write / edit / delete my note
 export function NoteSheet({ T, current, onClose, onSaved }) {
   const [text, setText] = useState(current?.text || '');
-  const [song, setSong] = useState(null);                  // a newly picked audio file
-  const [meta, setMeta] = useState({ title: '', artist: '' });
-  const [keepOld, setKeepOld] = useState(false);            // editing: leave the old song out unless a new one is picked
+  const [song, setSong] = useState(null);                  // newly chosen: { url | file, title, artist, art }
+  const [picker, setPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-
-  const pick = (e) => {
-    const f = e.target.files[0];
-    e.target.value = '';
-    if (!f) return;
-    if (f.size > 12 * 1024 * 1024) { setErr('Song is too big (max 12 MB)'); return; }
-    setSong(f); setMeta(parseSong(f)); setErr(''); setKeepOld(false);
-  };
 
   const save = async () => {
     const t = text.trim();
@@ -107,9 +92,9 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
       const fd = new FormData();
       fd.append('text', t);
       if (song) {
-        fd.append('music_file', song);
-        fd.append('music_title', meta.title.trim());
-        fd.append('music_artist', meta.artist.trim());
+        if (song.file) fd.append('music_file', song.file); else fd.append('music_url', song.url);
+        fd.append('music_title', song.title || '');
+        fd.append('music_artist', song.artist || '');
       }
       await api.post('notes/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       onSaved(); onClose();
@@ -123,7 +108,7 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
     setBusy(false);
   };
 
-  const hadSong = !!current?.music_file && !song && !keepOld;
+  const hadSong = !!(current?.music_file || current?.music_url) && !song;
 
   return (
     <Sheet T={T} title="Your note" onClose={onClose}>
@@ -136,18 +121,17 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
 
       {song ? (
         <div className="nt-pick">
-          <BiMusic aria-hidden />
-          <div className="nt-pick-f">
-            <input className="sc-field" value={meta.title} maxLength={80} placeholder="Song name" onChange={(e) => setMeta({ ...meta, title: e.target.value })} aria-label="Song name" />
-            <input className="sc-field" value={meta.artist} maxLength={60} placeholder="Artist (optional)" onChange={(e) => setMeta({ ...meta, artist: e.target.value })} aria-label="Artist" />
+          {song.art ? <img src={song.art} alt="" width={44} height={44} style={{ borderRadius: 10 }} /> : <BiMusic aria-hidden />}
+          <div className="nt-pick-f" style={{ color: 'var(--text)', fontSize: 14 }}>
+            <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</b>
+            <small style={{ color: 'var(--sub)' }}>{song.artist}</small>
           </div>
           <button type="button" className="sc-dots" onClick={() => setSong(null)} aria-label="Remove song"><BiX /></button>
         </div>
       ) : (
         <>
           {hadSong && <p style={{ color: 'var(--sub)', fontSize: 12.5, margin: '4px 4px 0' }}>Current song: {current.music_title || 'Song'}. Saving without picking a song removes it.</p>}
-          <label htmlFor="note-song" className="sc-btn ghost" style={{ width: '100%', marginTop: 12 }}><BiMusic /> {hadSong ? 'Change song' : 'Add a song'}</label>
-          <input id="note-song" type="file" accept="audio/*" className="d-none" onChange={pick} />
+          <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 12 }} onClick={() => setPicker(true)}><BiMusic /> {hadSong ? 'Change song' : 'Add a song'}</button>
         </>
       )}
 
@@ -155,6 +139,8 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
 
       <button type="button" className="sc-btn" style={{ width: '100%', marginTop: 16 }} disabled={busy} onClick={save}>{busy ? 'Sharing…' : 'Share note'}</button>
       {current && <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 10, color: '#f87171' }} disabled={busy} onClick={remove}>Delete note</button>}
+
+      {picker && <SongPicker T={T} onClose={() => setPicker(false)} onPick={(s) => { setSong(s); setPicker(false); }} />}
     </Sheet>
   );
 }

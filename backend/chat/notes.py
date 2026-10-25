@@ -15,6 +15,7 @@ from rest_framework.response import Response
 
 from .models import Block, Note
 from .realtime import notify_users
+from .music import clean_music_url, clean_text
 from .views import friend_ids_of, AUDIO_EXTS, MAX_MUSIC_BYTES
 
 NOTE_MAX = 60
@@ -33,7 +34,7 @@ def _visible_friend_ids(user):
 def _row(n, request):
     music = request.build_absolute_uri(n.music_file.url) if n.music_file else None
     return {"user_id": n.user_id, "username": n.user.username, "text": n.text, "created_at": n.created_at,
-            "music_file": music, "music_title": n.music_title, "music_artist": n.music_artist}
+            "music_file": music, "music_url": n.music_url, "music_title": n.music_title, "music_artist": n.music_artist}
 
 
 @api_view(['GET', 'POST', 'DELETE'])
@@ -48,11 +49,15 @@ def notes_view(request):
     if request.method == 'POST':
         text = ' '.join(str(request.data.get('text') or '').split())              # one line, tidy spaces
         music = request.FILES.get('music_file')
-        if not text and not music:
+        picked_url = '' if music else clean_music_url(request.data.get('music_url'))
+        if not text and not music and not picked_url:
             raise ValidationError({"error": "Write something or add a song first."})
         if len(text) > NOTE_MAX:
             raise ValidationError({"error": f"A note can have at most {NOTE_MAX} characters."})
-        defaults = {"text": text, "created_at": timezone.now(), "music_title": "", "music_artist": ""}
+        defaults = {"text": text, "created_at": timezone.now(), "music_title": "", "music_artist": "", "music_url": picked_url}
+        if picked_url:
+            defaults["music_title"] = clean_text(request.data.get('music_title'), 80) or 'Song'
+            defaults["music_artist"] = clean_text(request.data.get('music_artist'), 60)
         if music:
             ext = music.name.rsplit('.', 1)[-1].lower() if '.' in music.name else ''
             if not ((music.content_type or '').startswith('audio') or ext in AUDIO_EXTS):
