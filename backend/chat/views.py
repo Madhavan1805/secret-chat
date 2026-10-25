@@ -174,6 +174,12 @@ def human_duration(s):
 
 def message_preview(msg):
     c = msg.content or ''
+    if msg.unlock_at and msg.unlock_at > timezone.now():
+        return '🔒 Time capsule'
+    if msg.whisper_to.exists():
+        return '🤫 Whisper'
+    if msg.message_type == 'expense':
+        return '💸 ' + (c[:60] or 'Expense')
     if c.startswith('[VIEW_ONCE]'):
         return '💣 View once message'
     t = msg.message_type
@@ -768,7 +774,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = (Message.objects.select_related('sender', 'receiver', 'chat', 'status_ref__user')
-                .prefetch_related('read_by', 'starred_by', 'poll__options__votes'))
+                .prefetch_related('read_by', 'starred_by', 'poll__options__votes', 'whisper_to', 'expense__shares__user'))
 
         if self.action != 'list':
             return base.filter(Q(sender=user) | Q(receiver=user) | Q(chat__participants=user)).distinct()
@@ -814,11 +820,27 @@ class MessageViewSet(viewsets.ModelViewSet):
                                              'audio' if ct.startswith('audio') else 'document')
         return extra
 
+    def _whisper_ids(self):
+        data = self.request.data
+        raw = data.getlist('whisper_to') if hasattr(data, 'getlist') else (data.get('whisper_to') or [])
+        out = []
+        for x in raw:
+            for part in str(x).split(','):
+                i = to_int(part.strip())
+                if i:
+                    out.append(i)
+        return out
+
     def perform_create(self, serializer):
         user = self.request.user
         chat_id = to_int(self.request.data.get('chat'))
         receiver_id = to_int(self.request.data.get('receiver'))
         extra = self._file_extras()
+        from .plus import parse_unlock_at                      # time capsule (optional)
+        unlock_at = parse_unlock_at(self.request.data.get('unlock_at'))
+        if unlock_at:
+            extra['unlock_at'] = unlock_at
+        whisper_ids = self._whisper_ids()
 
         if chat_id:
             chat = get_object_or_404(Chat, id=chat_id, participants=user)
@@ -836,6 +858,12 @@ class MessageViewSet(viewsets.ModelViewSet):
                                   status='delivered' if receiver.is_online else 'sent', **extra)
         else:
             raise ValidationError({"error": "'chat' or 'receiver' is required"})
+        if whisper_ids and chat.is_group:
+            members = set(chat.participants.values_list('id', flat=True))
+            chosen = (set(whisper_ids) & members) - {user.id}
+            if chosen:
+                msg.whisper_to.set(chosen)
+                msg.whisper_to.add(user)                       # the sender keeps seeing their own whisper
         notify_message(chat, msg, 'new')
 
     # ----------------------------------------------- update / delete flags

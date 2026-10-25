@@ -121,6 +121,7 @@ class Message(models.Model):
         ('location', 'Location'),
         ('system', 'System'),                                              # NEW
         ('poll', 'Poll'),
+        ('expense', 'Expense'),
     )
     STATUS_CHOICES = (
         ('sent', 'Sent (Single Tick)'),
@@ -157,6 +158,12 @@ class Message(models.Model):
     starred_by = models.ManyToManyField(CustomUser, related_name='starred_messages', blank=True)
     # set when this message is a reply / reaction to somebody's status (shows a small preview card)
     status_ref = models.ForeignKey('Status', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    # time capsule: the receiver only sees the content once this time has passed
+    unlock_at = models.DateTimeField(null=True, blank=True)
+    unlock_notified = models.BooleanField(default=False)
+    # whisper (groups): only these members can read it, everybody else sees a placeholder
+    whisper_to = models.ManyToManyField(CustomUser, related_name='whispers', blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -195,6 +202,48 @@ class ScheduledMessage(models.Model):
     send_at = models.DateTimeField(db_index=True)
     sent = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Reminder(models.Model):
+    """'Remind us': at remind_at a reminder line is posted into the chat and pushed to everybody in it."""
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='reminders')
+    creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='reminders')
+    message = models.ForeignKey(Message, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    text = models.CharField(max_length=200)
+    remind_at = models.DateTimeField(db_index=True)
+    fired = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class DailyAnswer(models.Model):
+    """One answer per person per day to the chat's question of the day. Shown to the other person only when both answered."""
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='daily_answers')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='daily_answers')
+    day = models.DateField()
+    text = models.CharField(max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('chat', 'user', 'day')
+
+
+class Expense(models.Model):
+    """A shared expense posted in a chat. Split equally between the picked members."""
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='expense')
+    title = models.CharField(max_length=80)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ExpenseShare(models.Model):
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name='shares')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='expense_shares')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    paid = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('expense', 'user')
 
 
 class CallHistory(models.Model):

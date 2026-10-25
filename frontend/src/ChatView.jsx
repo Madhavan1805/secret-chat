@@ -19,6 +19,7 @@ import { pushLogin } from './push';
 import { playSound } from './sounds';
 import EmojiPicker from './EmojiPicker';
 import ProfileModal from './ProfileModal';
+import { CapsuleSheet, WhisperSheet, ReminderSheet, ExpenseSheet, BalancesSheet, DailyBar, ModeChip } from './PlusUI';
 
 
 const DISAPPEAR_CHOICES = [
@@ -82,6 +83,14 @@ function ChatView() {
   const [showGallery, setShowGallery] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
+  const [showCapsule, setShowCapsule] = useState(false);
+  const [showWhisper, setShowWhisper] = useState(false);
+  const [showExpense, setShowExpense] = useState(false);
+  const [showBalances, setShowBalances] = useState(false);
+  const [remindFor, setRemindFor] = useState(null);          // a message (or {} for a plain reminder)
+  const [dailyOpen, setDailyOpen] = useState(false);
+  const [dailyKey, setDailyKey] = useState(0);
+  const [sendMode, setSendMode] = useState(null);           // { unlock_at } time capsule, or { whisper:[ids], names:[..] }
   const [infoMsg, setInfoMsg] = useState(null);
   const [panelTab, setPanelTab] = useState('emoji');
   const [mentionQuery, setMentionQuery] = useState(null);
@@ -307,6 +316,9 @@ function ChatView() {
       case 'read':
         if (cur.friendId && evt.reader_id === cur.friendId) latest.current.fetchMessages();
         break;
+      case 'daily':
+        if (cur.chatId && Number(evt.chat_id) === Number(cur.chatId)) setDailyKey((k) => k + 1);
+        break;
       case 'group_read':
         if (cur.chatId && Number(evt.chat_id) === Number(cur.chatId)) latest.current.fetchMessages();
         break;
@@ -503,6 +515,8 @@ function ChatView() {
     if (selectedFile) formData.append('file_url', shortFile(selectedFile));
     if (msgType !== 'text') formData.append('message_type', msgType);
     if (replyingTo) formData.append('reply_to', replyingTo.id);
+    if (sendMode?.unlock_at) formData.append('unlock_at', sendMode.unlock_at);
+    if (sendMode?.whisper) sendMode.whisper.forEach((id) => formData.append('whisper_to', id));
 
     setSending(true);
     try {
@@ -520,6 +534,7 @@ function ChatView() {
       setSelectedFile(null);
       setReplyingTo(null);
       setIsViewOnce(false);
+      setSendMode(null);
       clearTimeout(typingTimerRef.current);
       sendTyping(false);
       isUserScrolling.current = false;
@@ -646,6 +661,27 @@ function ChatView() {
       const r = await api.post('polls/vote/', { option_id: optionId });
       if (r.data && r.data.id) setMessages((prev) => prev.map((m) => (m.id === r.data.id ? r.data : m)));
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not vote') }); }
+  };
+
+  const createExpense = async (payload) => {
+    const r = await api.post('expenses/create/', { chat_id: meta.chat_id, ...payload });
+    if (r.data && r.data.id) setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
+    playSound('send');
+    setShowExpense(false);
+    setTimeout(() => scrollToBottom(true), 100);
+  };
+
+  const onSettle = async (expenseId, userId) => {
+    try {
+      const r = await api.post('expenses/settle/', { expense_id: expenseId, user_id: userId });
+      if (r.data && r.data.id) setMessages((prev) => prev.map((m) => (m.id === r.data.id ? r.data : m)));
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not update') }); }
+  };
+
+  const createReminder = async ({ text, remind_at }) => {
+    await api.post('reminders/create/', { chat_id: meta.chat_id, text, remind_at, message_id: remindFor?.id });
+    setRemindFor(null);
+    ask({ type: 'alert', title: 'Reminder set', message: 'Both of you will get it at that time.' });
   };
 
   const createPoll = async (payload) => {
@@ -858,6 +894,8 @@ function ChatView() {
     [meta.is_locked ? 'Chat lock (change or remove)' : 'Chat lock', lockMenu],
     ['Chat theme and wallpaper', extras.openTheme],
     [`Scheduled messages (${extras.scheduledCount})`, extras.openScheduledList],
+    ...(!isGroupChat ? [['Question of the day', () => setDailyOpen(true)]] : []),
+    ['Expense balances', () => setShowBalances(true)],
     [meta.is_pinned ? 'Unpin chat' : 'Pin chat', () => toggleSetting('is_pinned')],
     [meta.is_muted ? 'Unmute' : 'Mute…', muteMenu],
     [meta.is_archived ? 'Unarchive' : 'Archive chat', archiveToggle],
@@ -952,6 +990,11 @@ function ChatView() {
     onInfo: (m) => setInfoMsg(m),
     onStar,
     onVote,
+    meId: me?.id,
+    onRemind: (m) => setRemindFor(m),
+    onSettle,
+    onBalances: () => setShowBalances(true),
+    onCapsuleOpened: () => fetchMessages(),
     onOpenViewOnce: (m) => setViewOnceData(m),
   };
 
@@ -984,6 +1027,12 @@ function ChatView() {
       {showGallery && <GallerySheet T={T} chatId={meta.chat_id} onClose={() => setShowGallery(false)} />}
       {showGroup && isGroupChat && <GroupSheet T={T} meta={meta} me={me} ask={ask} onClose={() => setShowGroup(false)} onChanged={fetchMeta} />}
       {showPoll && <PollSheet T={T} onClose={() => setShowPoll(false)} onCreate={createPoll} />}
+      {showCapsule && <CapsuleSheet T={T} onClose={() => setShowCapsule(false)} onSet={(iso) => { setSendMode({ unlock_at: iso }); setShowCapsule(false); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }} />}
+      {showWhisper && isGroupChat && <WhisperSheet T={T} members={meta?.participants} meId={me?.id} onClose={() => setShowWhisper(false)}
+        onSet={(ids) => { setSendMode({ whisper: ids, names: (meta?.participants || []).filter((p) => ids.includes(p.id)).map((p) => p.username) }); setShowWhisper(false); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }} />}
+      {showExpense && meta && <ExpenseSheet T={T} members={meta.participants} meId={me?.id} onClose={() => setShowExpense(false)} onCreate={createExpense} />}
+      {showBalances && meta && <BalancesSheet T={T} chatId={meta.chat_id} meId={me?.id} onClose={() => setShowBalances(false)} />}
+      {remindFor && <ReminderSheet T={T} defaultText={remindFor.content && !String(remindFor.content).startsWith('[') ? String(remindFor.content).slice(0, 120) : ''} onClose={() => setRemindFor(null)} onCreate={createReminder} />}
       {infoMsg && <InfoSheet T={T} msg={infoMsg} isGroup={isGroupChat} participants={meta?.participants} onClose={() => setInfoMsg(null)} />}
 
       {viewOnceData && (
@@ -1122,6 +1171,8 @@ function ChatView() {
             {mentionQuery !== null && isGroupChat && (
               <MentionList names={(meta?.participants || []).map((p) => p.username).filter((n) => n !== me?.username)} query={mentionQuery} onPick={pickMention} />
             )}
+            {!isGroupChat && meta?.chat_id && !meta?.blocked_by_me && !meta?.blocked_me && <DailyBar T={T} chatId={meta.chat_id} refreshKey={dailyKey} open={dailyOpen} setOpen={setDailyOpen} />}
+            <ModeChip mode={sendMode} onClear={() => setSendMode(null)} />
             {replyingTo && (
               <div className="sc-chip-row accent">
                 <div style={{ flex: 1, minWidth: 0 }}><b>Replying to {replyingTo.sender_name}</b><div className="text-truncate" style={{ color: 'var(--sub)' }}>{replyPreview(replyingTo)}</div></div>
@@ -1181,6 +1232,10 @@ function ChatView() {
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
                             [isViewOnce ? 'Sealed mode: on (tap to turn off)' : 'Send sealed (view once)', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],
                             ['Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
+                            ['Time capsule', () => { setShowAttach(false); setShowCapsule(true); }],
+                            ...(isGroupChat ? [['Whisper to some members', () => { setShowAttach(false); setShowWhisper(true); }]] : []),
+                            ['Split expense', () => { setShowAttach(false); setShowExpense(true); }],
+                            ['Remind us', () => { setShowAttach(false); setRemindFor({}); }],
                           ].map(([l, fn]) => <button type="button" key={l} onClick={fn}>{l}</button>)}
                         </div>
                       </>

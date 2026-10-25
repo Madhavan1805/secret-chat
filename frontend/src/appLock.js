@@ -3,6 +3,7 @@
 const K_PIN = 'lock_pin';
 const K_SHIELD = 'lock_shield';
 const K_DELAY = 'lock_delay';
+const K_DECOY = 'lock_decoy';
 export const LOCK_EVENT = 'applock-change';
 
 const read = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -35,4 +36,19 @@ export async function checkPin(pin) {
   const [salt, h] = saved.split(':');
   return (await digest(`${salt}:${pin}`)) === h;
 }
-export const removePin = () => { write(K_PIN, null); notify(); };
+export const removePin = () => { write(K_PIN, null); write(K_DECOY, null); notify(); };
+
+// Decoy PIN: a second PIN that opens an empty-looking app instead of the real one.
+export const decoyEnabled = () => !!read(K_DECOY) && !!read(K_PIN);
+export async function setDecoyPin(pin) {
+  const salt = Math.random().toString(36).slice(2, 10);
+  write(K_DECOY, `${salt}:${await digest(`${salt}:${pin}`)}`);
+  notify();
+}
+export async function checkDecoy(pin) {
+  const saved = read(K_DECOY);
+  if (!saved) return false;
+  const [salt, h] = saved.split(':');
+  return (await digest(`${salt}:${pin}`)) === h;
+}
+export const removeDecoy = () => { write(K_DECOY, null); notify(); };
