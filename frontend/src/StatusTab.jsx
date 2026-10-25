@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight, BiChevronDown, BiDotsVerticalRounded, BiShow, BiSend, BiMusic, BiVolumeFull, BiVolumeMute } from 'react-icons/bi';
 import { useBackClose } from './backClose';
+import SongPicker from './SongPicker';
 import api from './api';
 import Avatar from './Avatar';
 import { getPicUrl, errMsg, formatListTime, shortFile } from './config';
@@ -60,8 +61,9 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [privacy, setPrivacy] = useState('all');
   const [posting, setPosting] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [musicFile, setMusicFile] = useState(null);     // optional song for a photo status
-  const [musicUrl, setMusicUrl] = useState('');
+  const [song, setSong] = useState(null);                // optional song for a photo status: { url | file, title, artist }
+  const [songUrl, setSongUrl] = useState('');             // what the preview plays
+  const [songPicker, setSongPicker] = useState(false);
   const [songOff, setSongOff] = useState(false);          // viewer muted the song
 
   // close friends
@@ -111,7 +113,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const st = vGroup ? items[idx] : null;
   const isMine = !!st && st.user === meId;
   const paused = replyFocus || showViewers || trayOpen;
-  const imageMs = st?.music_file ? 15000 : IMAGE_MS;       // a photo with a song stays longer
+  const imageMs = (st?.music_file || st?.music_url) ? 15000 : IMAGE_MS;       // a photo with a song stays longer
 
   // ---------------------------------------------------------- close friends
   const loadClose = async () => {
@@ -161,18 +163,14 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     loadClose();
   };
 
-  const pickSong = (e) => {
-    const f = e.target.files[0];
-    e.target.value = '';
-    if (!f) return;
-    if (f.size > 12 * 1024 * 1024) { setUploadError('Song is too big (max 12 MB)'); return; }
-    if (musicUrl) URL.revokeObjectURL(musicUrl);
-    setMusicFile(f);
-    setMusicUrl(URL.createObjectURL(f));
+  const chooseSong = (sg) => {
+    if (songUrl && song?.file) URL.revokeObjectURL(songUrl);
+    setSong(sg);
+    setSongUrl(sg.file ? URL.createObjectURL(sg.file) : sg.url);
+    setSongPicker(false);
     setUploadError('');
   };
-  const clearSong = () => { if (musicUrl) URL.revokeObjectURL(musicUrl); setMusicFile(null); setMusicUrl(''); };
-  const songName = (f) => (f ? f.name.replace(/\.[^.]+$/, '').slice(0, 80) : '');
+  const clearSong = () => { if (songUrl && song?.file) URL.revokeObjectURL(songUrl); setSong(null); setSongUrl(''); };
 
   const cancelUpload = () => {
     clearSong();
@@ -194,7 +192,11 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     fd.append('media_file', shortFile(uploadFile));
     fd.append('caption', caption.trim());
     fd.append('privacy', privacy);
-    if (musicFile && !uploadFile.type.startsWith('video')) { fd.append('music_file', musicFile); fd.append('music_title', songName(musicFile)); }
+    if (song && !uploadFile.type.startsWith('video')) {
+      if (song.file) fd.append('music_file', song.file); else fd.append('music_url', song.url);
+      fd.append('music_title', song.title || '');
+      fd.append('music_artist', song.artist || '');
+    }
     if (privacy === 'except' || privacy === 'only') (privacy === 'except' ? exceptIds : onlyIds).forEach((id) => fd.append('privacy_ids', id));
     try {
       await api.post('statuses/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -452,7 +454,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               ) : (
                 <img src={previewUrl} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               )}
-              {musicUrl && !uploadFile.type.startsWith('video') && <audio src={musicUrl} autoPlay loop />}
+              {songUrl && !uploadFile.type.startsWith('video') && <audio src={songUrl} autoPlay loop />}
             </div>
 
             <div className="flex-shrink-0" style={{ padding: '8px 14px 16px' }}>
@@ -468,13 +470,12 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               {uploadError && <div className="text-danger small mb-2">{uploadError}</div>}
 
               {!uploadFile.type.startsWith('video') && (
-                musicFile ? (
-                  <div className="st-song"><BiMusic aria-hidden /><span className="t">{songName(musicFile)}</span><button type="button" onClick={clearSong} aria-label="Remove song"><BiX /></button></div>
+                song ? (
+                  <div className="st-song"><BiMusic aria-hidden /><span className="t">{song.title}{song.artist ? ` · ${song.artist}` : ''}</span><button type="button" onClick={clearSong} aria-label="Remove song"><BiX /></button></div>
                 ) : (
-                  <label htmlFor="status-song" className="st-song add"><BiMusic aria-hidden /><span className="t">Add song</span></label>
+                  <button type="button" className="st-song add" onClick={() => setSongPicker(true)}><BiMusic aria-hidden /><span className="t">Add song</span></button>
                 )
               )}
-              <input type="file" id="status-song" className="d-none" accept="audio/*" onChange={pickSong} />
 
               <div className="st-postrow">
                 <button type="button" className="st-aud" onClick={() => setAudOpen(true)} aria-label="Who can see this status">
@@ -490,6 +491,8 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
           </div>
         </div>
       )}
+
+      {songPicker && <SongPicker T={T} onClose={() => setSongPicker(false)} onPick={chooseSong} />}
 
       {/* ---------------- WHO CAN SEE IT (sheet) ---------------- */}
       {uploadFile && audOpen && (
@@ -586,11 +589,11 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
                 <img key={st.id} src={getPicUrl(st.media_file)} alt="Status" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               )}
 
-              {st.music_file && st.media_type !== 'video' && (
+              {(st.music_file || st.music_url) && st.media_type !== 'video' && (
                 <>
-                  <audio key={`a${st.id}`} ref={audioRef} src={getPicUrl(st.music_file)} loop playsInline />
+                  <audio key={`a${st.id}`} ref={audioRef} src={st.music_url || getPicUrl(st.music_file)} loop playsInline />
                   <button type="button" className="st-song view" onClick={(e) => { e.stopPropagation(); setSongOff((v) => !v); }} aria-label={songOff ? 'Unmute song' : 'Mute song'}>
-                    <BiMusic aria-hidden /><span className="t">{st.music_title || 'Song'}</span>{songOff ? <BiVolumeMute /> : <BiVolumeFull />}
+                    <BiMusic aria-hidden /><span className="t">{st.music_title || 'Song'}{st.music_artist ? ` · ${st.music_artist}` : ''}</span>{songOff ? <BiVolumeMute /> : <BiVolumeFull />}
                   </button>
                 </>
               )}

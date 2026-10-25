@@ -93,8 +93,8 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
               <h2 style={{ margin: '12px 0 2px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, letterSpacing: '-.02em' }}>{currentUsername}</h2>
               <p style={{ margin: '0 0 14px', color: 'var(--sub)', fontSize: 14, maxWidth: 280, lineHeight: 1.45 }}>{me?.bio || 'No bio yet'}</p>
               <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                <button type="button" className="sc-btn" style={{ flex: 1, height: 40, fontSize: 14 }} onClick={() => { setName(currentUsername); setBio(me?.bio || ''); setEditing(true); }}><BiEdit /> Edit profile</button>
-                <button type="button" className="sc-btn ghost" style={{ flex: 1, height: 40, fontSize: 14 }} onClick={() => setSheet('qr')}><BiQrScan /> My QR</button>
+                <button type="button" className="sc-btn" style={{ flex: 1, height: 40, fontSize: 14, whiteSpace: 'nowrap', padding: '0 12px', minWidth: 0 }} onClick={() => { setName(currentUsername); setBio(me?.bio || ''); setEditing(true); }}><BiEdit /> Edit profile</button>
+                <button type="button" className="sc-btn ghost" style={{ flex: 1, height: 40, fontSize: 14, whiteSpace: 'nowrap', padding: '0 12px', minWidth: 0 }} onClick={() => setSheet('qr')}><BiQrScan /> My QR</button>
               </div>
             </>
           )}
