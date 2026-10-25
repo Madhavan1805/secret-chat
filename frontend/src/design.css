@@ -6,6 +6,7 @@
    ===================================================================================== */
 :root {
   --safe-top: 0px;
+  --font-brand: 'Fredoka', 'Bricolage Grotesque', system-ui, sans-serif;
   --font-display: 'Bricolage Grotesque', 'Noto Sans Tamil', system-ui, sans-serif;
   --font-body: 'Instrument Sans', 'Noto Sans Tamil', system-ui, sans-serif;
   --ease: cubic-bezier(.2, .8, .2, 1);
@@ -56,7 +57,7 @@ div.home-shell.t-light, div.chat-shell.t-light { background-image: none; }
 }
 .sc-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .sc-wordmark {
-  font-family: var(--font-display); font-weight: 700; font-size: 21px; letter-spacing: -.02em; line-height: 1;
+  font-family: var(--font-brand); font-weight: 700; font-size: 24px; letter-spacing: -.01em; line-height: 1;
   color: var(--text);
 }
 .sc-top-actions { display: flex; align-items: center; gap: 8px; }

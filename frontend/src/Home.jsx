@@ -54,7 +54,7 @@ function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, m
 
 // the floating bottom navigation
 function NavBar({ tab, setTab, badges }) {
-  const items = [['chats', 'Inbox', BiChat], ['groups', 'Groups', BiGroup], ['status', 'Status', BiAperture], ['calls', 'Calls', BiPhoneCall], ['profile', 'You', BiUser]];
+  const items = [['chats', 'Messages', BiChat], ['groups', 'Groups', BiGroup], ['status', 'Status', BiAperture], ['calls', 'Calls', BiPhoneCall], ['profile', 'You', BiUser]];
   return (
     <nav className="sc-nav" aria-label="Main">
       <div className="sc-nav-bar">
@@ -484,7 +484,7 @@ function Home() {
     );
   };
 
-  const tabTitle = { chats: 'Inbox', groups: 'Groups', status: 'Status', calls: 'Calls', profile: 'You' }[activeTab];
+  const tabTitle = { chats: 'Messages', groups: 'Groups', status: 'Status', calls: 'Calls', profile: 'You' }[activeTab];
   const tabSub = {
     chats: `Hi ${currentUsername}`,
     groups: `${groups.length} group${groups.length === 1 ? '' : 's'}`,
