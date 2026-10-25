@@ -7,6 +7,10 @@ from .views import (
 )
 from .notes import notes_view
 from .music import music_search
+from .plus import (
+    reminder_create_view, reminder_list_view, reminder_cancel_view, daily_view,
+    expense_create_view, expense_settle_view, expense_balances_view,
+)
 from .extras import wallpaper_view, schedule_view, scheduled_list_view, cancel_scheduled_view
 from .features import (
     privacy_view, devices_view, device_revoke_view, device_revoke_others_view, logout_view,
@@ -52,6 +56,13 @@ urlpatterns = [
     path('status-mutes/', status_mutes_view, name='status-mutes'),
     path('notes/', notes_view, name='notes'),
     path('music/search/', music_search, name='music-search'),
+    path('reminders/', reminder_list_view, name='reminders'),
+    path('reminders/create/', reminder_create_view, name='reminder-create'),
+    path('reminders/cancel/', reminder_cancel_view, name='reminder-cancel'),
+    path('daily/', daily_view, name='daily'),
+    path('expenses/create/', expense_create_view, name='expense-create'),
+    path('expenses/settle/', expense_settle_view, name='expense-settle'),
+    path('expenses/balances/', expense_balances_view, name='expense-balances'),
 
     path('', include(router.urls)),
 ]

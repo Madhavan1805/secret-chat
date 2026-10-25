@@ -7,7 +7,7 @@ import QrCode from './QrCode';
 import { PinPad } from './LockGate';
 import { Sheet, Toggle, Choice, SettingRow, Seal } from './ui';
 import { errMsg, formatListTime, asList } from './config';
-import { setPin, checkPin, removePin, lockEnabled, shieldEnabled, setShieldEnabled, lockDelaySeconds, setLockDelaySeconds } from './appLock';
+import { setPin, checkPin, removePin, lockEnabled, shieldEnabled, setShieldEnabled, lockDelaySeconds, setLockDelaySeconds, decoyEnabled, setDecoyPin, removeDecoy } from './appLock';
 
 // ------------------------------------------------------------------ privacy
 const WHO = [['everyone', 'Everyone'], ['friends', 'Friends'], ['nobody', 'Nobody']];
@@ -85,9 +85,19 @@ export function LockSheet({ T, onClose, ask }) {
   const [err, setErr] = useState(0);
   const [shield, setShield] = useState(shieldEnabled());
   const [delay, setDelay] = useState(lockDelaySeconds());
+  const [decoy, setDecoy] = useState(decoyEnabled());
+  const [decoyMsg, setDecoyMsg] = useState('');
 
   const onPin = async (pin) => {
     if (mode === 'new') { setFirst(pin); setMode('confirm'); return; }
+    if (mode === 'decoy-new') {
+      if (await checkPin(pin)) { setDecoyMsg('The decoy PIN must be different from your real PIN.'); setErr((n) => n + 1); return; }
+      setDecoyMsg(''); setFirst(pin); setMode('decoy-confirm'); return;
+    }
+    if (mode === 'decoy-confirm') {
+      if (pin !== first) { setDecoyMsg('The PINs did not match. Try again.'); setErr((n) => n + 1); setMode('decoy-new'); return; }
+      await setDecoyPin(pin); setDecoy(true); setMode(null); return;
+    }
     if (mode === 'confirm') {
       if (pin !== first) { setErr((n) => n + 1); setMode('new'); return; }
       await setPin(pin); setOn(true); setMode(null); return;
@@ -97,11 +107,12 @@ export function LockSheet({ T, onClose, ask }) {
   };
 
   if (mode) {
-    const title = mode === 'new' ? 'Choose a PIN' : mode === 'confirm' ? 'Repeat the PIN' : 'Enter current PIN';
+    const isDecoy = mode.startsWith('decoy');
+    const title = mode === 'decoy-new' ? 'Choose a decoy PIN' : mode === 'decoy-confirm' ? 'Repeat the decoy PIN' : mode === 'new' ? 'Choose a PIN' : mode === 'confirm' ? 'Repeat the PIN' : 'Enter current PIN';
     return (
       <Sheet T={T} title="App lock" onClose={() => setMode(null)}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center', paddingTop: 10 }}>
-          <PinPad title={title} hint={mode === 'new' && err ? 'The PINs did not match. Try again.' : '4 digits. Stored only on this phone.'} onComplete={onPin} error={err} resetKey={mode} />
+          <PinPad title={title} hint={isDecoy ? (decoyMsg || 'Opens an empty looking app. Stored only on this phone.') : (mode === 'new' && err ? 'The PINs did not match. Try again.' : '4 digits. Stored only on this phone.')} onComplete={onPin} error={err} resetKey={mode} />
         </div>
       </Sheet>
     );
@@ -114,6 +125,12 @@ export function LockSheet({ T, onClose, ask }) {
           right={<Toggle on={on} onChange={(v) => setMode(v ? 'new' : 'verify-off')} label="PIN lock" />} />
         {on && <SettingRow title="Change PIN" onClick={() => setMode('verify-change')} />}
       </div>
+      {on && (
+        <div className="sc-set-group" style={{ marginTop: 22 }}>
+          <SettingRow title="Decoy PIN" sub={decoy ? 'On. That PIN opens an empty looking app, and your real chats stay hidden.' : 'A second PIN that opens a fake, empty app if someone forces you to unlock.'}
+            right={<Toggle on={decoy} onChange={(v) => { if (v) { setDecoyMsg(''); setMode('decoy-new'); } else { removeDecoy(); setDecoy(false); } }} label="Decoy PIN" />} />
+        </div>
+      )}
       {on && (
         <>
           <label className="sc-label">Lock after leaving the app for</label>

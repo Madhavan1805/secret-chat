@@ -9,6 +9,7 @@ import EmojiPicker from './EmojiPicker';
 import { DEFAULT_REACTIONS, getCustomReactions, addCustomReaction, removeCustomReaction } from './reactions';
 import { getPicUrl, formatSize, formatTime } from './config';
 import { useBackClose } from './backClose';
+import { CapsuleLocked, WhisperLocked, MsgTags, ExpenseCard } from './PlusUI';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 const MENTION_RE = /(@[\w.\-]+)/g;
@@ -125,7 +126,7 @@ function StatusPeek({ st, onClose }) {
 export default function MessageBubble({
   msg, isMe, isGroup, T, replyMsg, highlighted, pinned,
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
-  onStar, onInfo, onVote, mentionNames,
+  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onBalances, onCapsuleOpened,
 }) {
   const [menu, setMenu] = useState(false);
   const [up, setUp] = useState(false);                        // open the menu above the bubble when there is no room below
@@ -155,6 +156,7 @@ export default function MessageBubble({
   const isDoc = !!msg.file_url && msg.message_type === 'document';
   const isLocation = msg.message_type === 'location';
   const isPoll = msg.message_type === 'poll' && !!msg.poll;
+  const isExpense = msg.message_type === 'expense' && !!msg.expense;
   const isSticker = content.startsWith(STICKER_PREFIX);
   const isGif = content.startsWith(GIF_PREFIX);
   const canEdit = isMe && msg.message_type === 'text' && !isViewOnce && !isSticker && !isGif && !msg.is_screenshot
@@ -221,6 +223,7 @@ export default function MessageBubble({
       >
         {pinned && <div style={{ fontSize: 10, opacity: 0.8 }}>📌 Pinned</div>}
         {msg.forwarded && <div style={{ fontSize: 11, opacity: 0.75, fontStyle: 'italic' }}>↪ Forwarded</div>}
+        <MsgTags msg={msg} isMe={isMe} />
 
         {replyMsg && (
           <div className="mb-1 px-2 py-1 rounded" style={{ background: 'rgba(0,0,0,0.18)', borderLeft: `3px solid ${T.accent}`, fontSize: 12 }}>
@@ -229,7 +232,9 @@ export default function MessageBubble({
           </div>
         )}
 
-        {isViewOnce ? (
+        {msg.masked ? (
+          msg.masked === 'capsule' ? <CapsuleLocked msg={msg} onOpened={onCapsuleOpened} /> : <WhisperLocked msg={msg} />
+        ) : isViewOnce ? (
           <button
             type="button"
             disabled={isMe}
@@ -270,10 +275,11 @@ export default function MessageBubble({
               </a>
             )}
             {isPoll && <PollCard poll={msg.poll} onVote={onVote} />}
+            {isExpense && <ExpenseCard exp={msg.expense} meId={meId} onSettle={onSettle} onBalances={onBalances} />}
             {msg.status_preview && <StatusCard st={msg.status_preview} onOpen={() => setStatusOpen(true)} />}
             {isSticker && <div style={{ fontSize: 76, lineHeight: 1.1 }}>{content.slice(STICKER_PREFIX.length)}</div>}
             {isGif && <img src={content.slice(GIF_PREFIX.length)} alt="GIF" style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 12, display: 'block' }} />}
-            {content && !isAudio && !isPoll && !isSticker && !isGif && (() => {
+            {content && !isAudio && !isPoll && !isExpense && !isSticker && !isGif && (() => {
               const clamp = isLong && !isLocation && !expanded;
               return (
                 <>
@@ -360,8 +366,9 @@ export default function MessageBubble({
             <div className="d-flex flex-wrap justify-content-between align-items-center mb-2" style={{ maxWidth: 260 }}>
               {[
                 ['Reply', () => onReply(msg), true],
-                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll],
-                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll],
+                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll && !isExpense && !msg.masked],
+                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll && !isExpense && !msg.masked],
+                ['Remind us', () => onRemind && onRemind(msg), !!onRemind && !isViewOnce && !msg.masked && !msg.is_screenshot],
                 [msg.is_starred ? 'Remove star' : 'Star', () => onStar && onStar(msg), !!onStar && !isViewOnce],
                 ['Edit', () => onEdit(msg), canEdit],
                 [pinned ? 'Unpin' : 'Pin', () => onPin(msg), !isViewOnce],

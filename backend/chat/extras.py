@@ -101,6 +101,11 @@ def _loop():
             send_due_scheduled()
         except Exception:
             pass
+        try:
+            from .plus import fire_due                       # reminders + time capsules that just opened
+            fire_due()
+        except Exception:
+            pass
         finally:
             close_old_connections()
         time.sleep(10)

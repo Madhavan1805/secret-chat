@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils import timezone
 from rest_framework import serializers
 from .models import CustomUser, Chat, Message, ChatRequest, Status, CallHistory
 
@@ -35,12 +36,14 @@ class MessageSerializer(serializers.ModelSerializer):
     is_starred = serializers.SerializerMethodField()
     poll = serializers.SerializerMethodField()
     status_preview = serializers.SerializerMethodField()
+    expense = serializers.SerializerMethodField()
+    whisper = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        exclude = ['hidden_for', 'starred_by', 'status_ref']
+        exclude = ['hidden_for', 'starred_by', 'status_ref', 'whisper_to', 'unlock_notified']
         read_only_fields = ['sender', 'receiver', 'chat', 'status', 'reactions', 'is_screenshot', 'created_at',
-                            'file_name', 'file_size', 'edited_at', 'forwarded', 'read_by']
+                            'file_name', 'file_size', 'edited_at', 'forwarded', 'read_by', 'unlock_at']
 
     def get_read_by_names(self, obj):
         request = self.context.get('request')
@@ -71,6 +74,38 @@ class MessageSerializer(serializers.ModelSerializer):
         return {"question": poll.question, "multiple": poll.multiple, "closed": poll.closed,
                 "options": options, "total_voters": len(voters)}
 
+    # ---- split expense
+    def get_expense(self, obj):
+        if obj.message_type != 'expense':
+            return None
+        try:
+            e = obj.expense
+        except ObjectDoesNotExist:
+            return None
+        shares = [{"user_id": s.user_id, "username": s.user.username, "amount": str(s.amount), "paid": s.paid}
+                  for s in e.shares.all()]
+        return {"id": e.id, "title": e.title, "amount": str(e.amount), "payer_id": e.payer_id,
+                "payer_name": e.payer.username, "shares": shares}
+
+    # ---- whisper: who it is for (everybody sees the names, only they can read it)
+    def get_whisper(self, obj):
+        users = list(obj.whisper_to.all())
+        if not users:
+            return None
+        return {"to": [{"id": u.id, "username": u.username} for u in users]}
+
+    def _is_masked(self, obj):
+        """True when this viewer must not see the content yet: a closed time capsule, or someone else's whisper."""
+        request = self.context.get('request')
+        uid = request.user.id if request else None
+        if obj.sender_id == uid:
+            return None
+        if obj.unlock_at and obj.unlock_at > timezone.now():
+            return 'capsule'
+        if any(True for _ in obj.whisper_to.all()) and not any(u.id == uid for u in obj.whisper_to.all()):
+            return 'whisper'
+        return None
+
     def get_status_preview(self, obj):
         if not obj.status_ref_id:
             return None
@@ -84,6 +119,14 @@ class MessageSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        masked = self._is_masked(instance)
+        if masked:
+            for key in ('content', 'file_url', 'voice_note', 'file_name', 'file_size', 'status_preview', 'reply_to', 'expense'):
+                if key in data:
+                    data[key] = None if key != 'content' else ''
+            data['masked'] = masked
+        else:
+            data['masked'] = None
         # the receiver switched "read receipts" off: the sender never gets the blue tick
         request = self.context.get('request')
         if (request and data.get('status') == 'read' and instance.sender_id == request.user.id
