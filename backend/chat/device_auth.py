@@ -49,7 +49,7 @@ def describe_device(request):
     if not ua:
         return 'Unknown device'
     if re.search(r'\bwv\b|; wv\)', ua):
-        browser = 'Secret Chat app'
+        browser = 'Chatzy app'
     elif 'Edg' in ua:
         browser = 'Edge'
     elif 'OPR' in ua or 'Opera' in ua:

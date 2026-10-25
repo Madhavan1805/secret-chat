@@ -1,5 +1,5 @@
 /* =====================================================================================
-   Wax & Ink design system for Secret Chat
+   Wax & Ink design system for Chatzy
    Colours come from CSS variables set per screen (see themeVars in theme.js):
    --bg --panel --surface --raised --accent --mine --mine-text --other --text --sub --line --seal --online
    The one memorable element is the wax seal (send button, unread badges, logo, lock screen).

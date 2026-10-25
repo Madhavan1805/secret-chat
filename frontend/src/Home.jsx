@@ -54,7 +54,7 @@ function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, m
 
 // the floating bottom navigation
 function NavBar({ tab, setTab, badges }) {
-  const items = [['chats', 'Chats', BiChat], ['groups', 'Groups', BiGroup], ['status', 'Status', BiAperture], ['calls', 'Calls', BiPhoneCall], ['profile', 'You', BiUser]];
+  const items = [['chats', 'Inbox', BiChat], ['groups', 'Groups', BiGroup], ['status', 'Status', BiAperture], ['calls', 'Calls', BiPhoneCall], ['profile', 'You', BiUser]];
   return (
     <nav className="sc-nav" aria-label="Main">
       <div className="sc-nav-bar">
@@ -484,7 +484,7 @@ function Home() {
     );
   };
 
-  const tabTitle = { chats: 'Chats', groups: 'Groups', status: 'Status', calls: 'Calls', profile: 'You' }[activeTab];
+  const tabTitle = { chats: 'Inbox', groups: 'Groups', status: 'Status', calls: 'Calls', profile: 'You' }[activeTab];
   const tabSub = {
     chats: `Hi ${currentUsername}`,
     groups: `${groups.length} group${groups.length === 1 ? '' : 's'}`,
@@ -501,7 +501,7 @@ function Home() {
 
       <div className="sc-card">
         <header className="sc-top">
-          <span className="sc-wordmark" aria-label="Secret Chat"><span className="w1">Secret</span><span className="w2">Chat</span></span>
+          <span className="sc-wordmark" aria-label="Chatzy"><span className="w1">Chat</span><span className="w2">zy</span></span>
           <div className="sc-top-actions">
             <button type="button" className="sc-iconbtn" style={{ position: 'relative' }} aria-label={`Requests${pendingRequests.length ? ` (${pendingRequests.length})` : ''}`} onClick={() => setShowRequests(true)}>
               <BiBell />

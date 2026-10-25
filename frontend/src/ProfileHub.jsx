@@ -125,7 +125,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
         <SettingRow icon={<BiLogOut />} title="Log out" onClick={doLogout} />
         <SettingRow icon={<BiTrash />} title="Delete my account" sub="Erases everything. Cannot be undone." onClick={deleteAccount} danger />
       </div>
-      <p style={{ textAlign: 'center', color: 'var(--sub)', fontSize: 12, margin: '18px 0 0' }}>Secret Chat · Designed and built by Madhavan</p>
+      <p style={{ textAlign: 'center', color: 'var(--sub)', fontSize: 12, margin: '18px 0 0' }}>Chatzy · Designed and built by Madhavan</p>
 
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'privacy' && <PrivacySheet T={T} onClose={close} ask={ask} />}

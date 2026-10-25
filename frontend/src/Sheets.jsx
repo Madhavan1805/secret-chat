@@ -110,7 +110,7 @@ export function LockSheet({ T, onClose, ask }) {
   return (
     <Sheet T={T} title="App lock & privacy shield" onClose={onClose}>
       <div className="sc-set-group">
-        <SettingRow icon={<Seal size={22} />} title="PIN lock" sub={on ? 'On. Asks for your PIN when you come back to the app.' : 'Ask for a 4-digit PIN to open Secret Chat.'}
+        <SettingRow icon={<Seal size={22} />} title="PIN lock" sub={on ? 'On. Asks for your PIN when you come back to the app.' : 'Ask for a 4-digit PIN to open Chatzy.'}
           right={<Toggle on={on} onChange={(v) => setMode(v ? 'new' : 'verify-off')} label="PIN lock" />} />
         {on && <SettingRow title="Change PIN" onClick={() => setMode('verify-change')} />}
       </div>
@@ -185,7 +185,7 @@ export function QrSheet({ T, me, onClose, onAddUser }) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginTop: 26 }}>
           <div style={{ padding: 14, borderRadius: 28, background: 'var(--surface)' }}><QrCode text={qrTextFor(name)} size={236} /></div>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20 }}>{name}</div>
-          <p style={{ color: 'var(--sub)', textAlign: 'center', margin: 0, maxWidth: 280 }}>Ask your friend to scan this from Secret Chat to send you a request.</p>
+          <p style={{ color: 'var(--sub)', textAlign: 'center', margin: 0, maxWidth: 280 }}>Ask your friend to scan this from Chatzy to send you a request.</p>
         </div>
       ) : (
         <div style={{ marginTop: 20 }}>

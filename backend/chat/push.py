@@ -1,4 +1,4 @@
-"""OneSignal push helper for Secret Chat.
+"""OneSignal push helper for Chatzy.
 
 Put this file at: backend/chat/push.py
 

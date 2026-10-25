@@ -148,7 +148,7 @@ export function Signature() {
 }
 
 export default function AuthLayout({ title, subtitle, children }) {
-  useEffect(() => { document.title = `${title} - Secret Chat`; }, [title]);
+  useEffect(() => { document.title = `${title} - Chatzy`; }, [title]);
   return (
     <div className="au-root">
       <style>{CSS}</style>
