@@ -1,6 +1,6 @@
 // Mobile viewport helpers
-//  1. --app-height : the REAL visible height (shrinks when the keyboard opens), so the chat header
-//     never slides off the top and there is never a blank strip between the composer and the keyboard.
+//  1. --app-height / --app-top : the REAL visible area (height shrinks and top moves when the keyboard opens),
+//     so the chat header never slides off the top and there is never a blank strip above the keyboard.
 //  2. html.kb-open : set while the on-screen keyboard is up (the composer then drops its bottom safe-area padding).
 //  3. blocks pinch-zoom / double-tap zoom, because the app should behave like a native app.
 
@@ -25,7 +25,12 @@ export function setupViewport() {
     // Trusting visualViewport alone left a big blank gap on some Android WebViews (it can lag or double count).
     const windowShrank = inner < baseline - 100;
     const h = windowShrank ? inner : vvh;
+    // When the keyboard floats over the page, Chrome / WebView also PANS the visible area down so the
+    // focused input stays in view (visualViewport.offsetTop > 0). A fixed screen at top:0 is then pushed
+    // up and off, which hides the header and leaves a blank gap above the keyboard. Follow the pan.
+    const top = vv ? Math.max(0, vv.offsetTop) : 0;
     root.style.setProperty('--app-height', `${Math.round(h)}px`);
+    root.style.setProperty('--app-top', `${Math.round(top)}px`);
     root.classList.toggle('kb-open', isTyping() && h < baseline - 120);
     // the browser sometimes scrolls the whole page up when the keyboard opens - put it back
     if (window.scrollY !== 0) window.scrollTo(0, 0);

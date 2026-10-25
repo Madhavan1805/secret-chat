@@ -6,7 +6,7 @@ import Avatar from './Avatar';
 import StatusTab from './StatusTab';
 import { useModal } from './PromptModal';
 import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
-import { getMe, clearMe, errMsg, formatListTime, formatDuration, startCall } from './config';
+import { getMe, getToken, clearMe, errMsg, formatListTime, formatDuration, startCall } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage } from './theme';
 import { Seal, Sheet } from './ui';
 import { QrSheet } from './Sheets';
@@ -15,6 +15,7 @@ import { RequestsSheet, FindPeopleSheet } from './People';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
 import { useBackClose } from './backClose';
+import { forgetAccount, listAccounts, switchAccount, wipeSession } from './accounts';
 import { BsCheck, BsCheckAll } from 'react-icons/bs';
 
 // one row of the chats / groups list
@@ -92,6 +93,7 @@ function Home() {
   const [calls, setCalls] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [statuses, setStatuses] = useState([]);
+  const [notes, setNotes] = useState({ mine: null, friends: [] });
 
   const [groupName, setGroupName] = useState('');
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
@@ -182,6 +184,31 @@ function Home() {
     }
   };
 
+  const fetchNotes = async () => {
+    try {
+      const res = await api.get('notes/');
+      if (res?.data) setNotes({ mine: res.data.mine || null, friends: res.data.friends || [] });
+    } catch (e) { /* ignore */ }
+  };
+
+  const editNote = async () => {
+    let text = notes.mine?.text || '';
+    if (notes.mine) {
+      const pick = await ask({ type: 'choice', title: 'Your note', message: 'Visible to friends for 24 hours.', choices: [
+        { label: 'Edit note', value: 'edit' }, { label: 'Delete note', value: 'del', danger: true }] });
+      if (!pick) return;
+      if (pick === 'del') {
+        try { await api.delete('notes/'); fetchNotes(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not delete') }); }
+        return;
+      }
+    }
+    const v = await ask({ type: 'prompt', title: 'Share a note', message: 'Friends see it above your photo for 24 hours.', placeholder: 'What is on your mind?', maxLength: 60, initial: text, okText: 'Share' });
+    if (v === null) return;
+    text = v.trim();
+    if (!text) return;
+    try { await api.post('notes/', { text }); fetchNotes(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not share note') }); }
+  };
+
   const scheduleRefresh = () => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(refresh, 250);
@@ -192,10 +219,11 @@ function Home() {
     refresh();
     fetchStatuses();
     fetchCalls();
+    fetchNotes();
     const interval = setInterval(() => {
       tickRef.current += 1;
       // WebSocket connected -> only a slow safety refresh; otherwise poll every 3 s
-      if (!isSocketOpen() || tickRef.current % 10 === 0) { refresh(); fetchStatuses(); }
+      if (!isSocketOpen() || tickRef.current % 10 === 0) { refresh(); fetchStatuses(); fetchNotes(); }
     }, 3000);
     return () => { clearInterval(interval); clearTimeout(debounceRef.current); };
   }, []);
@@ -203,7 +231,10 @@ function Home() {
   useRealtime((evt) => {
     switch (evt.event) {
       case '_open':
-        refresh(); fetchStatuses(); fetchCalls();
+        refresh(); fetchStatuses(); fetchCalls(); fetchNotes();
+        break;
+      case 'note':
+        fetchNotes();
         break;
       case 'message': case 'read': case 'group_read': case 'chat_updated':
       case 'friends_changed': case 'request': case 'presence': case 'blocklist':
@@ -317,14 +348,15 @@ function Home() {
   };
 
   const doLogout = async () => {
+    const token = getToken();
     try { await api.post('auth/logout/'); } catch (e) { /* offline: still log out here */ }
-    const keep = {};
-    Object.keys(localStorage).forEach((k) => { if (/^(pinned_msg_|app_theme|custom_reactions|recent_emojis|sounds_off|lock_)/.test(k)) keep[k] = localStorage.getItem(k); });
+    forgetAccount(token);
     pushLogout();
     disconnectSocket();
     clearMe();
-    localStorage.clear();
-    Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v));
+    wipeSession();                                   // keeps phone settings and the list of other accounts
+    const others = listAccounts();
+    if (others.length) { switchAccount(others[0]); return; }      // another account is saved: carry on as that one
     navigate('/');
   };
 
@@ -400,10 +432,16 @@ function Home() {
     const ov = friend.ov;
     const typedText = lastText(ov, me?.id, true);
     const key = `f${friend.id}`;
+    const note = notes.friends.find((n) => n.user_id === friend.id);
     return (
       <ChatRow
         key={friend.id}
-        avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />}
+        avatar={(
+          <div className="nt-wrap">
+            {note && <span className="nt-bubble" title={note.text}>{note.text}</span>}
+            <Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />
+          </div>
+        )}
         title={friend.username}
         subtitle={ov?.is_locked ? 'Locked chat' : (typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
@@ -485,6 +523,20 @@ function Home() {
                 <input type="text" placeholder="Search your chats" value={searchQuery}
                   onChange={handleSearch} aria-label="Search chats" />
               </label>
+
+              {!ql && (
+                <div className="sc-row" role="button" tabIndex={0} onClick={editNote} onKeyDown={(e) => { if (e.key === 'Enter') editNote(); }}>
+                  <div className="nt-wrap">
+                    {notes.mine && <span className="nt-bubble mine">{notes.mine.text}</span>}
+                    <Avatar src={me?.profile_picture} name={me?.username || currentUsername} size={52} T={T} />
+                  </div>
+                  <div className="sc-row-main">
+                    <h3 className="sc-row-name"><span className="t">Your note</span></h3>
+                    <span className="sc-row-sub">{notes.mine ? 'Tap to edit or delete' : 'Share a short note for 24 hours'}</span>
+                  </div>
+                  {!notes.mine && <BiPlus style={{ fontSize: 22, color: 'var(--accent)' }} aria-hidden />}
+                </div>
+              )}
 
               {!ql && archivedCount > 0 && (
                 <div className="sc-row" role="button" tabIndex={0} onClick={() => setShowArchived((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter') setShowArchived((v) => !v); }}>

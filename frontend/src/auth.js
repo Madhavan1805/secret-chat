@@ -1,5 +1,6 @@
 import api from './api';
 import { getToken, clearMe } from './config';
+import { rememberAccount } from './accounts';
 
 // If your api.js reads the login token from a different localStorage key, change this one line.
 export const TOKEN_KEY = 'token';
@@ -10,6 +11,7 @@ export function saveSession({ token, username, id }) {
     localStorage.setItem('username', username);
     if (id != null) localStorage.setItem('user_id', String(id));
   } catch (e) { /* storage blocked */ }
+  rememberAccount({ token, username, id });      // so this phone can switch between accounts
   clearMe();
 }
 

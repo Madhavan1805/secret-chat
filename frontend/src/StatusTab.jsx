@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight, BiChevronDown, BiDotsVerticalRounded, BiShow, BiSend } from 'react-icons/bi';
+import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight, BiChevronDown, BiDotsVerticalRounded, BiShow, BiSend, BiMusic, BiVolumeFull, BiVolumeMute } from 'react-icons/bi';
 import { useBackClose } from './backClose';
 import api from './api';
 import Avatar from './Avatar';
@@ -60,6 +60,9 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [privacy, setPrivacy] = useState('all');
   const [posting, setPosting] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [musicFile, setMusicFile] = useState(null);     // optional song for a photo status
+  const [musicUrl, setMusicUrl] = useState('');
+  const [songOff, setSongOff] = useState(false);          // viewer muted the song
 
   // close friends
   const [mutedIds, setMutedIds] = useState([]);
@@ -86,6 +89,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [menuOpen, setMenuOpen] = useState(false);     // 3-dot menu on my status row
 
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
   const viewedSent = useRef(new Set());
   const nextRef = useRef(() => {});
 
@@ -107,6 +111,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const st = vGroup ? items[idx] : null;
   const isMine = !!st && st.user === meId;
   const paused = replyFocus || showViewers || trayOpen;
+  const imageMs = st?.music_file ? 15000 : IMAGE_MS;       // a photo with a song stays longer
 
   // ---------------------------------------------------------- close friends
   const loadClose = async () => {
@@ -156,7 +161,21 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     loadClose();
   };
 
+  const pickSong = (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > 12 * 1024 * 1024) { setUploadError('Song is too big (max 12 MB)'); return; }
+    if (musicUrl) URL.revokeObjectURL(musicUrl);
+    setMusicFile(f);
+    setMusicUrl(URL.createObjectURL(f));
+    setUploadError('');
+  };
+  const clearSong = () => { if (musicUrl) URL.revokeObjectURL(musicUrl); setMusicFile(null); setMusicUrl(''); };
+  const songName = (f) => (f ? f.name.replace(/\.[^.]+$/, '').slice(0, 80) : '');
+
   const cancelUpload = () => {
+    clearSong();
     setAudOpen(false);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setUploadFile(null);
@@ -175,6 +194,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     fd.append('media_file', shortFile(uploadFile));
     fd.append('caption', caption.trim());
     fd.append('privacy', privacy);
+    if (musicFile && !uploadFile.type.startsWith('video')) { fd.append('music_file', musicFile); fd.append('music_title', songName(musicFile)); }
     if (privacy === 'except' || privacy === 'only') (privacy === 'except' ? exceptIds : onlyIds).forEach((id) => fd.append('privacy_ids', id));
     try {
       await api.post('statuses/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -223,9 +243,16 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   // photo timer
   useEffect(() => {
     if (!st || paused || st.media_type === 'video') return undefined;
-    const t = setInterval(() => setProgress((p) => p + (100 * TICK_MS) / IMAGE_MS), TICK_MS);
+    const t = setInterval(() => setProgress((p) => p + (100 * TICK_MS) / imageMs), TICK_MS);
     return () => clearInterval(t);
-  }, [st?.id, st?.media_type, paused]);
+  }, [st?.id, st?.media_type, paused, imageMs]);
+
+  // song of the status: plays with the photo, pauses with it
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (paused || songOff) a.pause(); else { const p = a.play(); if (p && p.catch) p.catch(() => {}); }
+  }, [paused, songOff, st?.id]);
 
   useEffect(() => {
     if (progress >= 100 && st && st.media_type !== 'video') nextRef.current();
@@ -323,7 +350,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     return g.hasClose ? CLOSE_GREEN : 'var(--seal)';
   };
 
-  const overlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9500 };
+  const overlay = { position: 'fixed', top: 'var(--app-top, 0px)', left: 0, width: '100%', height: 'var(--app-height, 100dvh)', zIndex: 9500 };
 
   // the back button / swipe closes the top-most screen instead of leaving the app
   useBackClose(!!uploadFile, cancelUpload);
@@ -425,6 +452,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               ) : (
                 <img src={previewUrl} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               )}
+              {musicUrl && !uploadFile.type.startsWith('video') && <audio src={musicUrl} autoPlay loop />}
             </div>
 
             <div className="flex-shrink-0" style={{ padding: '8px 14px 16px' }}>
@@ -438,6 +466,15 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               />
 
               {uploadError && <div className="text-danger small mb-2">{uploadError}</div>}
+
+              {!uploadFile.type.startsWith('video') && (
+                musicFile ? (
+                  <div className="st-song"><BiMusic aria-hidden /><span className="t">{songName(musicFile)}</span><button type="button" onClick={clearSong} aria-label="Remove song"><BiX /></button></div>
+                ) : (
+                  <label htmlFor="status-song" className="st-song add"><BiMusic aria-hidden /><span className="t">Add song</span></label>
+                )
+              )}
+              <input type="file" id="status-song" className="d-none" accept="audio/*" onChange={pickSong} />
 
               <div className="st-postrow">
                 <button type="button" className="st-aud" onClick={() => setAudOpen(true)} aria-label="Who can see this status">
@@ -547,6 +584,15 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
                 />
               ) : (
                 <img key={st.id} src={getPicUrl(st.media_file)} alt="Status" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              )}
+
+              {st.music_file && st.media_type !== 'video' && (
+                <>
+                  <audio key={`a${st.id}`} ref={audioRef} src={getPicUrl(st.music_file)} loop playsInline />
+                  <button type="button" className="st-song view" onClick={(e) => { e.stopPropagation(); setSongOff((v) => !v); }} aria-label={songOff ? 'Unmute song' : 'Mute song'}>
+                    <BiMusic aria-hidden /><span className="t">{st.music_title || 'Song'}</span>{songOff ? <BiVolumeMute /> : <BiVolumeFull />}
+                  </button>
+                </>
               )}
 
               {/* tap left = previous, tap right = next */}
