@@ -239,6 +239,24 @@ def daily_view(request):
     return Response(_daily_state(chat, user, day))
 
 
+# ================================================================ reaction rain
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reaction_rain_view(request):
+    """Long-press on a reaction: everybody in the chat sees that emoji rain down on their screen."""
+    user = request.user
+    msg = Message.objects.filter(id=to_int(request.data.get('message_id'))).select_related('chat').first()
+    if not msg or not msg.chat or not msg.chat.participants.filter(id=user.id).exists():
+        raise PermissionDenied("Not your chat.")
+    ensure_unlocked(user, msg.chat)
+    emoji = str(request.data.get('emoji') or '').strip()
+    if not emoji or len(emoji) > 16 or any(c.isalnum() for c in emoji):
+        raise ValidationError({"error": "Invalid emoji"})
+    notify_users(list(msg.chat.participants.values_list('id', flat=True)), 'rain',
+                 chat_id=msg.chat.id, emoji=emoji, from_id=user.id)
+    return Response({"status": "ok"})
+
+
 # ================================================================ expenses
 def _money(value):
     try:

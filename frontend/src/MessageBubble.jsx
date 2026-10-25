@@ -6,7 +6,8 @@ import { Seal } from './ui';
 import AudioPlayer from './AudioPlayer';
 import MediaViewer, { downloadFile } from './MediaViewer';
 import EmojiPicker from './EmojiPicker';
-import { DEFAULT_REACTIONS, getCustomReactions, addCustomReaction, removeCustomReaction } from './reactions';
+import { DEFAULT_REACTIONS, getCustomReactions, addCustomReaction, removeCustomReaction, getQuickReaction } from './reactions';
+import { burstAt, rainAll } from './fx';
 import { getPicUrl, formatSize, formatTime } from './config';
 import { useBackClose } from './backClose';
 import { CapsuleLocked, WhisperLocked, MsgTags, ExpenseCard } from './PlusUI';
@@ -126,7 +127,7 @@ function StatusPeek({ st, onClose }) {
 export default function MessageBubble({
   msg, isMe, isGroup, T, replyMsg, highlighted, pinned,
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
-  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onBalances, onCapsuleOpened,
+  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onBalances, onCapsuleOpened, onRain,
 }) {
   const [menu, setMenu] = useState(false);
   const [up, setUp] = useState(false);                        // open the menu above the bubble when there is no room below
@@ -138,7 +139,9 @@ export default function MessageBubble({
   useBackClose(menu, () => setMenu(false));
   useBackClose(picker, () => setPicker(false));
   const [custom, setCustom] = useState(getCustomReactions);   // my own saved reactions
-  const touch = useRef({ x: 0, y: 0, timer: null });
+  const touch = useRef({ x: 0, y: 0, timer: null, last: 0 });
+  const likedAt = useRef(0);
+  const rainTimer = useRef(null);
 
   // ---------------------------------------------------------------- system line
   if (msg.message_type === 'system') {
@@ -186,8 +189,27 @@ export default function MessageBubble({
   const end = (e) => {
     clearTimeout(touch.current.timer);
     const t = e.changedTouches[0];
-    if (t.clientX - touch.current.x > 60 && Math.abs(t.clientY - touch.current.y) < 30) onReply(msg);
+    if (t.clientX - touch.current.x > 60 && Math.abs(t.clientY - touch.current.y) < 30) { onReply(msg); return; }
+    const still = Math.abs(t.clientX - touch.current.x) < 10 && Math.abs(t.clientY - touch.current.y) < 10;
+    if (still && !menu) {                                  // two quick taps = react with my quick reaction
+      const now = Date.now();
+      if (now - touch.current.last < 320) { touch.current.last = 0; doubleLike(t.clientX, t.clientY); } else touch.current.last = now;
+    }
   };
+
+  // double-tap: send my quick reaction (it only adds, never removes) and pop it on screen
+  const doubleLike = (x, y) => {
+    if (msg.masked || isViewOnce || msg.is_screenshot || Date.now() - likedAt.current < 600) return;
+    likedAt.current = Date.now();
+    const quick = getQuickReaction();
+    burstAt(quick, x, y);
+    if (!msg.reactions || msg.reactions[String(meId)] !== quick) onReact(msg, quick);
+  };
+
+  // tap-hold on a reaction: it rains over this screen and over the other person's chat screen too
+  const rainFrom = (emoji) => { rainAll(emoji); if (onRain) onRain(msg, emoji); };
+  const holdStart = (emoji) => { clearTimeout(rainTimer.current); rainTimer.current = setTimeout(() => rainFrom(emoji), 480); };
+  const holdEnd = () => clearTimeout(rainTimer.current);
 
   // ---------------------------------------------------------------- ticks / seen
   const renderMeta = () => {
@@ -217,6 +239,7 @@ export default function MessageBubble({
       <div
         className={`sc-bubble ${isMe ? 'mine' : 'theirs'}${isSticker ? ' sticker' : ''} position-relative`}
         onContextMenu={(e) => { e.preventDefault(); openMenu(); }}
+        onDoubleClick={(e) => doubleLike(e.clientX, e.clientY)}
         onTouchStart={start}
         onTouchMove={move}
         onTouchEnd={end}
@@ -344,7 +367,11 @@ export default function MessageBubble({
 
       {msg.reactions && Object.keys(msg.reactions).length > 0 && (
         <div className="d-flex gap-1 px-2 rounded-pill shadow-sm" style={{ marginTop: -8, fontSize: 13, background: 'var(--raised)', border: '1px solid var(--line)', zIndex: 1, padding: '1px 6px' }}>
-          {Object.values(msg.reactions).map((e, i) => <span key={i}>{e}</span>)}
+          {Object.values(msg.reactions).map((e, i) => (
+            <span key={i} role="button" aria-label={`Hold to rain ${e}`} style={{ cursor: 'pointer', userSelect: 'none', WebkitTouchCallout: 'none', padding: '2px 1px' }}
+              onTouchStart={(ev) => { ev.stopPropagation(); holdStart(e); }} onTouchEnd={holdEnd} onTouchMove={holdEnd} onTouchCancel={holdEnd}
+              onMouseDown={() => holdStart(e)} onMouseUp={holdEnd} onMouseLeave={holdEnd} onContextMenu={(ev) => { ev.preventDefault(); ev.stopPropagation(); }}>{e}</span>
+          ))}
         </div>
       )}
 

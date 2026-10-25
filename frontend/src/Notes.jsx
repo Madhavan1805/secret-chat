@@ -5,6 +5,7 @@ import Avatar from './Avatar';
 import { Sheet } from './ui';
 import { errMsg, getPicUrl } from './config';
 import SongPicker from './SongPicker';
+import { burstAt } from './fx';
 
 const MAX = 60;
 
@@ -12,9 +13,11 @@ function Bars() {
   return <span className="nt-bars" aria-hidden><i /><i /><i /></span>;
 }
 
-function Bubble({ note, mine, playing }) {
+function Bubble({ note, mine, playing, liked }) {
   return (
     <span className={`nt-bubble${mine ? ' mine' : ''}`}>
+      {mine && note.like_count > 0 && <span className="nt-heart">❤️ {note.like_count}</span>}
+      {!mine && (liked || note.liked_by_me) && <span className="nt-heart">❤️</span>}
       {(note.music_file || note.music_url) && (
         <span className="nt-song">
           <Bars />
@@ -28,9 +31,11 @@ function Bubble({ note, mine, playing }) {
 }
 
 // the row of notes above the chat list (Instagram style)
-export function NotesStrip({ T, me, notes, friends, onEditMine }) {
+export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked }) {
   const audioRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
+  const [likedIds, setLikedIds] = useState([]);
+  const taps = useRef({});                                   // last tap time + pending single-tap timer per note
 
   useEffect(() => () => { if (audioRef.current) audioRef.current.pause(); }, []);
 
@@ -45,6 +50,22 @@ export function NotesStrip({ T, me, notes, friends, onEditMine }) {
     audioRef.current = a;
     setPlayingId(n.user_id);
     const p = a.play(); if (p && p.catch) p.catch(() => setPlayingId(null));
+  };
+
+  // one tap plays the song, two quick taps like the note
+  const onTap = (n, e) => {
+    const t = taps.current[n.user_id] || {};
+    const now = Date.now();
+    if (t.last && now - t.last < 320) {
+      clearTimeout(t.timer);
+      taps.current[n.user_id] = {};
+      burstAt('❤️', e.clientX, e.clientY, 10);
+      setLikedIds((p) => (p.includes(n.user_id) ? p : [...p, n.user_id]));
+      api.post('notes/like/', { user_id: n.user_id }).then(() => onLiked && onLiked()).catch(() => {});
+      return;
+    }
+    clearTimeout(t.timer);
+    taps.current[n.user_id] = { last: now, timer: setTimeout(() => { taps.current[n.user_id] = {}; toggle(n); }, 300) };
   };
 
   const list = (notes.friends || [])
@@ -64,9 +85,9 @@ export function NotesStrip({ T, me, notes, friends, onEditMine }) {
         <span className="nt-name">Your note</span>
       </button>
       {list.map(({ n, f }) => (
-        <button type="button" key={n.user_id} className="nt-item" onClick={() => toggle(n)} aria-label={`${f.username}'s note`}>
+        <button type="button" key={n.user_id} className="nt-item" onClick={(e) => onTap(n, e)} aria-label={`${f.username}'s note. Double tap to like`}>
           <span className="nt-cell">
-            <Bubble note={n} playing={playingId === n.user_id} />
+            <Bubble note={n} playing={playingId === n.user_id} liked={likedIds.includes(n.user_id)} />
             <Avatar src={f.profile_picture} name={f.username} size={64} T={T} />
           </span>
           <span className="nt-name">{f.username}</span>
@@ -113,6 +134,7 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
   return (
     <Sheet T={T} title="Your note" onClose={onClose}>
       <p style={{ color: 'var(--sub)', fontSize: 13.5, margin: '0 4px 12px', lineHeight: 1.5 }}>Friends see it above your photo for 24 hours.</p>
+      {current?.liked_by?.length > 0 && <p style={{ margin: '0 4px 12px', fontSize: 13.5 }}>❤️ Liked by {current.liked_by.join(', ')}</p>}
       <div className="nt-compose">
         <textarea className="sc-field" style={{ height: 'auto', minHeight: 86, padding: '12px 16px', resize: 'none' }} rows={3} maxLength={MAX}
           placeholder="What is on your mind?" value={text} onChange={(e) => setText(e.target.value.replace(/\n/g, ' '))} aria-label="Note text" />

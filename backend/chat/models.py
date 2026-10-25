@@ -204,6 +204,16 @@ class ScheduledMessage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class NoteLike(models.Model):
+    """A friend double-tapped a note: one like per person per note."""
+    note = models.ForeignKey(Note, on_delete=models.CASCADE, related_name='likes')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='note_likes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('note', 'user')
+
+
 class Reminder(models.Model):
     """'Remind us': at remind_at a reminder line is posted into the chat and pushed to everybody in it."""
     chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='reminders')

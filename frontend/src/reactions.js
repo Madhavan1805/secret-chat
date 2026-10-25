@@ -18,3 +18,8 @@ export const addCustomReaction = (emoji) => {
 };
 
 export const removeCustomReaction = (emoji) => save(getCustomReactions().filter((e) => e !== emoji));
+
+// the emoji sent when I double-tap a message (and shown raining on tap-hold of a reaction)
+const QUICK_KEY = 'quick_reaction';
+export const getQuickReaction = () => { try { return localStorage.getItem(QUICK_KEY) || '❤️'; } catch (e) { return '❤️'; } };
+export const setQuickReaction = (e) => { try { localStorage.setItem(QUICK_KEY, e); } catch (err) { /* ignore */ } };
