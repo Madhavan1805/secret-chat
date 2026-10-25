@@ -2,7 +2,7 @@
 // and "switching" just makes that token the active one and reloads the app.
 const KEY = 'sc_accounts';
 // things that belong to the phone, not to one login: they survive a logout / account switch
-const KEEP = /^(pinned_msg_|app_theme|custom_reactions|recent_emojis|sounds_off|lock_|sc_accounts)/;
+const KEEP = /^(pinned_msg_|app_theme|custom_reactions|quick_reaction|recent_emojis|sounds_off|lock_|sc_accounts)/;
 
 const read = () => {
   try {

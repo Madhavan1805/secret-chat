@@ -5,11 +5,11 @@ from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
     StatusViewSet, CallViewSet,
 )
-from .notes import notes_view
+from .notes import notes_view, note_like_view
 from .music import music_search
 from .plus import (
     reminder_create_view, reminder_list_view, reminder_cancel_view, daily_view,
-    expense_create_view, expense_settle_view, expense_balances_view,
+    expense_create_view, expense_settle_view, expense_balances_view, reaction_rain_view,
 )
 from .extras import wallpaper_view, schedule_view, scheduled_list_view, cancel_scheduled_view
 from .features import (
@@ -55,6 +55,8 @@ urlpatterns = [
     path('polls/vote/', poll_vote_view, name='poll-vote'),
     path('status-mutes/', status_mutes_view, name='status-mutes'),
     path('notes/', notes_view, name='notes'),
+    path('notes/like/', note_like_view, name='note-like'),
+    path('messages/rain/', reaction_rain_view, name='reaction-rain'),
     path('music/search/', music_search, name='music-search'),
     path('reminders/', reminder_list_view, name='reminders'),
     path('reminders/create/', reminder_create_view, name='reminder-create'),

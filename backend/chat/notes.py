@@ -13,7 +13,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Block, Note
+from .models import Block, Note, NoteLike
+from .push import send_push
 from .realtime import notify_users
 from .music import clean_music_url, clean_text
 from .views import friend_ids_of, AUDIO_EXTS, MAX_MUSIC_BYTES
@@ -33,7 +34,12 @@ def _visible_friend_ids(user):
 
 def _row(n, request):
     music = request.build_absolute_uri(n.music_file.url) if n.music_file else None
-    return {"user_id": n.user_id, "username": n.user.username, "text": n.text, "created_at": n.created_at,
+    likes = list(n.likes.all())
+    me = request.user.id
+    extra = {"like_count": len(likes), "liked_by_me": any(l.user_id == me for l in likes)}
+    if n.user_id == me:                                                          # only the owner sees who liked
+        extra["liked_by"] = [l.user.username for l in likes]
+    return {**extra,"user_id": n.user_id, "username": n.user.username, "text": n.text, "created_at": n.created_at,
             "music_file": music, "music_url": n.music_url, "music_title": n.music_title, "music_artist": n.music_artist}
 
 
@@ -83,6 +89,28 @@ def notes_view(request):
         Note.objects.filter(user=user).delete()
         notify_users(list(_visible_friend_ids(user)), 'note')
 
-    mine = Note.objects.select_related('user').filter(user=user).first()
-    friends = Note.objects.select_related('user').filter(user_id__in=_visible_friend_ids(user))
+    qs = Note.objects.select_related('user').prefetch_related('likes__user')
+    mine = qs.filter(user=user).first()
+    friends = qs.filter(user_id__in=_visible_friend_ids(user))
     return Response({"mine": _row(mine, request) if mine else None, "friends": [_row(n, request) for n in friends]})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def note_like_view(request):
+    """Double-tap on a friend's note: like it (stays liked, a second double-tap does nothing)."""
+    user = request.user
+    try:
+        owner_id = int(request.data.get('user_id'))
+    except (TypeError, ValueError):
+        raise ValidationError({"error": "user_id required"})
+    if owner_id == user.id or owner_id not in _visible_friend_ids(user):
+        raise ValidationError({"error": "You can't like this note."})
+    note = Note.objects.filter(user_id=owner_id, created_at__gte=timezone.now() - NOTE_TTL).first()
+    if not note:
+        raise ValidationError({"error": "That note is gone."})
+    _, created = NoteLike.objects.get_or_create(note=note, user=user)
+    if created:
+        notify_users([owner_id], 'note')
+        send_push([owner_id], user.username, "❤️ Liked your note", {})
+    return Response({"liked": True, "like_count": note.likes.count()})

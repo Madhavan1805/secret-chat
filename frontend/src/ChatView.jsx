@@ -19,6 +19,7 @@ import { pushLogin } from './push';
 import { playSound } from './sounds';
 import EmojiPicker from './EmojiPicker';
 import ProfileModal from './ProfileModal';
+import { rainAll } from './fx';
 import { CapsuleSheet, WhisperSheet, ReminderSheet, ExpenseSheet, BalancesSheet, DailyBar, ModeChip } from './PlusUI';
 
 
@@ -315,6 +316,9 @@ function ChatView() {
         break;
       case 'read':
         if (cur.friendId && evt.reader_id === cur.friendId) latest.current.fetchMessages();
+        break;
+      case 'rain':
+        if (cur.chatId && Number(evt.chat_id) === Number(cur.chatId) && Number(evt.from_id) !== Number(localStorage.getItem('user_id'))) rainAll(evt.emoji);
         break;
       case 'daily':
         if (cur.chatId && Number(evt.chat_id) === Number(cur.chatId)) setDailyKey((k) => k + 1);
@@ -993,6 +997,7 @@ function ChatView() {
     meId: me?.id,
     onRemind: (m) => setRemindFor(m),
     onSettle,
+    onRain: (m, emoji) => { api.post('messages/rain/', { message_id: m.id, emoji }).catch(() => {}); },
     onBalances: () => setShowBalances(true),
     onCapsuleOpened: () => fetchMessages(),
     onOpenViewOnce: (m) => setViewOnceData(m),

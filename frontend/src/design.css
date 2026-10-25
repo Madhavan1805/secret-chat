@@ -438,3 +438,20 @@ html, body { background: var(--page-bg, #0F0B14); }
 .px-ans small { color: var(--accent); font-weight: 700; }
 .px-ans p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .px-ans.wait { opacity: .7; }
+
+/* ---- emoji effects (fx.js) ---- */
+.fx-layer { position: fixed; inset: 0; z-index: 60000; pointer-events: none; overflow: hidden; }
+.fx-pop { position: absolute; margin: -14px 0 0 -14px; font-size: 28px; line-height: 1; opacity: 0; transform: scale(.4); animation: fx-pop 1.1s cubic-bezier(.2,.7,.3,1) forwards; }
+@keyframes fx-pop {
+  0% { opacity: 0; transform: translate(0, 0) scale(.4) rotate(0); }
+  15% { opacity: 1; transform: translate(calc(var(--dx) * .2), calc(var(--dy) * .2)) scale(var(--s)) rotate(var(--r)); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(var(--s)) rotate(var(--r)); }
+}
+.fx-drop { position: absolute; top: -50px; line-height: 1; opacity: 0; animation-name: fx-fall; animation-timing-function: cubic-bezier(.35,.1,.85,.65); animation-fill-mode: forwards; }
+@keyframes fx-fall {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0); }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--sway), 112vh) rotate(40deg); }
+}
+.nt-heart { position: absolute; top: -2px; right: -4px; z-index: 3; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); color: var(--text); }

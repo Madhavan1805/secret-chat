@@ -502,7 +502,7 @@ function Home() {
                   onChange={handleSearch} aria-label="Search chats" />
               </label>
 
-              {!ql && <NotesStrip T={T} me={me} notes={notes} friends={friends} onEditMine={() => setNoteOpen(true)} />}
+              {!ql && <NotesStrip T={T} me={me} notes={notes} friends={friends} onEditMine={() => setNoteOpen(true)} onLiked={fetchNotes} />}
 
               {!ql && archivedCount > 0 && (
                 <div className="sc-row" role="button" tabIndex={0} onClick={() => setShowArchived((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter') setShowArchived((v) => !v); }}>

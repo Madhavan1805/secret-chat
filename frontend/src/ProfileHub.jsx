@@ -8,6 +8,8 @@ import { APP_MODES, CHAT_THEMES } from './theme';
 import { lockEnabled } from './appLock';
 import AccountsSheet from './Accounts';
 import { listAccounts } from './accounts';
+import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
+import { burstAt } from './fx';
 import { soundsEnabled, setSoundsEnabled } from './sounds';
 import { getMe, errMsg, shortFile } from './config';
 
@@ -32,6 +34,24 @@ function ThemeSheet({ T, onClose, appTheme, onPick }) {
             </button>
           );
         })}
+      </div>
+    </Sheet>
+  );
+}
+
+// choose the emoji a double-tap on a message sends
+function QuickReactionSheet({ T, onClose }) {
+  const [cur, setCur] = useState(getQuickReaction());
+  const all = [...DEFAULT_REACTIONS, ...getCustomReactions()];
+  return (
+    <Sheet T={T} title="Double-tap reaction" onClose={onClose}>
+      <p style={{ color: 'var(--sub)', fontSize: 13.5, margin: '0 4px 14px', lineHeight: 1.5 }}>Double-tap any message and this emoji is sent as your reaction. Hold a reaction to make it rain.</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {all.map((e) => (
+          <button key={e} type="button" aria-pressed={cur === e} aria-label={`Use ${e}`}
+            onClick={(ev) => { setCur(e); setQuickReaction(e); burstAt(e, ev.clientX, ev.clientY, 7); }}
+            style={{ width: 56, height: 56, fontSize: 28, borderRadius: 18, border: cur === e ? '2px solid var(--accent)' : '1px solid var(--line)', background: 'var(--raised)' }}>{e}</button>
+        ))}
       </div>
     </Sheet>
   );
@@ -103,6 +123,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       <div className="sc-set-group">
         <SettingRow icon={<BiUserCircle />} title="Switch account" sub={listAccounts().length > 1 ? `${listAccounts().length} accounts on this phone` : 'Add another account'} onClick={() => setSheet('accounts')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>{getQuickReaction()}</span>} title="Double-tap reaction" sub="Sent when you double-tap a message" onClick={() => setSheet('quick')} right={chev} />
         <SettingRow icon={<BiStar />} title="Starred messages" onClick={() => setSheet('starred')} right={chev} />
       </div>
 
@@ -127,6 +148,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       </div>
       <p style={{ textAlign: 'center', color: 'var(--sub)', fontSize: 12, margin: '18px 0 0' }}>Chatzy · Designed and built by Madhavan</p>
 
+      {sheet === 'quick' && <QuickReactionSheet T={T} onClose={close} />}
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'privacy' && <PrivacySheet T={T} onClose={close} ask={ask} />}
       {sheet === 'devices' && <DevicesSheet T={T} onClose={close} ask={ask} />}
