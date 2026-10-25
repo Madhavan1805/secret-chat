@@ -287,9 +287,7 @@ textarea.sc-field { height: auto; min-height: 84px; padding: 12px 16px; resize: 
 
 /* wordmark: Secret (serif) + Chat (script), the original look */
 .sc-wordmark { display: inline-flex; align-items: baseline; gap: 2px; line-height: 1; white-space: nowrap; }
-.sc-wordmark .w1 { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; font-size: 1.65rem; letter-spacing: .5px; color: var(--text); }
-.sc-wordmark .w2 { font-family: 'Great Vibes', 'Apple Chancery', cursive; font-size: 2.2rem; color: var(--accent); margin-left: 4px; text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent); position: relative; top: 3px; }
-.t-light .sc-wordmark .w2 { text-shadow: none; }
+.sc-wordmark .w1 { font-family: var(--font-brand); font-weight: 700; font-size: 1.7rem; letter-spacing: -.01em; color: var(--accent); }
 
 /* the screen never scrolls as a page: it fills the visible area, so the keyboard cannot expose a blank strip */
 div.home-shell, div.chat-shell { position: fixed; top: var(--app-top, 0px); left: 0; right: 0; height: var(--app-height, 100dvh); overflow: hidden; }

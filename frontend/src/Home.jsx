@@ -501,7 +501,7 @@ function Home() {
 
       <div className="sc-card">
         <header className="sc-top">
-          <span className="sc-wordmark" aria-label="Chatzy"><span className="w1">Chat</span><span className="w2">zy</span></span>
+          <span className="sc-wordmark" aria-label="Chatzy"><span className="w1">Chatzy</span></span>
           <div className="sc-top-actions">
             <button type="button" className="sc-iconbtn" style={{ position: 'relative' }} aria-label={`Requests${pendingRequests.length ? ` (${pendingRequests.length})` : ''}`} onClick={() => setShowRequests(true)}>
               <BiBell />
