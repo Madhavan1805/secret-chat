@@ -9,6 +9,13 @@ import { burstAt } from './fx';
 
 const MAX = 60;
 
+function fmtAgo(iso) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  return `${Math.floor(m / 60)} h ago`;
+}
+
 function Bars() {
   return <span className="nt-bars" aria-hidden><i /><i /><i /></span>;
 }
@@ -16,8 +23,6 @@ function Bars() {
 function Bubble({ note, mine, playing, liked }) {
   return (
     <span className={`nt-bubble${mine ? ' mine' : ''}`}>
-      {mine && note.like_count > 0 && <span className="nt-heart">❤️ {note.like_count}</span>}
-      {!mine && (liked || note.liked_by_me) && <span className="nt-heart">❤️</span>}
       {(note.music_file || note.music_url) && (
         <span className="nt-song">
           <Bars />
@@ -31,7 +36,7 @@ function Bubble({ note, mine, playing, liked }) {
 }
 
 // the row of notes above the chat list (Instagram style)
-export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked }) {
+export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked, onError }) {
   const audioRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
   const [likedIds, setLikedIds] = useState([]);
@@ -61,7 +66,10 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked }) {
       taps.current[n.user_id] = {};
       burstAt('❤️', e.clientX, e.clientY, 10);
       setLikedIds((p) => (p.includes(n.user_id) ? p : [...p, n.user_id]));
-      api.post('notes/like/', { user_id: n.user_id }).then(() => onLiked && onLiked()).catch(() => {});
+      api.post('notes/like/', { user_id: n.user_id }).then(() => onLiked && onLiked()).catch((err) => {
+        setLikedIds((p) => p.filter((x) => x !== n.user_id));           // it did not go through: take the heart back and say why
+        if (onError) onError(errMsg(err, 'Could not like the note'));
+      });
       return;
     }
     clearTimeout(t.timer);
@@ -80,7 +88,10 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked }) {
           {notes.mine
             ? <Bubble note={notes.mine} mine />
             : <span className="nt-bubble ghost"><BiPlus /> Share a note</span>}
-          <Avatar src={me?.profile_picture} name={me?.username} size={64} T={T} />
+          <span className="nt-av">
+            <Avatar src={me?.profile_picture} name={me?.username} size={64} T={T} />
+            {notes.mine?.like_count > 0 && <span className="nt-like">❤️ {notes.mine.like_count}</span>}
+          </span>
         </span>
         <span className="nt-name">Your note</span>
       </button>
@@ -88,7 +99,10 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked }) {
         <button type="button" key={n.user_id} className="nt-item" onClick={(e) => onTap(n, e)} aria-label={`${f.username}'s note. Double tap to like`}>
           <span className="nt-cell">
             <Bubble note={n} playing={playingId === n.user_id} liked={likedIds.includes(n.user_id)} />
-            <Avatar src={f.profile_picture} name={f.username} size={64} T={T} />
+            <span className="nt-av">
+              <Avatar src={f.profile_picture} name={f.username} size={64} T={T} />
+              {(likedIds.includes(n.user_id) || n.liked_by_me) && <span className="nt-like">❤️</span>}
+            </span>
           </span>
           <span className="nt-name">{f.username}</span>
         </button>
@@ -104,6 +118,21 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
   const [picker, setPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [editing, setEditing] = useState(!current);          // an existing note opens in view mode first
+  const [playing, setPlaying] = useState(false);
+  const audio = useRef(null);
+  useEffect(() => () => { if (audio.current) audio.current.pause(); }, []);
+  const togglePlay = () => {
+    const src = current?.music_url || (current?.music_file ? getPicUrl(current.music_file) : '');
+    if (!src) return;
+    if (playing && audio.current) { audio.current.pause(); setPlaying(false); return; }
+    if (audio.current) audio.current.pause();
+    const a = new Audio(src);
+    a.onended = () => setPlaying(false);
+    audio.current = a;
+    setPlaying(true);
+    const p = a.play(); if (p && p.catch) p.catch(() => setPlaying(false));
+  };
 
   const save = async () => {
     const t = text.trim();
@@ -131,10 +160,33 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
 
   const hadSong = !!(current?.music_file || current?.music_url) && !song;
 
+  if (current && !editing) {
+    return (
+      <Sheet T={T} title="Your note" onClose={onClose}>
+        <div className="nt-view">
+          <div className="nt-view-bubble">
+            {hadSong && (
+              <button type="button" className="nt-view-song" onClick={togglePlay} aria-label={playing ? 'Pause song' : 'Play song'}>
+                <span className="nt-view-play">{playing ? '❚❚' : '▶'}</span>
+                <span className="nt-st"><b>{current.music_title || 'Song'}</b>{current.music_artist && <small>{current.music_artist}</small>}</span>
+              </button>
+            )}
+            {current.text && <p>{current.text}</p>}
+          </div>
+          <p className="px-note" style={{ textAlign: 'center', margin: '12px 0 0' }}>Shared {fmtAgo(current.created_at)}. It disappears after 24 hours.</p>
+          <div className="nt-view-likes">
+            {current.like_count > 0 ? <>❤️ {current.like_count} {current.like_count === 1 ? 'like' : 'likes'}{current.liked_by?.length ? `: ${current.liked_by.join(', ')}` : ''}</> : 'No likes yet. Friends can double-tap your note to like it.'}
+          </div>
+        </div>
+        <button type="button" className="sc-btn" style={{ width: '100%', marginTop: 8 }} onClick={() => setEditing(true)}>Edit note or change song</button>
+        <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 10, color: '#f87171' }} disabled={busy} onClick={remove}>Delete note</button>
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet T={T} title="Your note" onClose={onClose}>
       <p style={{ color: 'var(--sub)', fontSize: 13.5, margin: '0 4px 12px', lineHeight: 1.5 }}>Friends see it above your photo for 24 hours.</p>
-      {current?.liked_by?.length > 0 && <p style={{ margin: '0 4px 12px', fontSize: 13.5 }}>❤️ Liked by {current.liked_by.join(', ')}</p>}
       <div className="nt-compose">
         <textarea className="sc-field" style={{ height: 'auto', minHeight: 86, padding: '12px 16px', resize: 'none' }} rows={3} maxLength={MAX}
           placeholder="What is on your mind?" value={text} onChange={(e) => setText(e.target.value.replace(/\n/g, ' '))} aria-label="Note text" />

@@ -164,6 +164,9 @@ class Message(models.Model):
     unlock_notified = models.BooleanField(default=False)
     # whisper (groups): only these members can read it, everybody else sees a placeholder
     whisper_to = models.ManyToManyField(CustomUser, related_name='whispers', blank=True)
+    # locked message: the receiver must type the time it was sent (e.g. 1230) to read it
+    time_lock = models.BooleanField(default=False)
+    time_unlocked_by = models.ManyToManyField(CustomUser, related_name='time_unlocked', blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -223,18 +226,6 @@ class Reminder(models.Model):
     remind_at = models.DateTimeField(db_index=True)
     fired = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-
-
-class DailyAnswer(models.Model):
-    """One answer per person per day to the chat's question of the day. Shown to the other person only when both answered."""
-    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='daily_answers')
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='daily_answers')
-    day = models.DateField()
-    text = models.CharField(max_length=300)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('chat', 'user', 'day')
 
 
 class Expense(models.Model):
