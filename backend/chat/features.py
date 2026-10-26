@@ -36,7 +36,7 @@ def _ctx(request):
 
 def _message_qs():
     return (Message.objects.select_related('sender', 'receiver', 'chat', 'status_ref__user')
-            .prefetch_related('read_by', 'starred_by', 'poll__options__votes', 'whisper_to', 'time_unlocked_by', 'expense__shares__user'))
+            .prefetch_related('read_by', 'starred_by', 'poll__options__votes', 'whisper_to', 'time_unlocks', 'expense__shares__user'))
 
 
 # ================================================================ privacy

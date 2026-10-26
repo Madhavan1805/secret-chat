@@ -522,7 +522,7 @@ function ChatView() {
         if (msgType !== 'text' && first) formData.append('message_type', msgType);
         if (replyingTo && first) formData.append('reply_to', replyingTo.id);
         if (sendMode?.unlock_at) formData.append('unlock_at', sendMode.unlock_at);
-        if (sendMode?.timelock) formData.append('time_lock', '1');
+        if (sendMode?.timelock) { formData.append('time_lock', '1'); if (sendMode.relock) formData.append('time_lock_relock', '1'); }
         if (sendMode?.whisper) sendMode.whisper.forEach((id) => formData.append('whisper_to', id));
         if (jobs.length > 1) setSendProg(`${i + 1}/${jobs.length}`);
 
@@ -684,6 +684,33 @@ function ChatView() {
       if (r.data && r.data.id) setMessages((prev) => prev.map((m) => (m.id === r.data.id ? r.data : m)));
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not vote') }); }
   };
+
+  // locked message: stays open after they unlock it, or locks again every time they leave the chat
+  const chooseLockMode = async () => {
+    setShowAttach(false);
+    if (sendMode?.timelock) { setSendMode(null); return; }
+    const v = await ask({ type: 'choice', title: 'Locked message', message: 'They open it by typing the time it was sent, like 1230.', choices: [
+      { label: '🔓 Stays open once they unlock it', value: 'stay' },
+      { label: '🔒 Locks again when they leave the chat', value: 'relock' }] });
+    if (!v) return;
+    setSendMode({ timelock: true, relock: v === 'relock' });
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 80);
+  };
+
+  // "lock again" messages close when I leave this chat or put the app in the background
+  const relockRef = useRef(() => {});
+  relockRef.current = () => {
+    const mineId = Number(localStorage.getItem('user_id'));
+    if (!meta?.chat_id || !messages.some((m) => m.time_lock_relock && m.time_lock && !m.masked && m.sender !== mineId)) return;
+    api.post('messages/time_relock/', { chat_id: meta.chat_id }).catch(() => {});
+    setMessages((prev) => prev.map((m) => (m.time_lock_relock && m.time_lock && m.sender !== mineId
+      ? { ...m, masked: 'timelock', content: '', file_url: null, voice_note: null, file_name: null } : m)));
+  };
+  useEffect(() => {
+    const onHide = () => { if (document.hidden) relockRef.current(); };
+    document.addEventListener('visibilitychange', onHide);
+    return () => { document.removeEventListener('visibilitychange', onHide); relockRef.current(); };
+  }, []);
 
   const createExpense = async (payload) => {
     const r = await api.post('expenses/create/', { chat_id: meta.chat_id, ...payload });
@@ -1272,7 +1299,7 @@ function ChatView() {
                             [isViewOnce ? 'View once (on, tap to turn off)' : 'View once', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],
                             ['Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
                             ['Time capsule', () => { setShowAttach(false); setShowCapsule(true); }],
-                            [sendMode?.timelock ? 'Locked message (on, tap to turn off)' : 'Locked message', () => { setShowAttach(false); setSendMode(sendMode?.timelock ? null : { timelock: true }); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }],
+                            [sendMode?.timelock ? 'Locked message (on, tap to turn off)' : 'Locked message', chooseLockMode],
                             ...(isGroupChat ? [['Whisper to some members', () => { setShowAttach(false); setShowWhisper(true); }]] : []),
                             ['Split expense', () => { setShowAttach(false); setShowExpense(true); }],
                             ['Remind us', () => { setShowAttach(false); setRemindFor({}); }],

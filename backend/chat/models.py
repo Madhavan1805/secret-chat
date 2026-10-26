@@ -166,7 +166,7 @@ class Message(models.Model):
     whisper_to = models.ManyToManyField(CustomUser, related_name='whispers', blank=True)
     # locked message: the receiver must type the time it was sent (e.g. 1230) to read it
     time_lock = models.BooleanField(default=False)
-    time_unlocked_by = models.ManyToManyField(CustomUser, related_name='time_unlocked', blank=True)
+    time_lock_relock = models.BooleanField(default=False)     # True: it locks again when the receiver leaves the chat
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -205,6 +205,16 @@ class ScheduledMessage(models.Model):
     send_at = models.DateTimeField(db_index=True)
     sent = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class TimeUnlock(models.Model):
+    """The receiver typed the right time for a locked message."""
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='time_unlocks')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='time_unlocks')
+    unlocked_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ('message', 'user')
 
 
 class NoteLike(models.Model):

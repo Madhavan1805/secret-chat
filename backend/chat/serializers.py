@@ -29,6 +29,9 @@ class UserSerializer(serializers.ModelSerializer):
         )
 
 
+RELOCK_AFTER_SECONDS = 30 * 60
+
+
 class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source='sender.username', read_only=True)
     # only the SENDER of a group message gets the names of who has seen it
@@ -41,9 +44,9 @@ class MessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        exclude = ['hidden_for', 'starred_by', 'status_ref', 'whisper_to', 'unlock_notified', 'time_unlocked_by']
+        exclude = ['hidden_for', 'starred_by', 'status_ref', 'whisper_to', 'unlock_notified']
         read_only_fields = ['sender', 'receiver', 'chat', 'status', 'reactions', 'is_screenshot', 'created_at',
-                            'file_name', 'file_size', 'edited_at', 'forwarded', 'read_by', 'unlock_at', 'time_lock']
+                            'file_name', 'file_size', 'edited_at', 'forwarded', 'read_by', 'unlock_at', 'time_lock', 'time_lock_relock']
 
     def get_read_by_names(self, obj):
         request = self.context.get('request')
@@ -104,8 +107,14 @@ class MessageSerializer(serializers.ModelSerializer):
             return 'capsule'
         if any(True for _ in obj.whisper_to.all()) and not any(u.id == uid for u in obj.whisper_to.all()):
             return 'whisper'
-        if obj.time_lock and not any(u.id == uid for u in obj.time_unlocked_by.all()):
-            return 'timelock'
+        if obj.time_lock:
+            open_now = False
+            for t in obj.time_unlocks.all():
+                if t.user_id == uid:
+                    # "lock again" messages also close by themselves after a while, in case the app was killed
+                    open_now = (not obj.time_lock_relock) or (timezone.now() - t.unlocked_at).total_seconds() < RELOCK_AFTER_SECONDS
+            if not open_now:
+                return 'timelock'
         return None
 
     def get_status_preview(self, obj):
