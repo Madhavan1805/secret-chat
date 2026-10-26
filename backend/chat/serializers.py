@@ -41,9 +41,9 @@ class MessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        exclude = ['hidden_for', 'starred_by', 'status_ref', 'whisper_to', 'unlock_notified']
+        exclude = ['hidden_for', 'starred_by', 'status_ref', 'whisper_to', 'unlock_notified', 'time_unlocked_by']
         read_only_fields = ['sender', 'receiver', 'chat', 'status', 'reactions', 'is_screenshot', 'created_at',
-                            'file_name', 'file_size', 'edited_at', 'forwarded', 'read_by', 'unlock_at']
+                            'file_name', 'file_size', 'edited_at', 'forwarded', 'read_by', 'unlock_at', 'time_lock']
 
     def get_read_by_names(self, obj):
         request = self.context.get('request')
@@ -104,6 +104,8 @@ class MessageSerializer(serializers.ModelSerializer):
             return 'capsule'
         if any(True for _ in obj.whisper_to.all()) and not any(u.id == uid for u in obj.whisper_to.all()):
             return 'whisper'
+        if obj.time_lock and not any(u.id == uid for u in obj.time_unlocked_by.all()):
+            return 'timelock'
         return None
 
     def get_status_preview(self, obj):

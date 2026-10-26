@@ -10,7 +10,7 @@ import { DEFAULT_REACTIONS, getCustomReactions, addCustomReaction, removeCustomR
 import { burstAt, rainAll } from './fx';
 import { getPicUrl, formatSize, formatTime } from './config';
 import { useBackClose } from './backClose';
-import { CapsuleLocked, WhisperLocked, MsgTags, ExpenseCard } from './PlusUI';
+import { CapsuleLocked, WhisperLocked, TimeLocked, MsgTags, ExpenseCard } from './PlusUI';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 const MENTION_RE = /(@[\w.\-]+)/g;
@@ -127,7 +127,7 @@ function StatusPeek({ st, onClose }) {
 export default function MessageBubble({
   msg, isMe, isGroup, T, replyMsg, highlighted, pinned,
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
-  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onBalances, onCapsuleOpened, onRain,
+  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onBalances, onCapsuleOpened, onRain, onUnlockTime,
 }) {
   const [menu, setMenu] = useState(false);
   const [up, setUp] = useState(false);                        // open the menu above the bubble when there is no room below
@@ -256,7 +256,9 @@ export default function MessageBubble({
         )}
 
         {msg.masked ? (
-          msg.masked === 'capsule' ? <CapsuleLocked msg={msg} onOpened={onCapsuleOpened} /> : <WhisperLocked msg={msg} />
+          msg.masked === 'capsule' ? <CapsuleLocked msg={msg} onOpened={onCapsuleOpened} />
+            : msg.masked === 'timelock' ? <TimeLocked msg={msg} onOpen={onUnlockTime} />
+              : <WhisperLocked msg={msg} />
         ) : isViewOnce ? (
           <button
             type="button"

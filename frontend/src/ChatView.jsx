@@ -20,7 +20,7 @@ import { playSound } from './sounds';
 import EmojiPicker from './EmojiPicker';
 import ProfileModal from './ProfileModal';
 import { rainAll } from './fx';
-import { CapsuleSheet, WhisperSheet, ReminderSheet, ExpenseSheet, BalancesSheet, DailyBar, ModeChip } from './PlusUI';
+import { CapsuleSheet, WhisperSheet, ReminderSheet, ExpenseSheet, BalancesSheet, ModeChip } from './PlusUI';
 
 
 const DISAPPEAR_CHOICES = [
@@ -90,8 +90,6 @@ function ChatView() {
   const [showExpense, setShowExpense] = useState(false);
   const [showBalances, setShowBalances] = useState(false);
   const [remindFor, setRemindFor] = useState(null);          // a message (or {} for a plain reminder)
-  const [dailyOpen, setDailyOpen] = useState(false);
-  const [dailyKey, setDailyKey] = useState(0);
   const [sendMode, setSendMode] = useState(null);           // { unlock_at } time capsule, or { whisper:[ids], names:[..] }
   const [infoMsg, setInfoMsg] = useState(null);
   const [panelTab, setPanelTab] = useState('emoji');
@@ -118,8 +116,6 @@ function ChatView() {
   const friendTypingTimer = useRef(null);
   const searchTimer = useRef(null);
   const photoInputRef = useRef(null);
-  const docInputRef = useRef(null);
-  const audioInputRef = useRef(null);
   const inputRef = useRef(null);
   const caretRef = useRef(null);          // last cursor position in the message box (for emojis)
   const markedAt = useRef(0);
@@ -321,9 +317,6 @@ function ChatView() {
         break;
       case 'rain':
         if (cur.chatId && Number(evt.chat_id) === Number(cur.chatId) && Number(evt.from_id) !== Number(localStorage.getItem('user_id'))) rainAll(evt.emoji);
-        break;
-      case 'daily':
-        if (cur.chatId && Number(evt.chat_id) === Number(cur.chatId)) setDailyKey((k) => k + 1);
         break;
       case 'group_read':
         if (cur.chatId && Number(evt.chat_id) === Number(cur.chatId)) latest.current.fetchMessages();
@@ -529,6 +522,7 @@ function ChatView() {
         if (msgType !== 'text' && first) formData.append('message_type', msgType);
         if (replyingTo && first) formData.append('reply_to', replyingTo.id);
         if (sendMode?.unlock_at) formData.append('unlock_at', sendMode.unlock_at);
+        if (sendMode?.timelock) formData.append('time_lock', '1');
         if (sendMode?.whisper) sendMode.whisper.forEach((id) => formData.append('whisper_to', id));
         if (jobs.length > 1) setSendProg(`${i + 1}/${jobs.length}`);
 
@@ -922,7 +916,6 @@ function ChatView() {
     [meta.is_locked ? 'Chat lock (change or remove)' : 'Chat lock', lockMenu],
     ['Chat theme and wallpaper', extras.openTheme],
     [`Scheduled messages (${extras.scheduledCount})`, extras.openScheduledList],
-    ...(!isGroupChat ? [['Question of the day', () => setDailyOpen(true)]] : []),
     ['Expense balances', () => setShowBalances(true)],
     [meta.is_pinned ? 'Unpin chat' : 'Pin chat', () => toggleSetting('is_pinned')],
     [meta.is_muted ? 'Unmute' : 'Mute…', muteMenu],
@@ -1021,6 +1014,14 @@ function ChatView() {
     meId: me?.id,
     onRemind: (m) => setRemindFor(m),
     onSettle,
+    onUnlockTime: async (m) => {
+      const code = await ask({ type: 'prompt', title: 'Locked message', message: 'Type the time this message was sent, like 1230.', placeholder: '1230', inputType: 'text', inputMode: 'numeric', maxLength: 5, okText: 'Open' });
+      if (code === null || !String(code).trim()) return;
+      try {
+        const r = await api.post('messages/time_unlock/', { message_id: m.id, code, tz_offset: new Date().getTimezoneOffset() });
+        if (r.data && r.data.id) setMessages((prev) => prev.map((x) => (x.id === r.data.id ? r.data : x)));
+      } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not open it') }); }
+    },
     onRain: (m, emoji) => { api.post('messages/rain/', { message_id: m.id, emoji }).catch(() => {}); },
     onBalances: () => setShowBalances(true),
     onCapsuleOpened: () => fetchMessages(),
@@ -1200,7 +1201,6 @@ function ChatView() {
             {mentionQuery !== null && isGroupChat && (
               <MentionList names={(meta?.participants || []).map((p) => p.username).filter((n) => n !== me?.username)} query={mentionQuery} onPick={pickMention} />
             )}
-            {!isGroupChat && meta?.chat_id && !meta?.blocked_by_me && !meta?.blocked_me && <DailyBar T={T} chatId={meta.chat_id} refreshKey={dailyKey} open={dailyOpen} setOpen={setDailyOpen} />}
             <ModeChip mode={sendMode} onClear={() => setSendMode(null)} />
             {replyingTo && (
               <div className="sc-chip-row accent">
@@ -1235,9 +1235,8 @@ function ChatView() {
               </div>
             )}
 
-            <input ref={photoInputRef} type="file" multiple className="d-none" accept="image/*,video/*" onChange={(e) => addFiles(e)} />
-            <input ref={audioInputRef} type="file" multiple className="d-none" accept="audio/*" onChange={(e) => addFiles(e)} />
-            <input ref={docInputRef} type="file" multiple className="d-none" accept="*/*" onChange={(e) => addFiles(e)} />
+            <input ref={photoInputRef} type="file" multiple className="d-none" accept="*/*" onChange={(e) => addFiles(e)} />
+
 
             {showEmoji && !isRecording && (
               <div style={{ marginBottom: 8 }}>
@@ -1267,14 +1266,13 @@ function ChatView() {
                         <div onClick={() => setShowAttach(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
                         <div className="sc-menu" style={{ bottom: '120%', top: 'auto', left: 0, right: 'auto', minWidth: 210 }}>
                           {[
-                            ['Photo or video', () => photoInputRef.current && photoInputRef.current.click()],
-                            ['Audio', () => audioInputRef.current && audioInputRef.current.click()],
-                            ['Document or any file', () => docInputRef.current && docInputRef.current.click()],
+                            ['Photo, video or file', () => photoInputRef.current && photoInputRef.current.click()],
                             ['Location', shareLocation],
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
-                            [isViewOnce ? 'Sealed mode: on (tap to turn off)' : 'Send sealed (view once)', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],
+                            [isViewOnce ? 'View once (on, tap to turn off)' : 'View once', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],
                             ['Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
                             ['Time capsule', () => { setShowAttach(false); setShowCapsule(true); }],
+                            [sendMode?.timelock ? 'Locked message (on, tap to turn off)' : 'Locked message', () => { setShowAttach(false); setSendMode(sendMode?.timelock ? null : { timelock: true }); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }],
                             ...(isGroupChat ? [['Whisper to some members', () => { setShowAttach(false); setShowWhisper(true); }]] : []),
                             ['Split expense', () => { setShowAttach(false); setShowExpense(true); }],
                             ['Remind us', () => { setShowAttach(false); setRemindFor({}); }],

@@ -1,10 +1,9 @@
-"""Chatzy extras: shared reminders, daily question, split expenses, time capsule / whisper helpers.
+"""Chatzy extras: shared reminders, locked messages, split expenses, time capsule / whisper helpers.
 
 POST reminders/create/    {chat_id|friend_id, remind_at, message_id?, text?}
 GET  reminders/           ?chat_id|friend_id  my pending reminders in this chat
 POST reminders/cancel/    {id}
-GET  daily/               ?chat_id|friend_id  today's question + answers (the other answer is hidden until both answered)
-POST daily/               {chat_id|friend_id, text}
+POST messages/time_unlock/ {message_id, code, tz_offset}  open a locked message by typing the time it was sent
 POST expenses/create/     {chat_id|friend_id, title, amount, member_ids?}
 POST expenses/settle/     {expense_id, user_id?}   toggle one share paid / unpaid
 GET  expenses/balances/   ?chat_id|friend_id       who owes whom (unpaid shares only)
@@ -20,7 +19,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Message, Reminder, DailyAnswer, Expense, ExpenseShare
+from .models import Message, Reminder, Expense, ExpenseShare
 from .push import send_push
 from .realtime import notify_users
 from .serializers import MessageSerializer
@@ -148,95 +147,37 @@ def fire_due():
     fire_due_capsules()
 
 
-# ================================================================ daily question
-QUESTIONS = [
-    "What is one small thing that made you smile today?",
-    "If you could be anywhere right now, where would it be?",
-    "What is a song you cannot stop playing these days?",
-    "What was the best meal you had this week?",
-    "What is one thing you want to learn this year?",
-    "Who is someone you are grateful for, and why?",
-    "What is your most useless talent?",
-    "What would you do with a free day and no phone?",
-    "Which movie can you watch again and again?",
-    "What is one habit you want to start?",
-    "What is your favourite memory from school?",
-    "If you could talk to your younger self, what would you say?",
-    "What is something you are proud of but never told anyone?",
-    "What is the funniest thing that happened to you recently?",
-    "Which place do you want to visit most, and why?",
-    "What is your comfort food?",
-    "What is one thing that always cheers you up?",
-    "What is a dream you have not given up on?",
-    "Which superpower would you pick, and what would you do first?",
-    "What is the best advice you ever got?",
-    "What is a small luxury you cannot live without?",
-    "Morning person or night owl, and what do you do at that time?",
-    "What is one thing you would change about your day today?",
-    "Which childhood game do you miss the most?",
-    "What is the kindest thing someone did for you?",
-    "What are you looking forward to this week?",
-    "If your life was a movie, what would it be called?",
-    "What is something you want to say to me but never did?",
-    "What is your favourite way to spend a rainy day?",
-    "What is one thing about me that makes you laugh?",
-    "Which skill would you love to master overnight?",
-    "What is your biggest fear that you are slowly beating?",
-    "What would be your perfect weekend?",
-    "What is something new you tried recently?",
-    "Which festival do you enjoy the most and why?",
-]
+# ================================================================ locked message (type the time it was sent)
+from django.core.cache import cache  # noqa: E402
 
 
-def question_for(chat, day):
-    return QUESTIONS[(day.toordinal() + chat.id) % len(QUESTIONS)]
-
-
-def _daily_state(chat, user, day):
-    answers = {a.user_id: a for a in DailyAnswer.objects.filter(chat=chat, day=day)}
-    other = other_user(chat, user)
-    mine = answers.get(user.id)
-    theirs = answers.get(other.id) if other else None
-    both = bool(mine and theirs)
-    return {
-        "question": question_for(chat, day), "day": str(day),
-        "mine": mine.text if mine else None,
-        "partner_name": other.username if other else '',
-        "partner_answered": bool(theirs),
-        "theirs": theirs.text if both else None,          # hidden until both have answered
-        "revealed": both,
-    }
-
-
-@api_view(['GET', 'POST'])
+@api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def daily_view(request):
+def time_unlock_view(request):
+    """The receiver types the time the message was sent (1230). Right code -> they can read it, for good."""
     user = request.user
-    data = request.query_params if request.method == 'GET' else request.data
-    chat = resolve_chat(user, data)
-    if chat.is_group:
-        raise ValidationError({"error": "The daily question is for one-to-one chats."})
-    ensure_unlocked(user, chat)
-    day = timezone.localdate()
-    other = other_user(chat, user)
-
-    if request.method == 'POST':
-        _guard(user, chat)
-        text = ' '.join(str(request.data.get('text') or '').split())[:300]
-        if not text:
-            raise ValidationError({"error": "Write your answer first"})
-        if DailyAnswer.objects.filter(chat=chat, day=day).exclude(user=user).exists() and \
-                DailyAnswer.objects.filter(chat=chat, day=day, user=user).exists():
-            raise ValidationError({"error": "Both of you already answered today"})
-        DailyAnswer.objects.update_or_create(chat=chat, user=user, day=day, defaults={"text": text})
-        state = _daily_state(chat, user, day)
-        notify_users([other.id] if not state["revealed"] else [other.id, user.id], 'daily', chat_id=chat.id)
-        if state["revealed"]:
-            send_push([other.id], user.username, "💬 Both answered today's question. Open to see.", {"chat_id": chat.id})
-        elif other:
-            send_push([other.id], user.username, "💬 Answered today's question. Your turn to see theirs.", {"chat_id": chat.id})
-        return Response(state)
-    return Response(_daily_state(chat, user, day))
+    msg = Message.objects.filter(id=to_int(request.data.get('message_id'))).select_related('chat').first()
+    if not msg or not msg.chat or not msg.chat.participants.filter(id=user.id).exists():
+        raise PermissionDenied("Not your chat.")
+    ensure_unlocked(user, msg.chat)
+    if not msg.time_lock or msg.sender_id == user.id:
+        return Response(_fresh(request, msg.id))
+    key = f"tlock:{msg.id}:{user.id}"
+    tries = cache.get(key, 0)
+    if tries >= 8:
+        raise ValidationError({"error": "Too many wrong tries. Try again in an hour."})
+    code = ''.join(c for c in str(request.data.get('code') or '') if c.isdigit())
+    try:
+        offset = int(request.data.get('tz_offset'))          # minutes, as JavaScript's getTimezoneOffset()
+    except (TypeError, ValueError):
+        offset = 0
+    local = msg.created_at - timedelta(minutes=offset)
+    ok = code in {local.strftime('%H%M'), local.strftime('%I%M')}
+    if not ok:
+        cache.set(key, tries + 1, 3600)
+        raise ValidationError({"error": "That is not the time it was sent. Check the time on the message."})
+    msg.time_unlocked_by.add(user)
+    return Response(_fresh(request, msg.id))
 
 
 # ================================================================ reaction rain

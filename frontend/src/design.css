@@ -461,3 +461,16 @@ html, body { background: var(--page-bg, #0F0B14); }
 .px-file { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); font-size: 12.5px; }
 .px-file .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
 .px-file button { border: 0; background: transparent; color: inherit; display: grid; place-items: center; font-size: 16px; padding: 0 2px; }
+
+/* ---- note like badge + own-note view ---- */
+.nt-av { position: relative; display: inline-block; line-height: 0; }
+.nt-like { position: absolute; right: -6px; bottom: -4px; z-index: 3; padding: 2px 6px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); font-size: 12px; line-height: 1.2; font-weight: 800; color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.3); animation: nt-pop .35s cubic-bezier(.2,1.6,.4,1); }
+@keyframes nt-pop { from { transform: scale(.3); } to { transform: scale(1); } }
+.nt-view { padding: 4px 0 8px; }
+.nt-view-bubble { margin: 8px auto 0; max-width: 300px; padding: 16px 18px; border-radius: 22px; background: var(--raised); border: 1px solid var(--accent); }
+.nt-view-bubble p { margin: 0; font-size: 17px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; }
+.nt-view-song { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 10px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }
+.nt-view-song .nt-st b { font-size: 15px; max-width: none; }
+.nt-view-song .nt-st small { font-size: 13px; max-width: none; }
+.nt-view-play { width: 42px; height: 42px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #1a1a1a; font-size: 14px; }
+.nt-view-likes { margin: 14px 4px 6px; text-align: center; color: var(--sub); font-size: 14px; overflow-wrap: anywhere; }

@@ -223,14 +223,26 @@ export function WhisperLocked({ msg }) {
   return <div className="px-locked"><span className="px-lockicon">🤫</span><div><b>Whisper</b><div style={{ fontSize: 12.5, opacity: 0.8 }}>{names.length ? `For ${names.join(', ')}` : 'Only a few people can read this'}</div></div></div>;
 }
 
+// a message locked with the time it was sent: tap to type that time
+export function TimeLocked({ msg, onOpen }) {
+  return (
+    <button type="button" className="px-locked" onClick={(e) => { e.stopPropagation(); onOpen(msg); }} style={{ border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', padding: '4px 2px' }}>
+      <span className="px-lockicon"><BiLock /></span>
+      <div><b>Locked message</b><div style={{ fontSize: 12.5, opacity: 0.8 }}>Tap and type the time it was sent</div></div>
+    </button>
+  );
+}
+
 export function MsgTags({ msg, isMe }) {
   const showCap = isMe && msg.unlock_at && new Date(msg.unlock_at).getTime() > Date.now();
   const names = (msg.whisper?.to || []).map((u) => u.username).filter((u) => u !== msg.sender_name);
-  if (!showCap && !(isMe && names.length)) return null;
+  const showLock = isMe && msg.time_lock;
+  if (!showCap && !showLock && !(isMe && names.length)) return null;
   return (
     <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 3 }}>
       {showCap && <span>🔒 Opens {fmtWhen(msg.unlock_at)}</span>}
-      {isMe && names.length > 0 && <span>{showCap ? ' · ' : ''}🤫 Whisper to {names.join(', ')}</span>}
+      {showLock && <span>{showCap ? ' · ' : ''}🔑 Locked. They type the time it was sent</span>}
+      {isMe && names.length > 0 && <span>{showCap || showLock ? ' · ' : ''}🤫 Whisper to {names.join(', ')}</span>}
     </div>
   );
 }
@@ -240,70 +252,8 @@ export function ModeChip({ mode, onClear }) {
   if (!mode) return null;
   return (
     <div className="px-mode">
-      <span>{mode.unlock_at ? `🔒 Opens ${fmtWhen(mode.unlock_at)}` : `🤫 Whisper to ${mode.names.join(', ')}`}</span>
+      <span>{mode.timelock ? '🔑 Locked: they type the time it was sent to open' : (mode.unlock_at ? `🔒 Opens ${fmtWhen(mode.unlock_at)}` : `🤫 Whisper to ${mode.names.join(', ')}`)}</span>
       <button type="button" onClick={onClear} aria-label="Cancel"><BiX /></button>
     </div>
-  );
-}
-
-// ------------------------------------------------------------------ DAILY QUESTION
-export function DailyBar({ T, chatId, refreshKey, open, setOpen }) {
-  const [d, setD] = useState(null);
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const seenKey = d ? `daily_seen_${chatId}_${d.day}` : '';
-  const [, bump] = useState(0);
-
-  const load = async () => {
-    try { const r = await api.get('daily/', { params: { chat_id: chatId } }); setD(r.data); } catch (e) { /* groups or locked: no bar */ }
-  };
-  useEffect(() => { if (chatId) load(); }, [chatId, refreshKey]);
-
-  const send = async () => {
-    if (!text.trim()) { setErr('Write your answer first'); return; }
-    setBusy(true); setErr('');
-    try { const r = await api.post('daily/', { chat_id: chatId, text: text.trim() }); setD(r.data); setText(''); } catch (e) { setErr(errMsg(e, 'Could not save')); }
-    setBusy(false);
-  };
-
-  const seen = (() => { try { return localStorage.getItem(seenKey) === '1'; } catch (e) { return false; } })();
-  const closeSheet = () => {
-    if (d?.revealed) { try { localStorage.setItem(seenKey, '1'); } catch (e) { /* ignore */ } bump((x) => x + 1); }
-    setOpen(false);
-  };
-  if (!d) return null;
-  const showChip = d.mine === null || (d.revealed && !seen);
-
-  return (
-    <>
-      {showChip && (
-        <button type="button" className="px-daily" onClick={() => setOpen(true)}>
-          <span aria-hidden>💬</span>
-          <span className="t">{d.revealed ? 'Both answered today. See the answers' : (d.partner_answered && d.mine === null ? `${d.partner_name} answered. Your turn` : `Today: ${d.question}`)}</span>
-        </button>
-      )}
-      {open && (
-        <Sheet T={T} title="Question of the day" onClose={closeSheet}>
-          <div className="px-q">{d.question}</div>
-          {d.mine === null ? (
-            <>
-              <textarea className="sc-field" rows={3} maxLength={300} autoFocus style={{ height: 'auto', minHeight: 90, padding: '12px 16px', resize: 'none' }}
-                placeholder="Your answer" value={text} onChange={(e) => setText(e.target.value)} aria-label="Your answer" />
-              <p className="px-note">{d.partner_answered ? `${d.partner_name} already answered. You will see it as soon as you answer.` : `${d.partner_name}'s answer stays hidden until both of you have answered.`}</p>
-              {err && <div className="text-danger small">{err}</div>}
-              <button type="button" className="sc-btn" style={{ width: '100%', marginTop: 8 }} disabled={busy} onClick={send}>{busy ? 'Saving…' : 'Submit answer'}</button>
-            </>
-          ) : (
-            <>
-              <div className="px-ans"><small>You</small><p>{d.mine}</p></div>
-              {d.revealed
-                ? <div className="px-ans them"><small>{d.partner_name}</small><p>{d.theirs}</p></div>
-                : <div className="px-ans wait"><small>{d.partner_name}</small><p>{d.partner_answered ? 'Answered' : 'Has not answered yet'}. Their answer shows here when you both have answered.</p></div>}
-            </>
-          )}
-        </Sheet>
-      )}
-    </>
   );
 }
