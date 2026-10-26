@@ -19,7 +19,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Message, Reminder, Expense, ExpenseShare
+from .models import Message, Reminder, Expense, ExpenseShare, TimeUnlock
 from .push import send_push
 from .realtime import notify_users
 from .serializers import MessageSerializer
@@ -176,8 +176,18 @@ def time_unlock_view(request):
     if not ok:
         cache.set(key, tries + 1, 3600)
         raise ValidationError({"error": "That is not the time it was sent. Check the time on the message."})
-    msg.time_unlocked_by.add(user)
+    TimeUnlock.objects.update_or_create(message=msg, user=user, defaults={"unlocked_at": timezone.now()})
+    cache.delete(key)
     return Response(_fresh(request, msg.id))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def time_relock_view(request):
+    """The receiver left the chat: every 'lock again' message in it closes again."""
+    chat = resolve_chat(request.user, request.data)
+    n, _ = TimeUnlock.objects.filter(user=request.user, message__chat=chat, message__time_lock_relock=True).delete()
+    return Response({"relocked": n})
 
 
 # ================================================================ reaction rain

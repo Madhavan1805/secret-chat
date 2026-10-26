@@ -8,7 +8,7 @@ from .views import (
 from .notes import notes_view, note_like_view
 from .music import music_search
 from .plus import (
-    reminder_create_view, reminder_list_view, reminder_cancel_view, time_unlock_view,
+    reminder_create_view, reminder_list_view, reminder_cancel_view, time_unlock_view, time_relock_view,
     expense_create_view, expense_settle_view, expense_balances_view, reaction_rain_view,
 )
 from .extras import wallpaper_view, schedule_view, scheduled_list_view, cancel_scheduled_view
@@ -62,6 +62,7 @@ urlpatterns = [
     path('reminders/create/', reminder_create_view, name='reminder-create'),
     path('reminders/cancel/', reminder_cancel_view, name='reminder-cancel'),
     path('messages/time_unlock/', time_unlock_view, name='time-unlock'),
+    path('messages/time_relock/', time_relock_view, name='time-relock'),
     path('expenses/create/', expense_create_view, name='expense-create'),
     path('expenses/settle/', expense_settle_view, name='expense-settle'),
     path('expenses/balances/', expense_balances_view, name='expense-balances'),

@@ -228,7 +228,7 @@ export function TimeLocked({ msg, onOpen }) {
   return (
     <button type="button" className="px-locked" onClick={(e) => { e.stopPropagation(); onOpen(msg); }} style={{ border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', padding: '4px 2px' }}>
       <span className="px-lockicon"><BiLock /></span>
-      <div><b>Locked message</b><div style={{ fontSize: 12.5, opacity: 0.8 }}>Tap and type the time it was sent</div></div>
+      <div><b>Locked message</b><div style={{ fontSize: 12.5, opacity: 0.8 }}>Tap and type the time it was sent{msg.time_lock_relock ? '. It locks again when you leave.' : ''}</div></div>
     </button>
   );
 }
@@ -241,7 +241,7 @@ export function MsgTags({ msg, isMe }) {
   return (
     <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 3 }}>
       {showCap && <span>🔒 Opens {fmtWhen(msg.unlock_at)}</span>}
-      {showLock && <span>{showCap ? ' · ' : ''}🔑 Locked. They type the time it was sent</span>}
+      {showLock && <span>{showCap ? ' · ' : ''}🔑 {msg.time_lock_relock ? 'Locks again each time' : 'Locked until they type the time'}</span>}
       {isMe && names.length > 0 && <span>{showCap || showLock ? ' · ' : ''}🤫 Whisper to {names.join(', ')}</span>}
     </div>
   );
@@ -252,7 +252,7 @@ export function ModeChip({ mode, onClear }) {
   if (!mode) return null;
   return (
     <div className="px-mode">
-      <span>{mode.timelock ? '🔑 Locked: they type the time it was sent to open' : (mode.unlock_at ? `🔒 Opens ${fmtWhen(mode.unlock_at)}` : `🤫 Whisper to ${mode.names.join(', ')}`)}</span>
+      <span>{mode.timelock ? (mode.relock ? '🔑 Locked every time: they type the time it was sent, and it locks again when they leave' : '🔑 Locked: they type the time it was sent to open') : (mode.unlock_at ? `🔒 Opens ${fmtWhen(mode.unlock_at)}` : `🤫 Whisper to ${mode.names.join(', ')}`)}</span>
       <button type="button" onClick={onClear} aria-label="Cancel"><BiX /></button>
     </div>
   );
