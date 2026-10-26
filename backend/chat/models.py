@@ -209,7 +209,7 @@ class ScheduledMessage(models.Model):
 
 class NoteLike(models.Model):
     """A friend double-tapped a note: one like per person per note."""
-    note = models.ForeignKey(Note, on_delete=models.CASCADE, related_name='likes')
+    note = models.ForeignKey('Note', on_delete=models.CASCADE, related_name='likes')
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='note_likes')
     created_at = models.DateTimeField(auto_now_add=True)
 
