@@ -1026,7 +1026,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 # ================================================================ status
 AUDIO_EXTS = {'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'weba'}
 MAX_MUSIC_BYTES = 12 * 1024 * 1024
-from .music import clean_music_url, clean_text      # noqa: E402
+from .music import clean_music_url, clean_text, clean_clip      # noqa: E402
 
 
 class StatusViewSet(viewsets.ModelViewSet):
@@ -1107,6 +1107,8 @@ class StatusViewSet(viewsets.ModelViewSet):
             music_kwargs = {"music_file": music, "music_url": "", "music_title": title,
                             "music_artist": clean_text(self.request.data.get('music_artist'), 60)}
 
+        if music_kwargs.get('music_file') or music_kwargs.get('music_url'):
+            music_kwargs['music_start'], music_kwargs['music_len'] = clean_clip(self.request.data)
         st = serializer.save(user=user, media_type=media_type, privacy=privacy, caption=caption, **music_kwargs)
         if privacy in ('only', 'except'):
             st.privacy_users.set(picked)

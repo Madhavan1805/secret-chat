@@ -3,6 +3,7 @@ import { BiSearch, BiPlay, BiPause, BiMusic, BiUpload } from 'react-icons/bi';
 import api from './api';
 import { Sheet } from './ui';
 import { errMsg } from './config';
+import ClipStep from './ClipStep';
 
 // "Artist - Song.mp3" -> { artist, title }
 export function parseSongFile(file) {
@@ -14,7 +15,8 @@ export function parseSongFile(file) {
 
 // Search a song (30 second previews) or upload an audio file from the phone.
 // onPick({ url, title, artist, art })  or  onPick({ file, title, artist })
-export default function SongPicker({ T, onPick, onClose }) {
+export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
+  const [picked, setPicked] = useState(null);          // chosen song, now picking the part of it
   const [q, setQ] = useState('');
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,7 @@ export default function SongPicker({ T, onPick, onClose }) {
     const p = a.play(); if (p && p.catch) p.catch(() => setPlaying(null));
   };
 
-  const choose = (row) => { stop(); onPick({ url: row.url, title: row.title, artist: row.artist, art: row.art }); };
+  const choose = (row) => { stop(); setPicked({ url: row.url, title: row.title, artist: row.artist, art: row.art }); };
 
   const pickFile = (e) => {
     const f = e.target.files[0];
@@ -59,8 +61,10 @@ export default function SongPicker({ T, onPick, onClose }) {
     if (!f) return;
     if (f.size > 12 * 1024 * 1024) { setErr('Song is too big (max 12 MB)'); return; }
     stop();
-    onPick({ file: f, ...parseSongFile(f) });
+    setPicked({ file: f, ...parseSongFile(f) });
   };
+
+  if (picked) return <ClipStep T={T} pick={picked} defaultLen={defaultLen} onBack={() => setPicked(null)} onDone={onPick} />;
 
   return (
     <Sheet T={T} title="Add song" onClose={() => { stop(); onClose(); }}>

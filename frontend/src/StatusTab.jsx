@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BiImageAdd, BiX, BiTrash, BiBellOff, BiBell, BiChevronRight, BiChevronDown, BiDotsVerticalRounded, BiShow, BiSend, BiMusic, BiVolumeFull, BiVolumeMute } from 'react-icons/bi';
 import { useBackClose } from './backClose';
 import SongPicker from './SongPicker';
+import StatusEditor from './StatusEditor';
+import { clipProps } from './clip';
 import api from './api';
 import Avatar from './Avatar';
 import { getPicUrl, errMsg, formatListTime, shortFile } from './config';
@@ -64,6 +66,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const [song, setSong] = useState(null);                // optional song for a photo status: { url | file, title, artist }
   const [songUrl, setSongUrl] = useState('');             // what the preview plays
   const [songPicker, setSongPicker] = useState(false);
+  const editor = useRef(null);
   const [songOff, setSongOff] = useState(false);          // viewer muted the song
 
   // close friends
@@ -113,7 +116,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
   const st = vGroup ? items[idx] : null;
   const isMine = !!st && st.user === meId;
   const paused = replyFocus || showViewers || trayOpen;
-  const imageMs = (st?.music_file || st?.music_url) ? 15000 : IMAGE_MS;       // a photo with a song stays longer
+  const imageMs = (st?.music_file || st?.music_url) ? Math.max(IMAGE_MS, (st.music_len || 15) * 1000) : IMAGE_MS;       // a photo with a song stays for the length of the chosen part
 
   // ---------------------------------------------------------- close friends
   const loadClose = async () => {
@@ -189,13 +192,17 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
     setPosting(true);
     setUploadError('');
     const fd = new FormData();
-    fd.append('media_file', shortFile(uploadFile));
+    let out = uploadFile;
+    if (!uploadFile.type.startsWith('video') && editor.current?.isDirty()) out = await editor.current.exportFile();
+    fd.append('media_file', shortFile(out));
     fd.append('caption', caption.trim());
     fd.append('privacy', privacy);
     if (song && !uploadFile.type.startsWith('video')) {
       if (song.file) fd.append('music_file', song.file); else fd.append('music_url', song.url);
       fd.append('music_title', song.title || '');
       fd.append('music_artist', song.artist || '');
+      fd.append('music_start', String(song.start || 0));
+      fd.append('music_len', String(song.len || 15));
     }
     if (privacy === 'except' || privacy === 'only') (privacy === 'except' ? exceptIds : onlyIds).forEach((id) => fd.append('privacy_ids', id));
     try {
@@ -452,9 +459,9 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               {uploadFile.type.startsWith('video') ? (
                 <video src={previewUrl} controls playsInline style={{ maxWidth: '100%', maxHeight: '100%' }} />
               ) : (
-                <img src={previewUrl} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                <StatusEditor ref={editor} file={uploadFile} T={T} hasSong={!!song} onMusic={() => setSongPicker(true)} />
               )}
-              {songUrl && !uploadFile.type.startsWith('video') && <audio src={songUrl} autoPlay loop />}
+              {songUrl && !uploadFile.type.startsWith('video') && <audio src={songUrl} autoPlay loop {...clipProps(song?.start || 0, song?.len || 15)} />}
             </div>
 
             <div className="flex-shrink-0" style={{ padding: '8px 14px 16px' }}>
@@ -469,7 +476,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
               {uploadError && <div className="text-danger small mb-2">{uploadError}</div>}
 
-              {!uploadFile.type.startsWith('video') && (
+              {!uploadFile.type.startsWith('video') && song && (
                 song ? (
                   <div className="st-song"><BiMusic aria-hidden /><span className="t">{song.title}{song.artist ? ` · ${song.artist}` : ''}</span><button type="button" onClick={clearSong} aria-label="Remove song"><BiX /></button></div>
                 ) : (
@@ -492,7 +499,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
         </div>
       )}
 
-      {songPicker && <SongPicker T={T} onClose={() => setSongPicker(false)} onPick={chooseSong} />}
+      {songPicker && <SongPicker T={T} defaultLen={15} onClose={() => setSongPicker(false)} onPick={chooseSong} />}
 
       {/* ---------------- WHO CAN SEE IT (sheet) ---------------- */}
       {uploadFile && audOpen && (
@@ -591,7 +598,7 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
 
               {(st.music_file || st.music_url) && st.media_type !== 'video' && (
                 <>
-                  <audio key={`a${st.id}`} ref={audioRef} src={st.music_url || getPicUrl(st.music_file)} loop playsInline />
+                  <audio key={`a${st.id}`} ref={audioRef} src={st.music_url || getPicUrl(st.music_file)} loop playsInline {...clipProps(st.music_start || 0, st.music_len || 30)} />
                   <button type="button" className="st-song view" onClick={(e) => { e.stopPropagation(); setSongOff((v) => !v); }} aria-label={songOff ? 'Unmute song' : 'Mute song'}>
                     <BiMusic aria-hidden /><span className="t">{st.music_title || 'Song'}{st.music_artist ? ` · ${st.music_artist}` : ''}</span>{songOff ? <BiVolumeMute /> : <BiVolumeFull />}
                   </button>

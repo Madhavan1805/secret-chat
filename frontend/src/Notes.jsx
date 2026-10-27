@@ -6,6 +6,7 @@ import { Sheet } from './ui';
 import { errMsg, getPicUrl } from './config';
 import SongPicker from './SongPicker';
 import { burstAt } from './fx';
+import { playClip } from './clip';
 
 const MAX = 60;
 
@@ -50,11 +51,8 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked, onError
     if (!src) return;
     if (playingId === n.user_id) { stop(); return; }
     if (audioRef.current) audioRef.current.pause();
-    const a = new Audio(n.music_url || getPicUrl(n.music_file));
-    a.onended = () => setPlayingId(null);
-    audioRef.current = a;
     setPlayingId(n.user_id);
-    const p = a.play(); if (p && p.catch) p.catch(() => setPlayingId(null));
+    audioRef.current = playClip(n.music_url || getPicUrl(n.music_file), n.music_start, n.music_len, { onEnd: () => setPlayingId(null) });
   };
 
   // one tap plays the song, two quick taps like the note
@@ -127,11 +125,8 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
     if (!src) return;
     if (playing && audio.current) { audio.current.pause(); setPlaying(false); return; }
     if (audio.current) audio.current.pause();
-    const a = new Audio(src);
-    a.onended = () => setPlaying(false);
-    audio.current = a;
     setPlaying(true);
-    const p = a.play(); if (p && p.catch) p.catch(() => setPlaying(false));
+    audio.current = playClip(src, current.music_start, current.music_len, { onEnd: () => setPlaying(false) });
   };
 
   const save = async () => {
@@ -145,6 +140,8 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
         if (song.file) fd.append('music_file', song.file); else fd.append('music_url', song.url);
         fd.append('music_title', song.title || '');
         fd.append('music_artist', song.artist || '');
+        fd.append('music_start', String(song.start || 0));
+        fd.append('music_len', String(song.len || 30));
       }
       await api.post('notes/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       onSaved(); onClose();
@@ -214,7 +211,7 @@ export function NoteSheet({ T, current, onClose, onSaved }) {
       <button type="button" className="sc-btn" style={{ width: '100%', marginTop: 16 }} disabled={busy} onClick={save}>{busy ? 'Sharing…' : 'Share note'}</button>
       {current && <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 10, color: '#f87171' }} disabled={busy} onClick={remove}>Delete note</button>}
 
-      {picker && <SongPicker T={T} onClose={() => setPicker(false)} onPick={(s) => { setSong(s); setPicker(false); }} />}
+      {picker && <SongPicker T={T} defaultLen={30} onClose={() => setPicker(false)} onPick={(s) => { setSong(s); setPicker(false); }} />}
     </Sheet>
   );
 }

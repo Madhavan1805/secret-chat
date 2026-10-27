@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from .models import Block, Note, NoteLike
 from .push import send_push
 from .realtime import notify_users
-from .music import clean_music_url, clean_text
+from .music import clean_music_url, clean_text, clean_clip
 from .views import friend_ids_of, AUDIO_EXTS, MAX_MUSIC_BYTES
 
 NOTE_MAX = 60
@@ -40,7 +40,8 @@ def _row(n, request):
     if n.user_id == me:                                                          # only the owner sees who liked
         extra["liked_by"] = [l.user.username for l in likes]
     return {**extra,"user_id": n.user_id, "username": n.user.username, "text": n.text, "created_at": n.created_at,
-            "music_file": music, "music_url": n.music_url, "music_title": n.music_title, "music_artist": n.music_artist}
+            "music_file": music, "music_url": n.music_url, "music_title": n.music_title, "music_artist": n.music_artist,
+            "music_start": n.music_start, "music_len": n.music_len}
 
 
 @api_view(['GET', 'POST', 'DELETE'])
@@ -60,7 +61,8 @@ def notes_view(request):
             raise ValidationError({"error": "Write something or add a song first."})
         if len(text) > NOTE_MAX:
             raise ValidationError({"error": f"A note can have at most {NOTE_MAX} characters."})
-        defaults = {"text": text, "created_at": timezone.now(), "music_title": "", "music_artist": "", "music_url": picked_url}
+        defaults = {"text": text, "created_at": timezone.now(), "music_title": "", "music_artist": "", "music_url": picked_url,
+                    "music_start": 0, "music_len": 30}
         if picked_url:
             defaults["music_title"] = clean_text(request.data.get('music_title'), 80) or 'Song'
             defaults["music_artist"] = clean_text(request.data.get('music_artist'), 60)
@@ -72,6 +74,8 @@ def notes_view(request):
                 raise ValidationError({"error": "Song is too big (max 12 MB)."})
             defaults["music_title"] = ' '.join(str(request.data.get('music_title') or '').split())[:80]
             defaults["music_artist"] = ' '.join(str(request.data.get('music_artist') or '').split())[:60]
+        if picked_url or music:
+            defaults["music_start"], defaults["music_len"] = clean_clip(request.data)
         old = Note.objects.filter(user=user).first()
         if old and old.music_file:
             old.music_file.delete(save=False)                                   # replaced note: drop the old song file
