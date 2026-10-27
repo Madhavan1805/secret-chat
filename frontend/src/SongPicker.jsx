@@ -76,7 +76,7 @@ export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
       {busy && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5 }}>Searching…</p>}
       {err && <p className="text-danger small" style={{ textAlign: 'center' }}>{err}</p>}
       {!busy && !err && q.trim().length >= 2 && rows.length === 0 && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5 }}>No songs found</p>}
-      {!q.trim() && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5, margin: '24px 0' }}><BiMusic style={{ fontSize: 28, display: 'block', margin: '0 auto 6px' }} />Search any song. Friends hear a 30 second clip.</p>}
+      {!q.trim() && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5, margin: '24px 0' }}><BiMusic style={{ fontSize: 28, display: 'block', margin: '0 auto 6px' }} />Search gives 30 second previews only. For the full song, upload it from your phone and pick any part.</p>}
 
       <div className="sp-list">
         {rows.map((row) => (
@@ -90,7 +90,7 @@ export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
         ))}
       </div>
 
-      <label htmlFor="song-file" className="sc-btn ghost" style={{ width: '100%', marginTop: 16 }}><BiUpload /> Upload from phone instead</label>
+      <label htmlFor="song-file" className="sc-btn ghost" style={{ width: '100%', marginTop: 16 }}><BiUpload /> Upload full song from phone</label>
       <input id="song-file" type="file" accept="audio/*" className="d-none" onChange={pickFile} />
     </Sheet>
   );

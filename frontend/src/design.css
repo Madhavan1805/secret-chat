@@ -499,11 +499,11 @@ html, body { background: var(--page-bg, #0F0B14); }
 .pc-tools input[type=range] { flex: 1; accent-color: var(--accent); }
 
 /* ---- photo status editor ---- */
-.se-root { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
+.se-root { align-self: stretch; height: 100%; position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
 .se-tools { display: flex; justify-content: flex-end; gap: 8px; padding: 4px 12px 8px; flex: none; }
 .se-tools button { width: 42px; height: 42px; border: 0; border-radius: 50%; display: grid; place-items: center; font-size: 22px; color: #fff; background: rgba(255,255,255,.16); }
 .se-tools button.on { background: var(--accent); color: #1a1a1a; }
-.se-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.se-wrap { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .se-stage { position: relative; flex: none; box-shadow: 0 4px 24px rgba(0,0,0,.5); }
 .se-stage canvas { display: block; }
 .se-layer { position: absolute; inset: 0; overflow: hidden; }
