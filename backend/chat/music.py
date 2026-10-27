@@ -34,6 +34,16 @@ def clean_music_url(value):
     return url
 
 
+def clean_clip(data):
+    """The part of the song to play: where it starts and how long, in seconds (start 0..3600, length 5..60)."""
+    def num(key, default):
+        try:
+            return int(float(data.get(key)))
+        except (TypeError, ValueError):
+            return default
+    return max(0, min(num('music_start', 0), 3600)), max(5, min(num('music_len', 30), 60))
+
+
 def clean_text(value, limit):
     return ' '.join(str(value or '').split())[:limit]
 

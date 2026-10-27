@@ -10,6 +10,7 @@ import AccountsSheet from './Accounts';
 import { listAccounts } from './accounts';
 import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
 import { burstAt } from './fx';
+import PhotoCropper from './PhotoCropper';
 import { soundsEnabled, setSoundsEnabled } from './sounds';
 import { getMe, errMsg, shortFile } from './config';
 
@@ -62,12 +63,17 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
+  const [cropFile, setCropFile] = useState(null);          // picture waiting to be adjusted
   const [sounds, setSounds] = useState(soundsEnabled());
   const close = () => setSheet(null);
 
-  const upload = async (e) => {
+  const pickPhoto = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    e.target.value = '';
+    if (file) setCropFile(file);
+  };
+  const upload = async (file) => {
+    setCropFile(null);
     const fd = new FormData();
     fd.append('profile_picture', shortFile(file));
     try { await api.patch('users/update_profile/', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); await getMe(true); refresh(); } catch (err) { ask({ type: 'alert', title: errMsg(err, 'Upload failed') }); }
@@ -93,7 +99,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
         <div style={{ padding: '0 18px 18px', marginTop: -48, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ position: 'relative', borderRadius: '50%', border: '4px solid var(--panel)', lineHeight: 0 }}>
             <Avatar src={me?.profile_picture} name={currentUsername} size={92} T={T} />
-            <input type="file" id="dp-upload" className="d-none" accept="image/*" onChange={upload} />
+            <input type="file" id="dp-upload" className="d-none" accept="image/*" onChange={pickPhoto} />
             <label htmlFor="dp-upload" aria-label="Change photo" style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#161616', display: 'grid', placeItems: 'center', cursor: 'pointer', border: '3px solid var(--panel)', fontSize: 16, margin: 0 }}><BiCamera /></label>
           </div>
           {editing ? (
@@ -148,6 +154,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       </div>
       <p style={{ textAlign: 'center', color: 'var(--sub)', fontSize: 12, margin: '18px 0 0' }}>Chatzy · Designed and built by Madhavan</p>
 
+      {cropFile && <PhotoCropper T={T} file={cropFile} onCancel={() => setCropFile(null)} onDone={upload} />}
       {sheet === 'quick' && <QuickReactionSheet T={T} onClose={close} />}
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'privacy' && <PrivacySheet T={T} onClose={close} ask={ask} />}

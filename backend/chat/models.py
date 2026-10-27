@@ -317,6 +317,8 @@ class Status(models.Model):
     music_title = models.CharField(max_length=80, blank=True, default='')
     music_artist = models.CharField(max_length=60, blank=True, default='')
     music_url = models.URLField(max_length=500, blank=True, default='')          # or a searched song (30 s preview)
+    music_start = models.PositiveIntegerField(default=0)                          # the chosen part of the song, in seconds
+    music_len = models.PositiveIntegerField(default=30)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
@@ -328,6 +330,8 @@ class Note(models.Model):
     music_title = models.CharField(max_length=80, blank=True, default='')
     music_artist = models.CharField(max_length=60, blank=True, default='')
     music_url = models.URLField(max_length=500, blank=True, default='')          # or a searched song (30 s preview)
+    music_start = models.PositiveIntegerField(default=0)                          # the chosen part of the song, in seconds
+    music_len = models.PositiveIntegerField(default=30)
     created_at = models.DateTimeField(default=timezone.now)          # reset whenever the note is edited
 
     def __str__(self):
