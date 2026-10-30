@@ -356,6 +356,19 @@ class UserViewSet(viewsets.ModelViewSet):
         bio = request.data.get('bio')
         if bio is not None:
             user.bio = bio
+        if 'birthday' in request.data:                                  # 'MM-DD' or '' to clear
+            raw = str(request.data.get('birthday') or '').strip()
+            if not raw:
+                user.birthday_month = user.birthday_day = None
+            else:
+                try:
+                    import datetime
+                    m, d = (int(x) for x in raw.split('-')[-2:])
+                    datetime.date(2024, m, d)                         # 2024 is a leap year, so 29 Feb is fine
+                    user.birthday_month, user.birthday_day = m, d
+                except (ValueError, TypeError):
+                    return Response({"error": "Pick a real date for the birthday"}, status=400)
+                user.birthday_wished_on = None
         user.save()
         return Response(self.get_serializer(user).data)
 
@@ -874,6 +887,9 @@ class MessageViewSet(viewsets.ModelViewSet):
                 msg.whisper_to.set(chosen)
                 msg.whisper_to.add(user)                       # the sender keeps seeing their own whisper
         notify_message(chat, msg, 'new')
+        if not chat.is_group and msg.message_type != 'system':
+            from .extras2 import maybe_auto_reply
+            maybe_auto_reply(chat, user, msg)
 
     # ----------------------------------------------- update / delete flags
     def update(self, request, *args, **kwargs):

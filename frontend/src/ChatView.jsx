@@ -12,6 +12,8 @@ import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, sho
 import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
 import { Seal, SealButton } from './ui';
 import { EventSheet } from './PlusUI2';
+import Doodle from './Doodle';
+import { shownName, getNick, setNick, getDraft, setDraft } from './nick';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
@@ -64,7 +66,7 @@ function ChatView() {
   const [pinEntry, setPinEntry] = useState('');
   const [pinError, setPinError] = useState('');
 
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState(() => getDraft(contactName));
   const [selectedFiles, setSelectedFiles] = useState([]);       // photos, videos, audio, documents waiting to be sent
   const [sendProg, setSendProg] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
@@ -87,6 +89,9 @@ function ChatView() {
   const [showGroup, setShowGroup] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
   const [showEvent, setShowEvent] = useState(false);
+  const [showDoodle, setShowDoodle] = useState(false);
+  useEffect(() => { const t = setTimeout(() => { if (!editing) setDraft(contactName, newMessage); }, 400); return () => clearTimeout(t); }, [newMessage, contactName, editing]);
+  const [nickTick, setNickTick] = useState(0);
   const [showCapsule, setShowCapsule] = useState(false);
   const [showWhisper, setShowWhisper] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
@@ -745,6 +750,12 @@ function ChatView() {
     } catch (e) { await handleSendError(e, 'Could not create the poll'); return false; }
   };
 
+  const nicknameMenu = async () => {
+    const v = await ask({ type: 'prompt', title: `Nickname for ${contactName}`, message: 'Only you see it. Leave empty to remove.', initial: getNick(contactName), maxLength: 30, okText: 'Save' });
+    if (v === null || v === undefined || v === false) return;
+    setNick(contactName, String(v).trim());
+    setNickTick((n) => n + 1);
+  };
   const createAlbum = async () => {
     const title = await ask({ type: 'prompt', title: 'New photo album', message: 'Everybody in this chat can add photos. It disappears after 24 hours.', initial: '', maxLength: 60, okText: 'Create' });
     if (title === null || title === undefined || title === false) return;
@@ -956,7 +967,7 @@ function ChatView() {
   const doExport = () => exportChatText(contactName, messages);
 
   const menuItems = !meta ? [] : [
-    ...(!isGroupChat ? [['View profile', () => setProfileOpen(true)]] : [['Group info and members', () => setShowGroup(true)]]),
+    ...(!isGroupChat ? [['View profile', () => setProfileOpen(true)], ['Set nickname', nicknameMenu]] : [['Group info and members', () => setShowGroup(true)]]),
     ['Search messages', () => { setSearchOpen(true); }],
     ['Media, docs and links', () => setShowGallery(true)],
     [`Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],
@@ -1106,6 +1117,7 @@ function ChatView() {
       )}
       {showGallery && <GallerySheet T={T} chatId={meta.chat_id} onClose={() => setShowGallery(false)} />}
       {showGroup && isGroupChat && <GroupSheet T={T} meta={meta} me={me} ask={ask} onClose={() => setShowGroup(false)} onChanged={fetchMeta} />}
+      {showDoodle && <Doodle T={T} onClose={() => setShowDoodle(false)} onDone={(f) => setSelectedFiles((prev) => [...prev, f].slice(0, MAX_FILES))} />}
       {showEvent && <EventSheet T={T} onClose={() => setShowEvent(false)} onCreate={createPoll} />}
       {showPoll && <PollSheet T={T} onClose={() => setShowPoll(false)} onCreate={createPoll} />}
       {showCapsule && <CapsuleSheet T={T} onClose={() => setShowCapsule(false)} onSet={(iso) => { setSendMode({ unlock_at: iso }); setShowCapsule(false); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }} />}
@@ -1148,7 +1160,7 @@ function ChatView() {
               : <Avatar src={receiver?.profile_picture} name={contactName} size={42} online={online} T={T} />}
             <div style={{ minWidth: 0 }}>
               <h2 className="sc-chat-name">
-                <span className="t">{contactName}</span>
+                <span className="t">{shownName(contactName)}{nickTick ? '' : ''}</span>
                 {meta?.is_muted && <BiVolumeMute style={{ color: 'var(--sub)', fontSize: 16 }} aria-label="Muted" />}
                 {meta?.is_locked && <BiLock style={{ color: 'var(--accent)', fontSize: 15 }} aria-label="Locked" />}
                 {dTime > 0 && <span className="sc-badge" style={{ height: 18, minWidth: 0, fontSize: 10, gap: 3, display: 'inline-flex', alignItems: 'center' }}><BiTimer />{humanDuration(dTime)}</span>}
@@ -1320,6 +1332,7 @@ function ChatView() {
                             ['Photo, video or file', () => photoInputRef.current && photoInputRef.current.click()],
                             ['Location', shareLocation],
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
+                            ['Doodle', () => { setShowAttach(false); setShowDoodle(true); }],
                             ['Event (RSVP)', () => { setShowAttach(false); setShowEvent(true); }],
                             ['Photo album (24h)', () => { setShowAttach(false); createAlbum(); }],
                             [isViewOnce ? 'View once (on, tap to turn off)' : 'View once', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],

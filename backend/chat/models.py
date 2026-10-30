@@ -19,6 +19,11 @@ class CustomUser(AbstractUser):
     last_seen = models.DateTimeField(auto_now=True)
     public_key = models.TextField(blank=True, null=True)
     typing_with = models.IntegerField(blank=True, null=True)
+    birthday_month = models.PositiveSmallIntegerField(null=True, blank=True)     # no year: only day + month are kept
+    birthday_day = models.PositiveSmallIntegerField(null=True, blank=True)
+    birthday_wished_on = models.DateField(null=True, blank=True)                  # the day friends were last told
+    auto_reply = models.CharField(max_length=200, blank=True, default='')        # 'busy / away' answer
+    auto_reply_until = models.DateTimeField(null=True, blank=True)
     mood_emoji = models.CharField(max_length=8, blank=True, default='')
     mood_text = models.CharField(max_length=40, blank=True, default='')
     mood_at = models.DateTimeField(null=True, blank=True)            # a mood disappears after 24 hours

@@ -130,3 +130,62 @@ export function MoodSheet({ T, me, onClose, onDone, ask }) {
     </Sheet>
   );
 }
+
+// ---------------------------------------------------------------- birthday (day + month only)
+export function BirthdaySheet({ T, me, onClose, onDone, ask }) {
+  const [v, setV] = useState(me?.birthday || '');            // MM-DD
+  const [busy, setBusy] = useState(false);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const [m, d] = v ? v.split('-').map(Number) : [0, 0];
+  const set = (mm, dd) => setV(mm && dd ? `${pad(mm)}-${pad(dd)}` : (mm || dd ? `${pad(mm || 1)}-${pad(dd || 1)}` : ''));
+  const save = async (value) => {
+    setBusy(true);
+    try { await api.patch('users/update_profile/', { birthday: value }); onDone(); onClose(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not save') }); }
+    setBusy(false);
+  };
+  return (
+    <Sheet T={T} title="My birthday" onClose={onClose}>
+      <p style={{ color: 'var(--sub)', fontSize: 13 }}>Only the day and month are saved. On the day, your friends get a 🎂 note in their chat with you.</p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <select className="sc-field" value={d || ''} onChange={(e) => set(m, +e.target.value)} aria-label="Day">
+          <option value="">Day</option>{Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+        </select>
+        <select className="sc-field" value={m || ''} onChange={(e) => set(+e.target.value, d)} aria-label="Month">
+          <option value="">Month</option>{months.map((x, i) => <option key={x} value={i + 1}>{x}</option>)}
+        </select>
+      </div>
+      <button type="button" className="sc-btn" style={{ width: '100%', marginTop: 14 }} disabled={busy || !(m && d)} onClick={() => save(v)}>Save</button>
+      {me?.birthday && <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 8 }} disabled={busy} onClick={() => save('')}>Remove birthday</button>}
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------- away auto-reply
+const DURATIONS = [[1, '1 hour'], [4, '4 hours'], [8, '8 hours'], [24, '1 day'], [0, 'Until I turn it off']];
+export function AwaySheet({ T, me, onClose, onDone, ask }) {
+  const [text, setText] = useState(me?.away?.text || 'I am busy right now, I will reply soon.');
+  const [hours, setHours] = useState(4);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try { await api.post('users/away/', { text, hours }); onDone(); onClose(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not save') }); }
+    setBusy(false);
+  };
+  const off = async () => {
+    setBusy(true);
+    try { await api.delete('users/away/'); onDone(); onClose(); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not turn off') }); }
+    setBusy(false);
+  };
+  return (
+    <Sheet T={T} title="Away auto-reply" onClose={onClose}>
+      <p style={{ color: 'var(--sub)', fontSize: 13 }}>When a friend messages you, they get this answer once (then again after 6 hours).</p>
+      <textarea className="sc-field" rows={3} maxLength={200} value={text} onChange={(e) => setText(e.target.value)} aria-label="Auto-reply message" />
+      <label className="sc-label">Keep it on for</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+        {DURATIONS.map(([h, l]) => <button type="button" key={h} className={`px-chip${hours === h ? ' on' : ''}`} onClick={() => setHours(h)}>{l}</button>)}
+      </div>
+      <button type="button" className="sc-btn" style={{ width: '100%' }} disabled={busy || !text.trim()} onClick={save}>{me?.away ? 'Update auto-reply' : 'Turn on'}</button>
+      {me?.away && <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 8 }} disabled={busy} onClick={off}>Turn off</button>}
+    </Sheet>
+  );
+}

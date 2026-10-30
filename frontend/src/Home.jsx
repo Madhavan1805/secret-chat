@@ -11,6 +11,7 @@ import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage
 import { Seal, Sheet } from './ui';
 import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
+import { shownName, getDraft } from './nick';
 import { RequestsSheet, FindPeopleSheet } from './People';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
@@ -423,8 +424,8 @@ function Home() {
       <ChatRow
         key={friend.id}
         avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />}
-        title={<>{friend.username}{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
-        subtitle={ov?.is_locked ? 'Locked chat' : (typedText || (friend.is_online ? 'Online' : 'Say hi'))}
+        title={<>{shownName(friend.username)}{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
+        subtitle={ov?.is_locked ? 'Locked chat' : (getDraft(friend.username) ? <><span style={{ color: '#ff3b30' }}>Draft: </span>{getDraft(friend.username)}</> : typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
         time={formatListTime(ov?.last_message?.created_at)}
         unread={friend.unread_count}
