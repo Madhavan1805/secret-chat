@@ -9,11 +9,18 @@ def _abs(request, url):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    is_admin = serializers.SerializerMethodField()
+
+    def get_is_admin(self, obj):                       # only ever true for yourself
+        from .admin_api import is_admin
+        req = self.context.get('request')
+        return bool(req and req.user.is_authenticated and req.user.id == obj.id and is_admin(obj))
+
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'password', 'phone_number', 'profile_picture',
-                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key']
-        read_only_fields = ['is_online', 'last_seen', 'typing_with']
+                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key', 'is_admin']
+        read_only_fields = ['is_online', 'last_seen', 'typing_with', 'is_admin']
         extra_kwargs = {
             'password': {'write_only': True},
             'phone_number': {'required': False, 'allow_blank': True, 'allow_null': True},

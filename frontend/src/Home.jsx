@@ -220,6 +220,9 @@ function Home() {
       case 'note':
         fetchNotes();
         break;
+      case 'banned':
+        wipeSession(); window.location.replace('/');
+        break;
       case 'message': case 'read': case 'group_read': case 'chat_updated':
       case 'friends_changed': case 'request': case 'presence': case 'blocklist':
         scheduleRefresh();

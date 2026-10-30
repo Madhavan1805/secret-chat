@@ -886,6 +886,13 @@ function ChatView() {
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
   };
 
+  const reportUser = async () => {
+    const reason = await ask({ type: 'choice', title: `Report ${contactName}?`, message: 'The admin will review this account.', choices: [
+      { label: 'Spam', value: 'spam' }, { label: 'Harassment', value: 'harassment' }, { label: 'Fake account', value: 'fake' },
+      { label: 'Inappropriate content', value: 'inappropriate' }, { label: 'Something else', value: 'other' }] });
+    if (!reason) return;
+    try { await api.post('reports/', { user_id: friendId, reason }); ask({ type: 'alert', title: 'Reported', message: 'Thanks. The admin will look at it.' }); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+  };
   const blockToggle = async () => {
     if (!friendId) return;
     if (meta?.blocked_by_me) {
@@ -951,6 +958,7 @@ function ChatView() {
     ['Clear chat (for me)', clearChat, true],
     ...(!isGroupChat ? [
       [meta.blocked_by_me ? 'Unblock' : 'Block', blockToggle, !meta.blocked_by_me],
+      ['Report', reportUser, true],
       ['Unfriend', unfriend, true],
     ] : [
       ['Exit group', exitGroup, true],
