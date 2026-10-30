@@ -146,6 +146,9 @@ def login_view(request):
     identifier = request.data.get('username') or request.data.get('identifier')
     password = request.data.get('password') or ''
     user = find_user(identifier)
+    if user and not user.is_active and user.check_password(password):
+        msg = 'This account has been banned.' + (f' Reason: {user.ban_reason}' if user.ban_reason else '')
+        return Response({'error': msg, 'banned': True}, status=403)
     if user and authenticate(username=user.username, password=password):
         session = new_device_session(request, user)      # one token per device
         return Response({'status': 'success', 'token': session.key, 'username': user.username, 'id': user.id})

@@ -344,7 +344,18 @@ def poll_create_view(request):
     msg = Message.objects.create(
         chat=chat, sender=user, receiver=other, message_type='poll', content=question,
         status='delivered' if (other and other.is_online) else 'sent')
-    poll = Poll.objects.create(message=msg, question=question, multiple=to_bool(request.data.get('multiple')))
+    event_at = None
+    if request.data.get('event_at'):
+        from django.utils.dateparse import parse_datetime
+        event_at = parse_datetime(str(request.data.get('event_at')))
+        if not event_at or event_at <= timezone.now():
+            raise ValidationError({'error': 'Pick a time in the future for the event'})
+    poll = Poll.objects.create(message=msg, question=question, multiple=to_bool(request.data.get('multiple')),
+                               event_at=event_at, event_place=str(request.data.get('event_place') or '').strip()[:100])
+    if event_at and event_at - timedelta(minutes=30) > timezone.now():          # nudge everybody 30 minutes before
+        from .models import Reminder
+        Reminder.objects.create(chat=chat, creator=user, message=msg, text=f"📅 {question} starts in 30 minutes",
+                                remind_at=event_at - timedelta(minutes=30))
     PollOption.objects.bulk_create([PollOption(poll=poll, text=t, position=i) for i, t in enumerate(options)])
     notify_message(chat, msg, 'new')
     msg = _message_qs().get(pk=msg.pk)

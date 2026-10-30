@@ -220,6 +220,9 @@ function Home() {
       case 'note':
         fetchNotes();
         break;
+      case 'banned':
+        wipeSession(); window.location.replace('/');
+        break;
       case 'message': case 'read': case 'group_read': case 'chat_updated':
       case 'friends_changed': case 'request': case 'presence': case 'blocklist':
         scheduleRefresh();
@@ -420,7 +423,7 @@ function Home() {
       <ChatRow
         key={friend.id}
         avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />}
-        title={friend.username}
+        title={<>{friend.username}{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
         subtitle={ov?.is_locked ? 'Locked chat' : (typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
         time={formatListTime(ov?.last_message?.created_at)}

@@ -7,6 +7,8 @@ import { PrivacySheet, DevicesSheet, LockSheet, QrSheet, StarredSheet, BlockedSh
 import { APP_MODES, CHAT_THEMES } from './theme';
 import { lockEnabled } from './appLock';
 import AccountsSheet from './Accounts';
+import AdminPanel from './AdminPanel';
+import { MoodSheet } from './PlusUI2';
 import { listAccounts } from './accounts';
 import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
 import { burstAt } from './fx';
@@ -129,6 +131,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       <div className="sc-set-group">
         <SettingRow icon={<BiUserCircle />} title="Switch account" sub={listAccounts().length > 1 ? `${listAccounts().length} accounts on this phone` : 'Add another account'} onClick={() => setSheet('accounts')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>{me?.mood?.emoji || '🙂'}</span>} title="My mood" sub={me?.mood ? `${me.mood.emoji} ${me.mood.text}`.trim() : 'Show friends how you feel for 24 hours'} onClick={() => setSheet('mood')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>{getQuickReaction()}</span>} title="Double-tap reaction" sub="Sent when you double-tap a message" onClick={() => setSheet('quick')} right={chev} />
         <SettingRow icon={<BiStar />} title="Starred messages" onClick={() => setSheet('starred')} right={chev} />
       </div>
@@ -137,6 +140,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
         <SettingRow icon={<BiShield />} title="Privacy" sub="Last seen, photo, read receipts" onClick={() => setSheet('privacy')} right={chev} />
         <SettingRow icon={<BiLock />} title="App lock" sub={lockEnabled() ? 'PIN is on' : 'Off'} onClick={() => setSheet('lock')} right={chev} />
         <SettingRow icon={<BiDevices />} title="Logged-in devices" onClick={() => setSheet('devices')} right={chev} />
+        {me?.is_admin && <SettingRow icon={<BiShield />} title="Admin panel" sub="Users, reports and bans" onClick={() => setSheet('admin')} right={chev} />}
         <SettingRow icon={<BiBlock />} title="Blocked users" sub={blockedUsers.length ? `${blockedUsers.length} blocked` : 'Nobody'} onClick={() => setSheet('blocked')} right={chev} />
       </div>
 
@@ -156,6 +160,8 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       {cropFile && <PhotoCropper T={T} file={cropFile} onCancel={() => setCropFile(null)} onDone={upload} />}
       {sheet === 'quick' && <QuickReactionSheet T={T} onClose={close} />}
+      {sheet === 'mood' && <MoodSheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
+      {sheet === 'admin' && <AdminPanel T={T} onClose={close} ask={ask} />}
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'privacy' && <PrivacySheet T={T} onClose={close} ask={ask} />}
       {sheet === 'devices' && <DevicesSheet T={T} onClose={close} ask={ask} />}

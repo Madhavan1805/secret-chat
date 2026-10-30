@@ -145,6 +145,8 @@ def fire_due_capsules():
 def fire_due():
     fire_due_reminders()
     fire_due_capsules()
+    from .extras2 import purge_albums
+    purge_albums()
 
 
 # ================================================================ locked message (type the time it was sent)

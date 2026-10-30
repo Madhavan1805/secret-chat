@@ -19,6 +19,11 @@ class CustomUser(AbstractUser):
     last_seen = models.DateTimeField(auto_now=True)
     public_key = models.TextField(blank=True, null=True)
     typing_with = models.IntegerField(blank=True, null=True)
+    mood_emoji = models.CharField(max_length=8, blank=True, default='')
+    mood_text = models.CharField(max_length=40, blank=True, default='')
+    mood_at = models.DateTimeField(null=True, blank=True)            # a mood disappears after 24 hours
+    banned_at = models.DateTimeField(null=True, blank=True)          # set when an admin bans the account
+    ban_reason = models.CharField(max_length=200, blank=True, default='')
 
     # privacy settings
     PRIVACY_CHOICES = (('everyone', 'Everyone'), ('friends', 'Friends'), ('nobody', 'Nobody'))
@@ -28,6 +33,22 @@ class CustomUser(AbstractUser):
 
     def __str__(self):
         return self.username
+
+
+# ---------------------------------------- a user reporting another user (read by the admin page)
+class Report(models.Model):
+    reporter = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='reports_made')
+    reported = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='reports_received')
+    reason = models.CharField(max_length=40)
+    details = models.CharField(max_length=500, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.reporter.username} reported {self.reported.username}"
 
 
 # ---------------------------------------- one row per logged-in device (so a device can be signed out)
@@ -122,6 +143,7 @@ class Message(models.Model):
         ('system', 'System'),                                              # NEW
         ('poll', 'Poll'),
         ('expense', 'Expense'),
+        ('album', 'Album'),
     )
     STATUS_CHOICES = (
         ('sent', 'Sent (Single Tick)'),
@@ -178,6 +200,8 @@ class Poll(models.Model):
     question = models.CharField(max_length=300)
     multiple = models.BooleanField(default=False)
     closed = models.BooleanField(default=False)
+    event_at = models.DateTimeField(null=True, blank=True)            # set => this poll is an event (RSVP)
+    event_place = models.CharField(max_length=100, blank=True, default='')
 
 
 class PollOption(models.Model):
@@ -386,3 +410,21 @@ class PasswordResetOTP(models.Model):
 
     def __str__(self):
         return f"reset code for {self.user.username} ({'used' if self.used else 'open'})"
+
+
+class Album(models.Model):
+    """A shared photo album posted in a chat. Everybody in the chat can add photos; it vanishes after expires_at."""
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='album')
+    title = models.CharField(max_length=60)
+    expires_at = models.DateTimeField(db_index=True)
+    purged = models.BooleanField(default=False)
+
+
+class AlbumPhoto(models.Model):
+    album = models.ForeignKey(Album, on_delete=models.CASCADE, related_name='photos')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='album_photos')
+    file = models.ImageField(upload_to='albums/', max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']

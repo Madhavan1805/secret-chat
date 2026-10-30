@@ -1,5 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admin_unban_view,
+                        admin_reports_view, admin_resolve_view, report_view)
+from .extras2 import album_create_view, album_add_view, mood_view
 from .auth_views import login_view, register_view, check_view, forgot_view, reset_view
 from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
@@ -29,6 +32,16 @@ router.register(r'calls', CallViewSet, basename='call')
 
 urlpatterns = [
     path('login/', login_view, name='login'),
+    path('reports/', report_view),
+    path('albums/create/', album_create_view),
+    path('albums/add/', album_add_view),
+    path('users/mood/', mood_view),
+    path('admin-api/stats/', admin_stats_view),
+    path('admin-api/users/', admin_users_view),
+    path('admin-api/users/ban/', admin_ban_view),
+    path('admin-api/users/unban/', admin_unban_view),
+    path('admin-api/reports/', admin_reports_view),
+    path('admin-api/reports/resolve/', admin_resolve_view),
     path('auth/register/', register_view, name='register'),
     path('auth/check/', check_view, name='check-username'),
     path('auth/forgot/', forgot_view, name='forgot-password'),

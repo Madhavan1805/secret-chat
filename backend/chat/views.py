@@ -193,6 +193,8 @@ def message_preview(msg):
         return '🎞️ GIF'
     if t == 'poll':
         return '📊 ' + (c[:60] or 'Poll')
+    if t == 'album':
+        return '🖼️ Album: ' + (c[:50] or 'Photos')
     if msg.status_ref_id:
         return ('↩️ ' + c)[:80]
     if t == 'image':
@@ -480,6 +482,8 @@ class ChatViewSet(viewsets.ModelViewSet):
                 "is_archived": bool(s and s.is_archived),
                 "is_locked": locked,
                 "disappearing_time": chat.disappearing_time,
+            "streak": 0 if chat.is_group else chat_streak(chat.id),
+                "streak": 0 if chat.is_group else chat_streak(chat.id),
                 "theme": chat.theme,
             }
             if chat.is_group:
@@ -776,7 +780,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = (Message.objects.select_related('sender', 'receiver', 'chat', 'status_ref__user')
-                .prefetch_related('read_by', 'starred_by', 'poll__options__votes', 'whisper_to', 'time_unlocks', 'expense__shares__user'))
+                .prefetch_related('read_by', 'starred_by', 'poll__options__votes__user', 'album__photos__user', 'whisper_to', 'time_unlocks', 'expense__shares__user'))
 
         if self.action != 'list':
             return base.filter(Q(sender=user) | Q(receiver=user) | Q(chat__participants=user)).distinct()
@@ -842,7 +846,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         unlock_at = parse_unlock_at(self.request.data.get('unlock_at'))
         if unlock_at:
             extra['unlock_at'] = unlock_at
-        if to_bool(self.request.data.get('time_lock')) and self.request.data.get('message_type') not in ('poll', 'expense', 'system'):
+        if to_bool(self.request.data.get('time_lock')) and self.request.data.get('message_type') not in ('poll', 'expense', 'system', 'album'):
             extra['time_lock'] = True
             extra['time_lock_relock'] = to_bool(self.request.data.get('time_lock_relock'))
         whisper_ids = self._whisper_ids()
@@ -1027,6 +1031,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 AUDIO_EXTS = {'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'weba'}
 MAX_MUSIC_BYTES = 12 * 1024 * 1024
 from .music import clean_music_url, clean_text, clean_clip      # noqa: E402
+from .extras2 import chat_streak                                # noqa: E402
 
 
 class StatusViewSet(viewsets.ModelViewSet):
