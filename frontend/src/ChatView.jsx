@@ -11,6 +11,7 @@ import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, shortFile } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
 import { Seal, SealButton } from './ui';
+import { EventSheet } from './PlusUI2';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
@@ -85,6 +86,7 @@ function ChatView() {
   const [showGallery, setShowGallery] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
+  const [showEvent, setShowEvent] = useState(false);
   const [showCapsule, setShowCapsule] = useState(false);
   const [showWhisper, setShowWhisper] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
@@ -743,6 +745,17 @@ function ChatView() {
     } catch (e) { await handleSendError(e, 'Could not create the poll'); return false; }
   };
 
+  const createAlbum = async () => {
+    const title = await ask({ type: 'prompt', title: 'New photo album', message: 'Everybody in this chat can add photos. It disappears after 24 hours.', initial: '', maxLength: 60, okText: 'Create' });
+    if (title === null || title === undefined || title === false) return;
+    try {
+      const r = await api.post('albums/create/', { chat_id: meta.chat_id, title });
+      if (r.data && r.data.id) setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
+      setTimeout(() => scrollToBottom(true), 100);
+    } catch (e) { await handleSendError(e, 'Could not create the album'); }
+  };
+  const onAlbumChanged = (m) => setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
+
   const sendSticker = (emoji) => sendMessage(null, `[STICKER]${emoji}`);
   const sendGif = (url) => sendMessage(null, `[GIF]${url}`);
 
@@ -1049,6 +1062,8 @@ function ChatView() {
     meId: me?.id,
     onRemind: (m) => setRemindFor(m),
     onSettle,
+    onAlbumChanged,
+    onAsk: ask,
     onUnlockTime: async (m) => {
       const code = await ask({ type: 'prompt', title: 'Locked message', message: 'Type the time this message was sent, like 1230.', placeholder: '1230', inputType: 'text', inputMode: 'numeric', maxLength: 5, okText: 'Open' });
       if (code === null || !String(code).trim()) return;
@@ -1091,6 +1106,7 @@ function ChatView() {
       )}
       {showGallery && <GallerySheet T={T} chatId={meta.chat_id} onClose={() => setShowGallery(false)} />}
       {showGroup && isGroupChat && <GroupSheet T={T} meta={meta} me={me} ask={ask} onClose={() => setShowGroup(false)} onChanged={fetchMeta} />}
+      {showEvent && <EventSheet T={T} onClose={() => setShowEvent(false)} onCreate={createPoll} />}
       {showPoll && <PollSheet T={T} onClose={() => setShowPoll(false)} onCreate={createPoll} />}
       {showCapsule && <CapsuleSheet T={T} onClose={() => setShowCapsule(false)} onSet={(iso) => { setSendMode({ unlock_at: iso }); setShowCapsule(false); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }} />}
       {showWhisper && isGroupChat && <WhisperSheet T={T} members={meta?.participants} meId={me?.id} onClose={() => setShowWhisper(false)}
@@ -1137,7 +1153,7 @@ function ChatView() {
                 {meta?.is_locked && <BiLock style={{ color: 'var(--accent)', fontSize: 15 }} aria-label="Locked" />}
                 {dTime > 0 && <span className="sc-badge" style={{ height: 18, minWidth: 0, fontSize: 10, gap: 3, display: 'inline-flex', alignItems: 'center' }}><BiTimer />{humanDuration(dTime)}</span>}
               </h2>
-              <span className={`sc-chat-sub${online ? ' on' : ''}`}>{subtitle}</span>
+              <span className={`sc-chat-sub${online ? ' on' : ''}`}>{subtitle}{!isGroupChat && receiver?.mood ? ` · ${receiver.mood.emoji} ${receiver.mood.text}`.trimEnd() : ''}{!isGroupChat && meta?.streak > 1 ? ` · 🔥 ${meta.streak}` : ''}</span>
             </div>
           </div>
           <button type="button" className="sc-iconbtn" aria-label="Voice call"
@@ -1304,6 +1320,8 @@ function ChatView() {
                             ['Photo, video or file', () => photoInputRef.current && photoInputRef.current.click()],
                             ['Location', shareLocation],
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
+                            ['Event (RSVP)', () => { setShowAttach(false); setShowEvent(true); }],
+                            ['Photo album (24h)', () => { setShowAttach(false); createAlbum(); }],
                             [isViewOnce ? 'View once (on, tap to turn off)' : 'View once', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],
                             ['Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
                             ['Time capsule', () => { setShowAttach(false); setShowCapsule(true); }],

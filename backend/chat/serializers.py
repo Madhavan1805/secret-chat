@@ -10,6 +10,11 @@ def _abs(request, url):
 
 class UserSerializer(serializers.ModelSerializer):
     is_admin = serializers.SerializerMethodField()
+    mood = serializers.SerializerMethodField()
+
+    def get_mood(self, obj):
+        from .extras2 import mood_of
+        return mood_of(obj)
 
     def get_is_admin(self, obj):                       # only ever true for yourself
         from .admin_api import is_admin
@@ -19,8 +24,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'password', 'phone_number', 'profile_picture',
-                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key', 'is_admin']
-        read_only_fields = ['is_online', 'last_seen', 'typing_with', 'is_admin']
+                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key', 'is_admin', 'mood']
+        read_only_fields = ['is_online', 'last_seen', 'typing_with', 'is_admin', 'mood']
         extra_kwargs = {
             'password': {'write_only': True},
             'phone_number': {'required': False, 'allow_blank': True, 'allow_null': True},
@@ -47,6 +52,7 @@ class MessageSerializer(serializers.ModelSerializer):
     poll = serializers.SerializerMethodField()
     status_preview = serializers.SerializerMethodField()
     expense = serializers.SerializerMethodField()
+    album = serializers.SerializerMethodField()
     whisper = serializers.SerializerMethodField()
 
     class Meta:
@@ -80,9 +86,26 @@ class MessageSerializer(serializers.ModelSerializer):
         for o in poll.options.all():
             ids = [v.user_id for v in o.votes.all()]
             voters.update(ids)
-            options.append({"id": o.id, "text": o.text, "votes": len(ids), "voted_by_me": me in ids})
+            row = {"id": o.id, "text": o.text, "votes": len(ids), "voted_by_me": me in ids}
+            if poll.event_at:
+                row["names"] = [v.user.username for v in o.votes.all()][:12]
+            options.append(row)
         return {"question": poll.question, "multiple": poll.multiple, "closed": poll.closed,
-                "options": options, "total_voters": len(voters)}
+                "options": options, "total_voters": len(voters),
+                "event_at": poll.event_at, "event_place": poll.event_place}
+
+    def get_album(self, obj):
+        if obj.message_type != 'album':
+            return None
+        try:
+            a = obj.album
+        except ObjectDoesNotExist:
+            return None
+        request = self.context.get('request')
+        gone = a.purged or a.expires_at <= timezone.now()
+        photos = [] if gone else [{"id": p.id, "url": request.build_absolute_uri(p.file.url) if request else p.file.url,
+                                   "by": p.user.username} for p in a.photos.all()]
+        return {"id": a.id, "title": a.title, "expires_at": a.expires_at, "expired": gone, "photos": photos}
 
     # ---- split expense
     def get_expense(self, obj):
@@ -139,7 +162,7 @@ class MessageSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         masked = self._is_masked(instance)
         if masked:
-            for key in ('content', 'file_url', 'voice_note', 'file_name', 'file_size', 'status_preview', 'reply_to', 'expense'):
+            for key in ('content', 'file_url', 'voice_note', 'file_name', 'file_size', 'status_preview', 'reply_to', 'expense', 'album'):
                 if key in data:
                     data[key] = None if key != 'content' else ''
             data['masked'] = masked

@@ -10,6 +10,7 @@ import { DEFAULT_REACTIONS, getCustomReactions, addCustomReaction, removeCustomR
 import { burstAt, rainAll } from './fx';
 import { getPicUrl, formatSize, formatTime } from './config';
 import { useBackClose } from './backClose';
+import { AlbumCard, eventWhen } from './PlusUI2';
 import { CapsuleLocked, WhisperLocked, TimeLocked, MsgTags, ExpenseCard } from './PlusUI';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -42,8 +43,9 @@ function PollCard({ poll, onVote }) {
   return (
     <div style={{ minWidth: 220 }}>
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, marginBottom: 2 }}>{poll.question}</div>
+      {poll.event_at && <div style={{ fontSize: 13, marginBottom: 2 }}>📅 {eventWhen(poll.event_at)}{poll.event_place ? ` · 📍 ${poll.event_place}` : ''}</div>}
       <div style={{ fontSize: 11.5, opacity: 0.75, marginBottom: 8 }}>
-        {poll.closed ? 'Poll closed' : (poll.multiple ? 'Choose one or more' : 'Choose one')} · {poll.total_voters} {poll.total_voters === 1 ? 'vote' : 'votes'}
+        {poll.event_at ? `${poll.total_voters} replied` : poll.closed ? 'Poll closed' : (poll.multiple ? 'Choose one or more' : 'Choose one')} · {poll.total_voters} {poll.total_voters === 1 ? 'vote' : 'votes'}
       </div>
       {poll.options.map((o) => {
         const pct = total ? Math.round((o.votes / total) * 100) : 0;
@@ -61,6 +63,7 @@ function PollCard({ poll, onVote }) {
               <span>{o.voted_by_me ? '✓ ' : ''}{o.text}</span>
               <b>{o.votes}</b>
             </span>
+            {poll.event_at && o.names && o.names.length > 0 && <span style={{ position: 'relative', display: 'block', fontSize: 11.5, opacity: 0.8, marginTop: 2 }}>{o.names.join(', ')}</span>}
           </button>
         );
       })}
@@ -127,7 +130,7 @@ function StatusPeek({ st, onClose }) {
 export default function MessageBubble({
   msg, isMe, isGroup, T, replyMsg, highlighted, pinned,
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
-  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onBalances, onCapsuleOpened, onRain, onUnlockTime,
+  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onAlbumChanged, onAsk, onBalances, onCapsuleOpened, onRain, onUnlockTime,
 }) {
   const [menu, setMenu] = useState(false);
   const [up, setUp] = useState(false);                        // open the menu above the bubble when there is no room below
@@ -160,6 +163,7 @@ export default function MessageBubble({
   const isLocation = msg.message_type === 'location';
   const isPoll = msg.message_type === 'poll' && !!msg.poll;
   const isExpense = msg.message_type === 'expense' && !!msg.expense;
+  const isAlbum = msg.message_type === 'album' && !!msg.album;
   const isSticker = content.startsWith(STICKER_PREFIX);
   const isGif = content.startsWith(GIF_PREFIX);
   const canEdit = isMe && msg.message_type === 'text' && !isViewOnce && !isSticker && !isGif && !msg.is_screenshot
@@ -300,11 +304,12 @@ export default function MessageBubble({
               </a>
             )}
             {isPoll && <PollCard poll={msg.poll} onVote={onVote} />}
+            {isAlbum && <AlbumCard album={msg.album} onChanged={onAlbumChanged} ask={onAsk} />}
             {isExpense && <ExpenseCard exp={msg.expense} meId={meId} onSettle={onSettle} onBalances={onBalances} />}
             {msg.status_preview && <StatusCard st={msg.status_preview} onOpen={() => setStatusOpen(true)} />}
             {isSticker && <div style={{ fontSize: 76, lineHeight: 1.1 }}>{content.slice(STICKER_PREFIX.length)}</div>}
             {isGif && <img src={content.slice(GIF_PREFIX.length)} alt="GIF" style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 12, display: 'block' }} />}
-            {content && !isAudio && !isPoll && !isExpense && !isSticker && !isGif && (() => {
+            {content && !isAudio && !isPoll && !isExpense && !isAlbum && !isSticker && !isGif && (() => {
               const clamp = isLong && !isLocation && !expanded;
               return (
                 <>
@@ -395,8 +400,8 @@ export default function MessageBubble({
             <div className="d-flex flex-wrap justify-content-between align-items-center mb-2" style={{ maxWidth: 260 }}>
               {[
                 ['Reply', () => onReply(msg), true],
-                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll && !isExpense && !msg.masked],
-                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll && !isExpense && !msg.masked],
+                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll && !isExpense && !isAlbum && !msg.masked],
+                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll && !isExpense && !isAlbum && !msg.masked],
                 ['Remind us', () => onRemind && onRemind(msg), !!onRemind && !isViewOnce && !msg.masked && !msg.is_screenshot],
                 [msg.is_starred ? 'Remove star' : 'Star', () => onStar && onStar(msg), !!onStar && !isViewOnce],
                 ['Edit', () => onEdit(msg), canEdit],
