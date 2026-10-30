@@ -459,6 +459,7 @@ class ChatViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------ overview (Home screen)
     @action(detail=False, methods=['get'])
     def overview(self, request):
+        from .extras2 import chat_streak   # lazy import: extras2 imports views, avoid circular import
         user = request.user
         friends = friend_ids_of(user)
         settings_map = {s.chat_id: s for s in ChatUserSetting.objects.filter(user=user)}
@@ -495,7 +496,6 @@ class ChatViewSet(viewsets.ModelViewSet):
                 "is_archived": bool(s and s.is_archived),
                 "is_locked": locked,
                 "disappearing_time": chat.disappearing_time,
-            "streak": 0 if chat.is_group else chat_streak(chat.id),
                 "streak": 0 if chat.is_group else chat_streak(chat.id),
                 "theme": chat.theme,
             }
@@ -1079,7 +1079,6 @@ class MessageViewSet(viewsets.ModelViewSet):
 AUDIO_EXTS = {'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'weba'}
 MAX_MUSIC_BYTES = 12 * 1024 * 1024
 from .music import clean_music_url, clean_text, clean_clip      # noqa: E402
-from .extras2 import chat_streak                                # noqa: E402
 
 
 class StatusViewSet(viewsets.ModelViewSet):
