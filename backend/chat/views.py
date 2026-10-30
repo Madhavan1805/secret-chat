@@ -553,6 +553,7 @@ class ChatViewSet(viewsets.ModelViewSet):
             "is_archived": s.is_archived,
             "participants": [{"id": p.id, "username": p.username} for p in chat.participants.all()],
             "group_description": chat.group_description,
+            "announce_only": chat.announce_only,
             "group_photo": request.build_absolute_uri(chat.group_photo.url) if chat.group_photo else None,
             "admin_ids": sorted(set(chat.admins.values_list('id', flat=True))
                                 | ({chat.created_by_id} if chat.created_by_id else set())) if chat.is_group else [],
@@ -867,6 +868,8 @@ class MessageViewSet(viewsets.ModelViewSet):
         if chat_id:
             chat = get_object_or_404(Chat, id=chat_id, participants=user)
             ensure_unlocked(user, chat)
+            if chat.is_group and chat.announce_only and not (chat.created_by_id == user.id or chat.admins.filter(id=user.id).exists()):
+                raise PermissionDenied("Only admins can send messages in this group.")
             msg = serializer.save(sender=user, chat=chat, **extra)
         elif receiver_id:
             receiver = get_object_or_404(CustomUser, id=receiver_id)
@@ -1029,6 +1032,35 @@ class MessageViewSet(viewsets.ModelViewSet):
               .select_related('sender', 'chat').prefetch_related('read_by')
               .order_by('-created_at')[:50])
         return Response(self.get_serializer(qs, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='search_all')
+    def search_all(self, request):
+        """Search every chat at once (plain text only: locked, whispered and capsule messages are skipped)."""
+        q = (request.query_params.get('q') or '').strip()
+        if len(q) < 2:
+            return Response([])
+        user = request.user
+        chats = Chat.objects.filter(participants=user).prefetch_related('participants')
+        locked = set(ChatUserSetting.objects.filter(user=user).exclude(pin_hash='').exclude(pin_hash__isnull=True)
+                     .values_list('chat_id', flat=True))
+        now = timezone.now()
+        qs = (visible_to(Message.objects.filter(chat__in=chats), user)
+              .filter(content__icontains=q, message_type__in=('text', 'image', 'video', 'document'))
+              .exclude(chat_id__in=locked).exclude(content__startswith='[')
+              .filter(time_lock=False, whisper_to=None)
+              .exclude(Q(unlock_at__isnull=False) & Q(unlock_at__gt=now))
+              .select_related('sender', 'chat').order_by('-created_at')[:40])
+        by_chat = {c.id: c for c in chats}
+        out = []
+        for m in qs:
+            c = by_chat.get(m.chat_id)
+            if not c:
+                continue
+            other = None if c.is_group else next((p for p in c.participants.all() if p.id != user.id), None)
+            out.append({"id": m.id, "chat_id": c.id, "is_group": c.is_group,
+                        "name": c.group_name if c.is_group else (other.username if other else ''),
+                        "sender": m.sender.username, "content": (m.content or '')[:200], "created_at": m.created_at})
+        return Response(out)
 
     @action(detail=False, methods=['post'])
     def screenshot_alert(self, request):

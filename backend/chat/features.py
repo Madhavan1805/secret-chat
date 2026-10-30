@@ -235,6 +235,12 @@ def group_update_view(request):
         if desc != chat.group_description:
             chat.group_description = desc
             notes.append(f'{user.username} updated the group description')
+    if 'announce_only' in request.data:
+        flag = to_bool(request.data.get('announce_only'))
+        if flag != chat.announce_only:
+            chat.announce_only = flag
+            notes.append(f'{user.username} {"turned on" if flag else "turned off"} announcement mode (only admins can send messages)' if flag
+                         else f'{user.username} let everyone send messages again')
     photo = request.FILES.get('group_photo')
     if photo:
         if photo.size > MAX_UPLOAD:
