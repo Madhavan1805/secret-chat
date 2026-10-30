@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admin_unban_view,
                         admin_reports_view, admin_resolve_view, report_view)
-from .extras2 import album_create_view, album_add_view, mood_view
+from .extras2 import album_create_view, album_add_view, mood_view, away_view
 from .auth_views import login_view, register_view, check_view, forgot_view, reset_view
 from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
@@ -36,6 +36,7 @@ urlpatterns = [
     path('albums/create/', album_create_view),
     path('albums/add/', album_add_view),
     path('users/mood/', mood_view),
+    path('users/away/', away_view),
     path('admin-api/stats/', admin_stats_view),
     path('admin-api/users/', admin_users_view),
     path('admin-api/users/ban/', admin_ban_view),

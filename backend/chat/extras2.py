@@ -136,3 +136,64 @@ def mood_view(request):
     from .views import friend_ids_of
     notify_users(list(friend_ids_of(user)), 'friends_changed')
     return Response({"mood": mood_of(user)})
+
+
+# ------------------------------------------------------------------ away auto-reply
+def maybe_auto_reply(chat, sender, msg):
+    """If the receiver set an auto-reply and is still 'away', answer once per 6 hours per chat."""
+    receiver = msg.receiver
+    if not receiver or not receiver.auto_reply:
+        return
+    if receiver.auto_reply_until and receiver.auto_reply_until <= timezone.now():
+        return
+    if not cache.add(f'autoreply:{chat.id}:{receiver.id}', 1, 6 * 3600):
+        return
+    reply = Message.objects.create(chat=chat, sender=receiver, receiver=sender, message_type='text',
+                                   content=f"🤖 Auto-reply: {receiver.auto_reply}"[:300],
+                                   status='delivered' if sender.is_online else 'sent')
+    notify_message(chat, reply, 'new')
+
+
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def away_view(request):
+    user = request.user
+    if request.method == 'DELETE':
+        user.auto_reply, user.auto_reply_until = '', None
+    else:
+        text = clean_text(request.data.get('text'), 200)
+        if not text:
+            raise ValidationError({"error": "Write the auto-reply message."})
+        hours = to_int(request.data.get('hours')) or 0
+        user.auto_reply = text
+        user.auto_reply_until = timezone.now() + timedelta(hours=min(hours, 24 * 14)) if hours > 0 else None
+    user.save(update_fields=['auto_reply', 'auto_reply_until'])
+    return Response({"away": {"text": user.auto_reply, "until": user.auto_reply_until} if user.auto_reply else None})
+
+
+# ------------------------------------------------------------------ birthdays
+IST = timedelta(hours=5, minutes=30)
+
+
+def fire_birthdays():
+    """Once per birthday: a line in each friend's chat + a push. Runs from the background loop."""
+    from .models import CustomUser
+    from .push import send_push
+    from .realtime import notify_users
+    from .views import friend_ids_of, get_or_create_direct_chat
+    today = (timezone.now() + IST).date()
+    for u in list(CustomUser.objects.filter(is_active=True, birthday_month=today.month, birthday_day=today.day)
+                  .exclude(birthday_wished_on=today)[:20]):
+        if CustomUser.objects.filter(pk=u.pk).exclude(birthday_wished_on=today).update(birthday_wished_on=today) != 1:
+            continue
+        try:
+            friends = list(CustomUser.objects.filter(id__in=friend_ids_of(u), is_active=True))
+            for f in friends:
+                chat = get_or_create_direct_chat(u, f)
+                m = Message.objects.create(chat=chat, sender=u, receiver=f, message_type='system',
+                                           content=f"🎂 It's {u.username}'s birthday today! Wish them 🎉")
+                notify_message(chat, m, 'new')
+            send_push([f.id for f in friends], 'Chatzy', f"🎂 It's {u.username}'s birthday today!", {})
+            notify_users([f.id for f in friends], 'friends_changed')
+        except Exception:
+            pass

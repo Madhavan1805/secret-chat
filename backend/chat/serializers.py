@@ -11,6 +11,17 @@ def _abs(request, url):
 class UserSerializer(serializers.ModelSerializer):
     is_admin = serializers.SerializerMethodField()
     mood = serializers.SerializerMethodField()
+    birthday = serializers.SerializerMethodField()
+    away = serializers.SerializerMethodField()
+
+    def get_birthday(self, obj):
+        return f"{obj.birthday_month:02d}-{obj.birthday_day:02d}" if obj.birthday_month and obj.birthday_day else None
+
+    def get_away(self, obj):                           # only you see your own auto-reply
+        req = self.context.get('request')
+        if req and req.user.is_authenticated and req.user.id == obj.id and obj.auto_reply:
+            return {"text": obj.auto_reply, "until": obj.auto_reply_until}
+        return None
 
     def get_mood(self, obj):
         from .extras2 import mood_of
@@ -24,8 +35,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'password', 'phone_number', 'profile_picture',
-                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key', 'is_admin', 'mood']
-        read_only_fields = ['is_online', 'last_seen', 'typing_with', 'is_admin', 'mood']
+                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key', 'is_admin', 'mood', 'birthday', 'away']
+        read_only_fields = ['is_online', 'last_seen', 'typing_with', 'is_admin', 'mood', 'birthday', 'away']
         extra_kwargs = {
             'password': {'write_only': True},
             'phone_number': {'required': False, 'allow_blank': True, 'allow_null': True},
