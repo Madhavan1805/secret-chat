@@ -1,3 +1,4 @@
+import { inQuietHours } from './quiet';
 // Small built-in sound effects (generated with the Web Audio API, so there are no audio files to host).
 //   playSound('send' | 'receive' | 'delete' | 'tick' | 'like')
 // Browsers only allow sound after the user touched the page once, so the audio context is unlocked
@@ -40,7 +41,7 @@ export const setSoundsEnabled = (on) => {
 };
 
 export function playSound(name) {
-  if (!soundsEnabled()) return;
+  if (!soundsEnabled() || inQuietHours()) return;
   const def = SOUNDS[name];
   const c = getCtx();
   if (!def || !c) return;

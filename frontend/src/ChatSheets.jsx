@@ -190,6 +190,11 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
           <label className="sc-label">Description</label>
           <textarea className="sc-field" rows="3" maxLength={500} placeholder="What is this group about?" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true); }} />
           {dirty && <button type="button" className="sc-btn" style={{ marginTop: 12, width: '100%' }} disabled={!name.trim()} onClick={save}>Save changes</button>}
+          <div className="sc-set-group" style={{ marginTop: 14 }}>
+            <SettingRow title="Announcement mode" sub="Only admins can send messages"
+              right={<button type="button" role="switch" aria-checked={!!meta.announce_only} className="sc-switch"
+                onClick={() => call(() => api.post('groups/update/', { chat_id: meta.chat_id, announce_only: !meta.announce_only }), 'Could not change')} />} />
+          </div>
         </>
       ) : (
         <>

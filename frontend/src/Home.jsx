@@ -11,6 +11,7 @@ import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage
 import { Seal, Sheet } from './ui';
 import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
+import { GlobalSearch } from './PlusUI2';
 import { shownName, getDraft } from './nick';
 import { RequestsSheet, FindPeopleSheet } from './People';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
@@ -74,6 +75,7 @@ function NavBar({ tab, setTab, badges }) {
 function Home() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [globalOpen, setGlobalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
 
   const [activeTab, setActiveTab] = useState('chats');
@@ -504,7 +506,9 @@ function Home() {
                 <BiSearch style={{ fontSize: 20 }} />
                 <input type="text" placeholder="Search your chats" value={searchQuery}
                   onChange={handleSearch} aria-label="Search chats" />
+                <button type="button" onClick={() => setGlobalOpen(true)} style={{ border: 0, background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap' }}>In messages</button>
               </label>
+              {globalOpen && <GlobalSearch T={T} onClose={() => setGlobalOpen(false)} onOpen={(r) => { setGlobalOpen(false); navigate(`/chat/${encodeURIComponent(r.name)}`, { state: r.is_group ? { chatId: r.chat_id } : {} }); }} />}
 
               {!ql && <NotesStrip T={T} me={me} notes={notes} friends={friends} onEditMine={() => setNoteOpen(true)} onLiked={fetchNotes} onError={(m) => ask({ type: 'alert', title: m })} />}
 

@@ -8,7 +8,8 @@ import { APP_MODES, CHAT_THEMES } from './theme';
 import { lockEnabled } from './appLock';
 import AccountsSheet from './Accounts';
 import AdminPanel from './AdminPanel';
-import { MoodSheet, BirthdaySheet, AwaySheet } from './PlusUI2';
+import { getQuiet } from './quiet';
+import { MoodSheet, BirthdaySheet, AwaySheet, QuietSheet } from './PlusUI2';
 import { listAccounts } from './accounts';
 import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
 import { burstAt } from './fx';
@@ -148,6 +149,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       <div className="sc-set-group">
         <SettingRow icon={<BiPalette />} title="Appearance" sub={(CHAT_THEMES[appTheme] || CHAT_THEMES.default).label} onClick={() => setSheet('theme')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>🌙</span>} title="Quiet hours" sub={getQuiet().on ? `${getQuiet().from} – ${getQuiet().to}` : 'Off'} onClick={() => setSheet('quiet')} right={chev} />
         <SettingRow icon={<BiVolumeFull />} title="Sounds" right={<Toggle on={sounds} onChange={(v) => { setSounds(v); setSoundsEnabled(v); }} label="Sounds" />} />
         {notifPerm !== 'unsupported' && (
           <SettingRow icon={<BiBell />} title="Notifications" sub={notifPerm === 'granted' ? 'On' : 'Tap to allow'} onClick={notifPerm === 'granted' ? undefined : enableNotifications} />
@@ -162,6 +164,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       {cropFile && <PhotoCropper T={T} file={cropFile} onCancel={() => setCropFile(null)} onDone={upload} />}
       {sheet === 'quick' && <QuickReactionSheet T={T} onClose={close} />}
+      {sheet === 'quiet' && <QuietSheet T={T} onClose={close} />}
       {sheet === 'bday' && <BirthdaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'away' && <AwaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'mood' && <MoodSheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}

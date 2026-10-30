@@ -97,6 +97,7 @@ class Chat(models.Model):
     group_description = models.TextField(blank=True, default='')
     group_photo = models.ImageField(upload_to='group_photos/', null=True, blank=True, max_length=255)
     admins = models.ManyToManyField(CustomUser, related_name='admin_of_chats', blank=True)
+    announce_only = models.BooleanField(default=False)               # only admins can post
 
     # disappearing messages (server side, shared by everyone in the chat)
     disappearing_time = models.IntegerField(default=0)

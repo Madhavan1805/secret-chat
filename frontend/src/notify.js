@@ -1,3 +1,4 @@
+import { inQuietHours } from './quiet';
 // Browser notifications for new messages + a tiny "which chat is open" registry
 let activeChat = null;
 export const setActiveChat = (id) => { activeChat = id; };
@@ -21,6 +22,7 @@ export function showNotification(title, body, tag, onClick) {
 
 // call for every realtime event; decides if a popup is needed
 export function maybeNotify(evt) {
+  if (inQuietHours()) return;
   if (!evt || evt.event !== 'message' || evt.action !== 'new') return;
   if (evt.mine || evt.muted) return;
   const open = Number(evt.chat_id) === Number(activeChat);

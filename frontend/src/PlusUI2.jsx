@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BiPlus, BiX } from 'react-icons/bi';
 import { Sheet } from './ui';
 import api from './api';
@@ -186,6 +186,59 @@ export function AwaySheet({ T, me, onClose, onDone, ask }) {
       </div>
       <button type="button" className="sc-btn" style={{ width: '100%' }} disabled={busy || !text.trim()} onClick={save}>{me?.away ? 'Update auto-reply' : 'Turn on'}</button>
       {me?.away && <button type="button" className="sc-btn ghost" style={{ width: '100%', marginTop: 8 }} disabled={busy} onClick={off}>Turn off</button>}
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------- quiet hours (this phone only)
+import { getQuiet, setQuiet } from './quiet';
+export function QuietSheet({ T, onClose, onDone }) {
+  const [q, setQ] = useState(getQuiet());
+  const save = () => { setQuiet(q); if (onDone) onDone(); onClose(); };
+  return (
+    <Sheet T={T} title="Quiet hours" onClose={onClose}>
+      <p style={{ color: 'var(--sub)', fontSize: 13 }}>No sounds and no pop-ups on this phone between these times. Messages still arrive.</p>
+      <div className="sc-set-group">
+        <div className="sc-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px' }}>
+          <span>Turn on</span>
+          <button type="button" role="switch" aria-checked={q.on} className="sc-switch" onClick={() => setQ({ ...q, on: !q.on })} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, margin: '12px 0' }}>
+        <div style={{ flex: 1 }}><label className="sc-label">From</label><input className="sc-field" type="time" value={q.from} onChange={(e) => setQ({ ...q, from: e.target.value })} /></div>
+        <div style={{ flex: 1 }}><label className="sc-label">To</label><input className="sc-field" type="time" value={q.to} onChange={(e) => setQ({ ...q, to: e.target.value })} /></div>
+      </div>
+      <button type="button" className="sc-btn" style={{ width: '100%' }} onClick={save}>Save</button>
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------- search all chats
+export function GlobalSearch({ T, onClose, onOpen }) {
+  const [q, setQ] = useState('');
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (q.trim().length < 2) { setRows(null); return undefined; }
+    const t = setTimeout(() => {
+      api.get('messages/search_all/', { params: { q: q.trim() } }).then((r) => setRows(r.data)).catch(() => setRows([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
+  const mark = (text) => {
+    const i = text.toLowerCase().indexOf(q.trim().toLowerCase());
+    if (i < 0) return text;
+    return <>{text.slice(Math.max(0, i - 30), i)}<mark style={{ background: 'var(--accent)', color: '#1a1a1a', borderRadius: 3 }}>{text.slice(i, i + q.trim().length)}</mark>{text.slice(i + q.trim().length, i + 90)}</>;
+  };
+  return (
+    <Sheet T={T} title="Search all chats" onClose={onClose}>
+      <input className="sc-field" placeholder="Type at least 2 letters" value={q} autoFocus onChange={(e) => setQ(e.target.value)} aria-label="Search all messages" />
+      {rows && !rows.length && <p style={{ color: 'var(--sub)', textAlign: 'center', marginTop: 20 }}>No messages found.</p>}
+      {(rows || []).map((r) => (
+        <button type="button" key={r.id} onClick={() => onOpen(r)} style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, background: 'transparent', color: 'inherit', padding: '10px 2px', borderBottom: '1px solid rgba(127,127,127,.18)' }}>
+          <b>{r.name}</b> <small style={{ color: 'var(--sub)' }}>· {r.sender} · {new Date(r.created_at).toLocaleDateString()}</small>
+          <div style={{ fontSize: 14, marginTop: 2 }}>{mark(r.content)}</div>
+        </button>
+      ))}
     </Sheet>
   );
 }

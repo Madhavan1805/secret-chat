@@ -1259,6 +1259,8 @@ function ChatView() {
           </div>
         ) : meta?.blocked_me ? (
           <div className="sc-composer" style={{ textAlign: 'center', color: 'var(--sub)' }}>You can't send messages to this contact.</div>
+        ) : isGroupChat && meta?.announce_only && !meta?.is_admin ? (
+          <div className="sc-composer" style={{ textAlign: 'center', color: 'var(--sub)' }}>📢 Only admins can send messages in this group.</div>
         ) : (
           <form onSubmit={sendMessage} className="sc-composer">
             {mentionQuery !== null && isGroupChat && (
