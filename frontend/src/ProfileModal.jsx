@@ -3,6 +3,7 @@ import { BiX, BiPhoneCall, BiVideo } from 'react-icons/bi';
 import Avatar from './Avatar';
 import { useBackClose } from './backClose';
 import MediaViewer from './MediaViewer';
+import { AskFriend } from './PlusUI3';
 import { getPicUrl, lastSeenText, startCall } from './config';
 
 // A friend's profile: photo, name, bio, online / last seen, quick call buttons.
@@ -41,6 +42,8 @@ export default function ProfileModal({ user, name, T, online, onClose }) {
           <div className="small" style={{ color: T.accent, fontWeight: 600 }}>About</div>
           <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{user?.bio || 'No bio added.'}</div>
         </div>
+
+        <AskFriend userId={user?.id} name={name} T={T} />
 
         <div className="d-flex gap-2 justify-content-center">
           <button type="button" className="btn btn-sm rounded-pill px-3 d-flex align-items-center gap-1" style={{ border: `1px solid ${T.accent}`, color: 'inherit' }} onClick={() => call('audio')}>

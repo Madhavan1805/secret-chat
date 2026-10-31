@@ -13,6 +13,7 @@ import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './th
 import { Seal, SealButton } from './ui';
 import { EventSheet } from './PlusUI2';
 import Doodle from './Doodle';
+import { startSharing } from './liveShare';
 import { shownName, getNick, setNick, getDraft, setDraft } from './nick';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
@@ -756,6 +757,27 @@ function ChatView() {
     setNick(contactName, String(v).trim());
     setNickTick((n) => n + 1);
   };
+  const startLive = () => {
+    setShowAttach(false);
+    if (!navigator.geolocation) { ask({ type: 'alert', title: 'Geolocation is not supported by your browser' }); return; }
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try {
+        const r = await api.post('live/start/', { chat_id: meta.chat_id, lat: pos.coords.latitude, lng: pos.coords.longitude, minutes: 60 });
+        if (r.data && r.data.id) { setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data])); startSharing(r.data.id); }
+        setTimeout(() => scrollToBottom(true), 100);
+      } catch (e) { await handleSendError(e, 'Could not share live location'); }
+    }, () => ask({ type: 'alert', title: 'Unable to retrieve your location' }));
+  };
+  const startGame = async () => {
+    setShowAttach(false);
+    const kind = await ask({ type: 'choice', title: 'Play a game', choices: [{ label: '❌⭕ Tic-tac-toe', value: 'ttt' }, { label: '🪨📄✂️ Rock paper scissors', value: 'rps' }] });
+    if (!kind) return;
+    try {
+      const r = await api.post('games/create/', { chat_id: meta.chat_id, kind });
+      if (r.data && r.data.id) setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
+      setTimeout(() => scrollToBottom(true), 100);
+    } catch (e) { await handleSendError(e, 'Could not start the game'); }
+  };
   const createAlbum = async () => {
     const title = await ask({ type: 'prompt', title: 'New photo album', message: 'Everybody in this chat can add photos. It disappears after 24 hours.', initial: '', maxLength: 60, okText: 'Create' });
     if (title === null || title === undefined || title === false) return;
@@ -1333,6 +1355,8 @@ function ChatView() {
                           {[
                             ['Photo, video or file', () => photoInputRef.current && photoInputRef.current.click()],
                             ['Location', shareLocation],
+                            ['Live location (1 hour)', startLive],
+                            ...(!isGroupChat ? [['Play a game', startGame]] : []),
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
                             ['Doodle', () => { setShowAttach(false); setShowDoodle(true); }],
                             ['Event (RSVP)', () => { setShowAttach(false); setShowEvent(true); }],
