@@ -150,6 +150,8 @@ class Message(models.Model):
         ('poll', 'Poll'),
         ('expense', 'Expense'),
         ('album', 'Album'),
+        ('live', 'Live location'),
+        ('game', 'Game'),
     )
     STATUS_CHOICES = (
         ('sent', 'Sent (Single Tick)'),
@@ -434,3 +436,41 @@ class AlbumPhoto(models.Model):
 
     class Meta:
         ordering = ['created_at', 'id']
+
+
+class LiveLocation(models.Model):
+    """'Share live location' for a while: the sender's phone keeps posting new coordinates."""
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='live')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='live_locations')
+    lat = models.FloatField()
+    lng = models.FloatField()
+    updated_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    stopped = models.BooleanField(default=False)
+
+
+class Game(models.Model):
+    """A small game played inside a 1-to-1 chat: tic-tac-toe ('ttt') or rock-paper-scissors ('rps')."""
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='game')
+    kind = models.CharField(max_length=8)
+    starter = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='games_started')
+    opponent = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='games_joined')
+    board = models.CharField(max_length=20, blank=True, default='')       # ttt: 9 chars of x o . ; rps: unused
+    picks = models.JSONField(default=dict, blank=True)                     # rps: {user_id: 'rock'|'paper'|'scissors'}
+    turn = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    winner = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    finished = models.BooleanField(default=False)
+    draw = models.BooleanField(default=False)
+
+
+class Question(models.Model):
+    """'Ask me anything': a friend asks anonymously, the owner answers, answered ones show on the profile."""
+    to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='questions')
+    from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='questions_asked')   # never sent to anybody
+    text = models.CharField(max_length=300)
+    answer = models.CharField(max_length=500, blank=True, default='')
+    answered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']

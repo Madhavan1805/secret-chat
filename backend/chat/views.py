@@ -193,6 +193,10 @@ def message_preview(msg):
         return '🎞️ GIF'
     if t == 'poll':
         return '📊 ' + (c[:60] or 'Poll')
+    if t == 'live':
+        return '📍 Live location'
+    if t == 'game':
+        return c[:40] or '🎮 Game'
     if t == 'album':
         return '🖼️ Album: ' + (c[:50] or 'Photos')
     if msg.status_ref_id:
@@ -794,7 +798,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = (Message.objects.select_related('sender', 'receiver', 'chat', 'status_ref__user')
-                .prefetch_related('read_by', 'starred_by', 'poll__options__votes__user', 'album__photos__user', 'whisper_to', 'time_unlocks', 'expense__shares__user'))
+                .prefetch_related('read_by', 'starred_by', 'poll__options__votes__user', 'album__photos__user', 'live', 'game__starter', 'game__opponent', 'whisper_to', 'time_unlocks', 'expense__shares__user'))
 
         if self.action != 'list':
             return base.filter(Q(sender=user) | Q(receiver=user) | Q(chat__participants=user)).distinct()
@@ -860,7 +864,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         unlock_at = parse_unlock_at(self.request.data.get('unlock_at'))
         if unlock_at:
             extra['unlock_at'] = unlock_at
-        if to_bool(self.request.data.get('time_lock')) and self.request.data.get('message_type') not in ('poll', 'expense', 'system', 'album'):
+        if to_bool(self.request.data.get('time_lock')) and self.request.data.get('message_type') not in ('poll', 'expense', 'system', 'album', 'live', 'game'):
             extra['time_lock'] = True
             extra['time_lock_relock'] = to_bool(self.request.data.get('time_lock_relock'))
         whisper_ids = self._whisper_ids()

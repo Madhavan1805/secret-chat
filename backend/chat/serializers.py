@@ -64,6 +64,8 @@ class MessageSerializer(serializers.ModelSerializer):
     status_preview = serializers.SerializerMethodField()
     expense = serializers.SerializerMethodField()
     album = serializers.SerializerMethodField()
+    live = serializers.SerializerMethodField()
+    game = serializers.SerializerMethodField()
     whisper = serializers.SerializerMethodField()
 
     class Meta:
@@ -104,6 +106,27 @@ class MessageSerializer(serializers.ModelSerializer):
         return {"question": poll.question, "multiple": poll.multiple, "closed": poll.closed,
                 "options": options, "total_voters": len(voters),
                 "event_at": poll.event_at, "event_place": poll.event_place}
+
+    def get_live(self, obj):
+        if obj.message_type != 'live':
+            return None
+        try:
+            live = obj.live
+        except ObjectDoesNotExist:
+            return None
+        from .extras3 import live_data
+        return live_data(live)
+
+    def get_game(self, obj):
+        if obj.message_type != 'game':
+            return None
+        try:
+            g = obj.game
+        except ObjectDoesNotExist:
+            return None
+        request = self.context.get('request')
+        from .extras3 import game_data
+        return game_data(g, request.user.id if request else 0)
 
     def get_album(self, obj):
         if obj.message_type != 'album':
@@ -173,7 +196,7 @@ class MessageSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         masked = self._is_masked(instance)
         if masked:
-            for key in ('content', 'file_url', 'voice_note', 'file_name', 'file_size', 'status_preview', 'reply_to', 'expense', 'album'):
+            for key in ('content', 'file_url', 'voice_note', 'file_name', 'file_size', 'status_preview', 'reply_to', 'expense', 'album', 'live', 'game'):
                 if key in data:
                     data[key] = None if key != 'content' else ''
             data['masked'] = masked

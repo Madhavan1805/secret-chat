@@ -9,6 +9,7 @@ import { lockEnabled } from './appLock';
 import AccountsSheet from './Accounts';
 import AdminPanel from './AdminPanel';
 import { getQuiet } from './quiet';
+import { AskInbox } from './PlusUI3';
 import { MoodSheet, BirthdaySheet, AwaySheet, QuietSheet } from './PlusUI2';
 import { listAccounts } from './accounts';
 import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
@@ -132,6 +133,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       <div className="sc-set-group">
         <SettingRow icon={<BiUserCircle />} title="Switch account" sub={listAccounts().length > 1 ? `${listAccounts().length} accounts on this phone` : 'Add another account'} onClick={() => setSheet('accounts')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>🙈</span>} title="Ask me anything" sub="Anonymous questions from friends" onClick={() => setSheet('ask')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>🎂</span>} title="My birthday" sub={me?.birthday ? `${me.birthday.split('-')[1]}/${me.birthday.split('-')[0]}` : 'Friends get a note on the day'} onClick={() => setSheet('bday')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>🤖</span>} title="Away auto-reply" sub={me?.away ? 'On' : 'Off'} onClick={() => setSheet('away')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>{me?.mood?.emoji || '🙂'}</span>} title="My mood" sub={me?.mood ? `${me.mood.emoji} ${me.mood.text}`.trim() : 'Show friends how you feel for 24 hours'} onClick={() => setSheet('mood')} right={chev} />
@@ -164,6 +166,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       {cropFile && <PhotoCropper T={T} file={cropFile} onCancel={() => setCropFile(null)} onDone={upload} />}
       {sheet === 'quick' && <QuickReactionSheet T={T} onClose={close} />}
+      {sheet === 'ask' && <AskInbox T={T} onClose={close} ask={ask} />}
       {sheet === 'quiet' && <QuietSheet T={T} onClose={close} />}
       {sheet === 'bday' && <BirthdaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'away' && <AwaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}

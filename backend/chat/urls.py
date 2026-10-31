@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admin_unban_view,
                         admin_reports_view, admin_resolve_view, report_view)
 from .extras2 import album_create_view, album_add_view, mood_view, away_view
+from .extras3 import (live_start_view, live_update_view, game_create_view, game_move_view,
+                      ask_send_view, ask_inbox_view, ask_answer_view, ask_public_view)
 from .auth_views import login_view, register_view, check_view, forgot_view, reset_view
 from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
@@ -37,6 +39,14 @@ urlpatterns = [
     path('albums/add/', album_add_view),
     path('users/mood/', mood_view),
     path('users/away/', away_view),
+    path('live/start/', live_start_view),
+    path('live/update/', live_update_view),
+    path('games/create/', game_create_view),
+    path('games/move/', game_move_view),
+    path('ask/send/', ask_send_view),
+    path('ask/inbox/', ask_inbox_view),
+    path('ask/answer/', ask_answer_view),
+    path('ask/public/', ask_public_view),
     path('admin-api/stats/', admin_stats_view),
     path('admin-api/users/', admin_users_view),
     path('admin-api/users/ban/', admin_ban_view),
