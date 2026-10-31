@@ -152,6 +152,7 @@ class Message(models.Model):
         ('album', 'Album'),
         ('live', 'Live location'),
         ('game', 'Game'),
+        ('checklist', 'Checklist'),
     )
     STATUS_CHOICES = (
         ('sent', 'Sent (Single Tick)'),
@@ -474,3 +475,20 @@ class Question(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class Checklist(models.Model):
+    """A shared to-do list inside a chat: everybody in the chat can tick items and add new ones."""
+    message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='checklist')
+    title = models.CharField(max_length=80)
+
+
+class ChecklistItem(models.Model):
+    checklist = models.ForeignKey(Checklist, on_delete=models.CASCADE, related_name='items')
+    text = models.CharField(max_length=120)
+    done = models.BooleanField(default=False)
+    done_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']

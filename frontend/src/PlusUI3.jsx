@@ -151,3 +151,63 @@ export function AskFriend({ userId, name, T }) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------- shared checklist
+export function ChecklistCard({ msg, onChanged, ask }) {
+  const c = msg.checklist;
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const call = async (path, body) => {
+    if (busy) return;
+    setBusy(true);
+    try { const r = await api.post(path, body); onChanged && onChanged(r.data); } catch (e) { ask && ask({ type: 'alert', title: errMsg(e, 'Could not update') }); }
+    setBusy(false);
+  };
+  const done = c.items.filter((i) => i.done).length;
+  return (
+    <div style={{ minWidth: 220 }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16 }}>✅ {c.title}</div>
+      <div style={{ fontSize: 11.5, opacity: 0.75, marginBottom: 6 }}>{done} of {c.items.length} done</div>
+      {c.items.map((i) => (
+        <button type="button" key={i.id} className={`cl2-item${i.done ? ' done' : ''}`} onClick={() => call('checklist/toggle/', { item_id: i.id })}>
+          <span className="cl2-box">{i.done ? '✓' : ''}</span>
+          <span className="cl2-t" style={{ flex: 1 }}>{i.text}{i.done && i.by ? <small style={{ opacity: 0.7 }}> · {i.by}</small> : null}</span>
+        </button>
+      ))}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <input value={text} maxLength={120} placeholder="Add item" onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { call('checklist/add/', { checklist_id: c.id, text }); setText(''); } }}
+          style={{ flex: 1, minWidth: 0, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(0,0,0,.16)', color: 'inherit', padding: '0 10px' }} />
+        <button type="button" className="sc-btn ghost" style={{ height: 34, padding: '0 12px' }} disabled={!text.trim() || busy}
+          onClick={() => { call('checklist/add/', { checklist_id: c.id, text }); setText(''); }}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+export function ChecklistSheet({ T, onClose, onCreate }) {
+  const [title, setTitle] = useState('');
+  const [items, setItems] = useState(['', '']);
+  const [busy, setBusy] = useState(false);
+  const clean = items.map((x) => x.trim()).filter(Boolean);
+  const submit = async () => {
+    setBusy(true);
+    const ok = await onCreate({ title: title.trim() || 'Checklist', items: clean });
+    setBusy(false);
+    if (ok) onClose();
+  };
+  return (
+    <Sheet T={T} title="New checklist" onClose={onClose}>
+      <label className="sc-label">Title</label>
+      <input className="sc-field" placeholder="Trip packing, groceries…" value={title} maxLength={80} autoFocus onChange={(e) => setTitle(e.target.value)} />
+      <label className="sc-label">Items</label>
+      {items.map((it, i) => (
+        <input key={i} className="sc-field" style={{ marginBottom: 8 }} placeholder={`Item ${i + 1}`} value={it} maxLength={120}
+          onChange={(e) => setItems((p) => p.map((x, k) => (k === i ? e.target.value : x)))} />
+      ))}
+      {items.length < 20 && <button type="button" className="sc-btn ghost" onClick={() => setItems((p) => [...p, ''])}>+ Add item</button>}
+      <p style={{ color: 'var(--sub)', fontSize: 12.5 }}>Everybody in this chat can tick items and add more.</p>
+      <button type="button" className="sc-btn" style={{ width: '100%' }} disabled={!clean.length || busy} onClick={submit}>Send checklist</button>
+    </Sheet>
+  );
+}
