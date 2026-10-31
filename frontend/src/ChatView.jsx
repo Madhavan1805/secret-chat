@@ -14,6 +14,7 @@ import { Seal, SealButton } from './ui';
 import { EventSheet } from './PlusUI2';
 import Doodle from './Doodle';
 import { startSharing } from './liveShare';
+import { ChecklistSheet } from './PlusUI3';
 import { shownName, getNick, setNick, getDraft, setDraft } from './nick';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
@@ -91,6 +92,7 @@ function ChatView() {
   const [showPoll, setShowPoll] = useState(false);
   const [showEvent, setShowEvent] = useState(false);
   const [showDoodle, setShowDoodle] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
   useEffect(() => { const t = setTimeout(() => { if (!editing) setDraft(contactName, newMessage); }, 400); return () => clearTimeout(t); }, [newMessage, contactName, editing]);
   const [nickTick, setNickTick] = useState(0);
   const [showCapsule, setShowCapsule] = useState(false);
@@ -757,6 +759,14 @@ function ChatView() {
     setNick(contactName, String(v).trim());
     setNickTick((n) => n + 1);
   };
+  const createChecklist = async (payload) => {
+    try {
+      const r = await api.post('checklist/create/', { chat_id: meta.chat_id, ...payload });
+      if (r.data && r.data.id) setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
+      setTimeout(() => scrollToBottom(true), 100);
+      return true;
+    } catch (e) { await handleSendError(e, 'Could not create the checklist'); return false; }
+  };
   const startLive = () => {
     setShowAttach(false);
     if (!navigator.geolocation) { ask({ type: 'alert', title: 'Geolocation is not supported by your browser' }); return; }
@@ -1139,6 +1149,7 @@ function ChatView() {
       )}
       {showGallery && <GallerySheet T={T} chatId={meta.chat_id} onClose={() => setShowGallery(false)} />}
       {showGroup && isGroupChat && <GroupSheet T={T} meta={meta} me={me} ask={ask} onClose={() => setShowGroup(false)} onChanged={fetchMeta} />}
+      {showChecklist && <ChecklistSheet T={T} onClose={() => setShowChecklist(false)} onCreate={createChecklist} />}
       {showDoodle && <Doodle T={T} onClose={() => setShowDoodle(false)} onDone={(f) => setSelectedFiles((prev) => [...prev, f].slice(0, MAX_FILES))} />}
       {showEvent && <EventSheet T={T} onClose={() => setShowEvent(false)} onCreate={createPoll} />}
       {showPoll && <PollSheet T={T} onClose={() => setShowPoll(false)} onCreate={createPoll} />}
@@ -1358,6 +1369,7 @@ function ChatView() {
                             ['Live location (1 hour)', startLive],
                             ...(!isGroupChat ? [['Play a game', startGame]] : []),
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
+                            ['Checklist', () => { setShowAttach(false); setShowChecklist(true); }],
                             ['Doodle', () => { setShowAttach(false); setShowDoodle(true); }],
                             ['Event (RSVP)', () => { setShowAttach(false); setShowEvent(true); }],
                             ['Photo album (24h)', () => { setShowAttach(false); createAlbum(); }],

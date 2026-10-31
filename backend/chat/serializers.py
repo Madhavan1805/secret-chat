@@ -66,6 +66,7 @@ class MessageSerializer(serializers.ModelSerializer):
     album = serializers.SerializerMethodField()
     live = serializers.SerializerMethodField()
     game = serializers.SerializerMethodField()
+    checklist = serializers.SerializerMethodField()
     whisper = serializers.SerializerMethodField()
 
     class Meta:
@@ -116,6 +117,16 @@ class MessageSerializer(serializers.ModelSerializer):
             return None
         from .extras3 import live_data
         return live_data(live)
+
+    def get_checklist(self, obj):
+        if obj.message_type != 'checklist':
+            return None
+        try:
+            c = obj.checklist
+        except ObjectDoesNotExist:
+            return None
+        from .extras3 import checklist_data
+        return checklist_data(c)
 
     def get_game(self, obj):
         if obj.message_type != 'game':
@@ -196,7 +207,7 @@ class MessageSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         masked = self._is_masked(instance)
         if masked:
-            for key in ('content', 'file_url', 'voice_note', 'file_name', 'file_size', 'status_preview', 'reply_to', 'expense', 'album', 'live', 'game'):
+            for key in ('content', 'file_url', 'voice_note', 'file_name', 'file_size', 'status_preview', 'reply_to', 'expense', 'album', 'live', 'game', 'checklist'):
                 if key in data:
                     data[key] = None if key != 'content' else ''
             data['masked'] = masked

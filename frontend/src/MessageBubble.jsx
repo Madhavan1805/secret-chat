@@ -11,7 +11,7 @@ import { burstAt, rainAll } from './fx';
 import { getPicUrl, formatSize, formatTime } from './config';
 import { useBackClose } from './backClose';
 import { AlbumCard, eventWhen } from './PlusUI2';
-import { LiveCard, GameCard } from './PlusUI3';
+import { LiveCard, GameCard, ChecklistCard } from './PlusUI3';
 import { CapsuleLocked, WhisperLocked, TimeLocked, MsgTags, ExpenseCard } from './PlusUI';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -166,6 +166,7 @@ export default function MessageBubble({
   const isExpense = msg.message_type === 'expense' && !!msg.expense;
   const isAlbum = msg.message_type === 'album' && !!msg.album;
   const isLive = msg.message_type === 'live' && !!msg.live;
+  const isChecklist = msg.message_type === 'checklist' && !!msg.checklist;
   const isGame = msg.message_type === 'game' && !!msg.game;
   const isSticker = content.startsWith(STICKER_PREFIX);
   const isGif = content.startsWith(GIF_PREFIX);
@@ -307,6 +308,7 @@ export default function MessageBubble({
               </a>
             )}
             {isPoll && <PollCard poll={msg.poll} onVote={onVote} />}
+            {isChecklist && <ChecklistCard msg={msg} onChanged={onAlbumChanged} ask={onAsk} />}
             {isLive && <LiveCard msg={msg} meId={meId} onChanged={onAlbumChanged} />}
             {isGame && <GameCard msg={msg} meId={meId} onChanged={onAlbumChanged} ask={onAsk} />}
             {isAlbum && <AlbumCard album={msg.album} onChanged={onAlbumChanged} ask={onAsk} />}
@@ -314,7 +316,7 @@ export default function MessageBubble({
             {msg.status_preview && <StatusCard st={msg.status_preview} onOpen={() => setStatusOpen(true)} />}
             {isSticker && <div style={{ fontSize: 76, lineHeight: 1.1 }}>{content.slice(STICKER_PREFIX.length)}</div>}
             {isGif && <img src={content.slice(GIF_PREFIX.length)} alt="GIF" style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 12, display: 'block' }} />}
-            {content && !isAudio && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isSticker && !isGif && (() => {
+            {content && !isAudio && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isChecklist && !isSticker && !isGif && (() => {
               const clamp = isLong && !isLocation && !expanded;
               return (
                 <>
@@ -405,8 +407,8 @@ export default function MessageBubble({
             <div className="d-flex flex-wrap justify-content-between align-items-center mb-2" style={{ maxWidth: 260 }}>
               {[
                 ['Reply', () => onReply(msg), true],
-                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !msg.masked],
-                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !msg.masked],
+                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isChecklist && !msg.masked],
+                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isChecklist && !msg.masked],
                 ['Remind us', () => onRemind && onRemind(msg), !!onRemind && !isViewOnce && !msg.masked && !msg.is_screenshot],
                 [msg.is_starred ? 'Remove star' : 'Star', () => onStar && onStar(msg), !!onStar && !isViewOnce],
                 ['Edit', () => onEdit(msg), canEdit],

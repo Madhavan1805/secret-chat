@@ -13,6 +13,7 @@ import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
 import { GlobalSearch } from './PlusUI2';
 import { shownName, getDraft } from './nick';
+import { getFolders, addFolder, removeFolder, toggleInFolder } from './folders';
 import { RequestsSheet, FindPeopleSheet } from './People';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
@@ -76,6 +77,8 @@ function Home() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [globalOpen, setGlobalOpen] = useState(false);
+  const [folders, setFolders] = useState(getFolders());
+  const [folderId, setFolderId] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
 
   const [activeTab, setActiveTab] = useState('chats');
@@ -401,6 +404,31 @@ function Home() {
   const archivedGroups = groups.filter((g) => g.is_archived);
   const archivedCount = archivedFriends.length + archivedGroups.length;
 
+  const newFolder = async () => {
+    const name = await ask({ type: 'prompt', title: 'New folder', message: 'Example: Family, College, Work', initial: '', maxLength: 20, okText: 'Create' });
+    if (!name || !String(name).trim()) return null;
+    const list = addFolder(String(name));
+    setFolders(list);
+    return list[list.length - 1];
+  };
+  const pickFolder = async (key) => {
+    setRowMenu(null);
+    const cur = getFolders();
+    const v = await ask({ type: 'choice', title: 'Add to folder', choices: [
+      ...cur.map((f) => ({ label: `${f.keys.includes(key) ? '✅ ' : ''}${f.name}`, value: f.id })),
+      { label: '➕ New folder', value: '__new' }] });
+    if (!v) return;
+    if (v === '__new') { const f = await newFolder(); if (f) setFolders(toggleInFolder(f.id, key)); return; }
+    setFolders(toggleInFolder(v, key));
+  };
+  const deleteFolder = async (f) => {
+    const ok = await ask({ type: 'confirm', title: `Delete folder "${f.name}"?`, message: 'Chats stay, only the folder goes.', danger: true, okText: 'Delete' });
+    if (!ok) return;
+    setFolders(removeFolder(f.id));
+    if (folderId === f.id) setFolderId(null);
+  };
+  const inFolder = (key) => { const f = folders.find((x) => x.id === folderId); return !f || f.keys.includes(key); };
+
   const buildMenu = (key, payload, o, extra = []) => {
     if (muteFor === key) {
       return [
@@ -414,6 +442,7 @@ function Home() {
       [o.is_pinned ? 'Unpin' : 'Pin to top', () => chatSetting({ ...payload, is_pinned: !o.is_pinned })],
       o.is_muted ? ['Unmute', () => chatSetting({ ...payload, mute_hours: 0 })] : ['Mute…', () => setMuteFor(key), false, true],
       [o.is_archived ? 'Unarchive' : 'Archive', () => chatSetting({ ...payload, is_archived: !o.is_archived })],
+      ['Folder…', () => pickFolder(key)],
       ...extra,
     ];
   };
@@ -508,6 +537,15 @@ function Home() {
                   onChange={handleSearch} aria-label="Search chats" />
                 <button type="button" onClick={() => setGlobalOpen(true)} style={{ border: 0, background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap' }}>In messages</button>
               </label>
+              <div className="fd-bar">
+                <button type="button" className={`px-chip${folderId === null ? ' on' : ''}`} onClick={() => setFolderId(null)}>All</button>
+                {folders.map((f) => (
+                  <button type="button" key={f.id} className={`px-chip${folderId === f.id ? ' on' : ''}`} onClick={() => setFolderId(f.id)}
+                    onContextMenu={(e) => { e.preventDefault(); deleteFolder(f); }}
+                    onTouchStart={(e) => { const t = setTimeout(() => deleteFolder(f), 650); e.currentTarget.ontouchend = () => clearTimeout(t); e.currentTarget.ontouchmove = () => clearTimeout(t); }}>{f.name}</button>
+                ))}
+                <button type="button" className="px-chip" onClick={newFolder} aria-label="New folder">＋</button>
+              </div>
               {globalOpen && <GlobalSearch T={T} onClose={() => setGlobalOpen(false)} onOpen={(r) => { setGlobalOpen(false); navigate(`/chat/${encodeURIComponent(r.name)}`, { state: r.is_group ? { chatId: r.chat_id } : {} }); }} />}
 
               {!ql && <NotesStrip T={T} me={me} notes={notes} friends={friends} onEditMine={() => setNoteOpen(true)} onLiked={fetchNotes} onError={(m) => ask({ type: 'alert', title: m })} />}
@@ -521,8 +559,8 @@ function Home() {
               )}
               {!ql && showArchived && (<>{archivedFriends.map(friendRow)}{archivedGroups.map(groupRow)}</>)}
 
-              {liveFriends.filter((f) => byQuery(f.username)).map(friendRow)}
-              {ql && liveGroups.filter((g) => byQuery(g.group_name)).map(groupRow)}
+              {liveFriends.filter((f) => byQuery(f.username) && inFolder(`f${f.id}`)).map(friendRow)}
+              {(ql || folderId) && liveGroups.filter((g) => byQuery(g.group_name) && inFolder(`g${g.chat_id}`)).map(groupRow)}
 
               {ql && liveFriends.filter((f) => byQuery(f.username)).length === 0 && liveGroups.filter((g) => byQuery(g.group_name)).length === 0 && (
                 <div className="sc-empty">

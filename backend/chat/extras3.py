@@ -219,3 +219,72 @@ def ask_public_view(request):
         return Response([])
     rows = Question.objects.filter(to_user_id=uid).exclude(answer='')[:20]
     return Response([{"id": q.id, "text": q.text, "answer": q.answer} for q in rows])
+
+
+# ================================================================ shared checklist
+from .models import Checklist, ChecklistItem   # noqa: E402
+
+MAX_ITEMS = 40
+
+
+def checklist_data(c):
+    return {"id": c.id, "title": c.title,
+            "items": [{"id": i.id, "text": i.text, "done": i.done,
+                       "by": i.done_by.username if i.done_by_id else None} for i in c.items.all()]}
+
+
+def _member_checklist(request, checklist_id):
+    c = Checklist.objects.select_related('message__chat').filter(pk=to_int(checklist_id)).first()
+    chat = c.message.chat if c else None
+    if not chat or not chat.participants.filter(id=request.user.id).exists():
+        raise PermissionDenied("Not your list.")
+    _direct_guard(request.user, chat)
+    return c, chat
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def checklist_create_view(request):
+    user = request.user
+    chat = resolve_chat(user, request.data)
+    other = _direct_guard(user, chat)
+    title = clean_text(request.data.get('title'), 80) or 'Checklist'
+    raw = request.data.get('items')
+    items = [clean_text(x, 120) for x in (raw if isinstance(raw, (list, tuple)) else [])]
+    items = [x for x in items if x][:MAX_ITEMS]
+    if not items:
+        raise ValidationError({"error": "Add at least one item."})
+    msg = Message.objects.create(chat=chat, sender=user, receiver=other, message_type='checklist', content=f"✅ {title}",
+                                 status='delivered' if (other and other.is_online) else 'sent')
+    c = Checklist.objects.create(message=msg, title=title)
+    ChecklistItem.objects.bulk_create([ChecklistItem(checklist=c, text=t, position=i) for i, t in enumerate(items)])
+    notify_message(chat, msg, 'new')
+    return Response(_out(request, msg), status=201)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def checklist_toggle_view(request):
+    item = ChecklistItem.objects.select_related('checklist').filter(pk=to_int(request.data.get('item_id'))).first()
+    if not item:
+        raise ValidationError({"error": "Not found."})
+    c, chat = _member_checklist(request, item.checklist_id)
+    item.done = not item.done
+    item.done_by = request.user if item.done else None
+    item.save(update_fields=['done', 'done_by'])
+    notify_message(chat, c.message, 'update')
+    return Response(_out(request, c.message))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def checklist_add_view(request):
+    c, chat = _member_checklist(request, request.data.get('checklist_id'))
+    text = clean_text(request.data.get('text'), 120)
+    if not text:
+        raise ValidationError({"error": "Write the item."})
+    if c.items.count() >= MAX_ITEMS:
+        raise ValidationError({"error": f"At most {MAX_ITEMS} items."})
+    ChecklistItem.objects.create(checklist=c, text=text, position=c.items.count())
+    notify_message(chat, c.message, 'update')
+    return Response(_out(request, c.message))

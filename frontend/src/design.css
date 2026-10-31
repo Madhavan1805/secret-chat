@@ -547,3 +547,11 @@ html, body { background: var(--page-bg, #0F0B14); }
 .ad-more p { margin: 2px 0; word-break: break-word; }
 .ad-more .sc-btn { height: 38px; margin-top: 8px; }
 .ad-more .sc-btn.danger { background: #ff3b30; color: #fff; }
+
+/* ---- chat folders + checklist ---- */
+.fd-bar { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.fd-bar::-webkit-scrollbar { display: none; }
+.fd-bar .px-chip { flex: none; white-space: nowrap; }
+.cl2-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 4px; border: 0; background: transparent; color: inherit; text-align: left; }
+.cl2-box { width: 22px; height: 22px; border-radius: 7px; border: 2px solid currentColor; display: grid; place-items: center; flex: none; font-size: 14px; }
+.cl2-item.done .cl2-t { text-decoration: line-through; opacity: .6; }
