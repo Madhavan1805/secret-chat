@@ -78,7 +78,7 @@ function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [globalOpen, setGlobalOpen] = useState(false);
   const [folders, setFolders] = useState(getFolders());
-  const [folderId, setFolderId] = useState(null);
+  const [folderId, setFolderId] = useState(null);                 // null = All, 'unread' = only unread
   const [searchResults, setSearchResults] = useState([]);
 
   const [activeTab, setActiveTab] = useState('chats');
@@ -427,7 +427,11 @@ function Home() {
     setFolders(removeFolder(f.id));
     if (folderId === f.id) setFolderId(null);
   };
-  const inFolder = (key) => { const f = folders.find((x) => x.id === folderId); return !f || f.keys.includes(key); };
+  const inFolder = (key, unread = 0) => {
+    if (folderId === 'unread') return unread > 0;
+    const f = folders.find((x) => x.id === folderId);
+    return !f || f.keys.includes(key);
+  };
 
   const buildMenu = (key, payload, o, extra = []) => {
     if (muteFor === key) {
@@ -539,6 +543,7 @@ function Home() {
               </label>
               <div className="fd-bar">
                 <button type="button" className={`px-chip${folderId === null ? ' on' : ''}`} onClick={() => setFolderId(null)}>All</button>
+                <button type="button" className={`px-chip${folderId === 'unread' ? ' on' : ''}`} onClick={() => setFolderId(folderId === 'unread' ? null : 'unread')}>Unread</button>
                 {folders.map((f) => (
                   <button type="button" key={f.id} className={`px-chip${folderId === f.id ? ' on' : ''}`} onClick={() => setFolderId(f.id)}
                     onContextMenu={(e) => { e.preventDefault(); deleteFolder(f); }}
@@ -559,8 +564,8 @@ function Home() {
               )}
               {!ql && showArchived && (<>{archivedFriends.map(friendRow)}{archivedGroups.map(groupRow)}</>)}
 
-              {liveFriends.filter((f) => byQuery(f.username) && inFolder(`f${f.id}`)).map(friendRow)}
-              {(ql || folderId) && liveGroups.filter((g) => byQuery(g.group_name) && inFolder(`g${g.chat_id}`)).map(groupRow)}
+              {liveFriends.filter((f) => byQuery(f.username) && inFolder(`f${f.id}`, f.unread_count)).map(friendRow)}
+              {(ql || folderId) && liveGroups.filter((g) => byQuery(g.group_name) && inFolder(`g${g.chat_id}`, g.unread_count)).map(groupRow)}
 
               {ql && liveFriends.filter((f) => byQuery(f.username)).length === 0 && liveGroups.filter((g) => byQuery(g.group_name)).length === 0 && (
                 <div className="sc-empty">

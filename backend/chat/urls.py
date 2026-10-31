@@ -5,7 +5,8 @@ from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admi
 from .extras2 import album_create_view, album_add_view, mood_view, away_view
 from .extras3 import (live_start_view, live_update_view, game_create_view, game_move_view,
                       ask_send_view, ask_inbox_view, ask_answer_view, ask_public_view,
-                      checklist_create_view, checklist_toggle_view, checklist_add_view)
+                      checklist_create_view, checklist_toggle_view, checklist_add_view,
+                      online_watch_view, export_data_view)
 from .auth_views import login_view, register_view, check_view, forgot_view, reset_view
 from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
@@ -44,6 +45,8 @@ urlpatterns = [
     path('live/update/', live_update_view),
     path('games/create/', game_create_view),
     path('games/move/', game_move_view),
+    path('users/online-watch/', online_watch_view),
+    path('account/export/', export_data_view),
     path('checklist/create/', checklist_create_view),
     path('checklist/toggle/', checklist_toggle_view),
     path('checklist/add/', checklist_add_view),

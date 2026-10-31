@@ -288,3 +288,56 @@ def checklist_add_view(request):
     ChecklistItem.objects.create(checklist=c, text=text, position=c.items.count())
     notify_message(chat, c.message, 'update')
     return Response(_out(request, c.message))
+
+
+# ================================================================ tell me when X is online
+from .models import OnlineWatch   # noqa: E402
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def online_watch_view(request):
+    user = request.user
+    if request.method == 'POST':
+        uid = to_int(request.data.get('user_id'))
+        if not uid or uid == user.id or not are_friends(user, uid) or blocked_between(user.id, uid):
+            raise PermissionDenied("You can't watch this person.")
+        if request.data.get('on') in (False, 'false', '0', 0):
+            OnlineWatch.objects.filter(watcher=user, target_id=uid).delete()
+        else:
+            if OnlineWatch.objects.filter(watcher=user).count() >= 30:
+                raise ValidationError({"error": "Too many alerts (max 30)."})
+            OnlineWatch.objects.get_or_create(watcher=user, target_id=uid)
+    return Response(list(OnlineWatch.objects.filter(watcher=user).values_list('target_id', flat=True)))
+
+
+# ================================================================ download my data
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_data_view(request):
+    """A JSON copy of my profile, friends and the plain text of my messages (locked chats and secret messages are left out)."""
+    import json
+    from django.http import HttpResponse
+    from .models import Chat, ChatUserSetting, Note
+    from .views import friend_ids_of, visible_to
+    user = request.user
+    locked = set(ChatUserSetting.objects.filter(user=user).exclude(pin_hash='').values_list('chat_id', flat=True))
+    chats = []
+    for chat in Chat.objects.filter(participants=user).exclude(id__in=locked).prefetch_related('participants'):
+        other = None if chat.is_group else next((p for p in chat.participants.all() if p.id != user.id), None)
+        rows = (visible_to(Message.objects.filter(chat=chat), user)
+                .filter(time_lock=False, whisper_to=None).exclude(content__startswith='[VIEW_ONCE]')
+                .exclude(unlock_at__gt=timezone.now()).select_related('sender').order_by('created_at')[:5000])
+        chats.append({"chat": chat.group_name if chat.is_group else (other.username if other else ''),
+                      "is_group": chat.is_group,
+                      "messages": [{"time": m.created_at.isoformat(), "from": m.sender.username, "type": m.message_type,
+                                    "text": m.content or ''} for m in rows]})
+    note = Note.objects.filter(user=user).first()
+    data = {"exported_at": timezone.now().isoformat(),
+            "profile": {"username": user.username, "email": user.email, "phone": user.phone_number, "bio": user.bio,
+                        "joined": user.date_joined.isoformat()},
+            "friends": list(CustomUser.objects.filter(id__in=friend_ids_of(user)).values_list('username', flat=True)),
+            "note": note.text if note else None, "chats": chats}
+    resp = HttpResponse(json.dumps(data, ensure_ascii=False, indent=1), content_type='application/json; charset=utf-8')
+    resp['Content-Disposition'] = 'attachment; filename="chatzy-my-data.json"'
+    return resp

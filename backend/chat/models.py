@@ -492,3 +492,13 @@ class ChecklistItem(models.Model):
 
     class Meta:
         ordering = ['position', 'id']
+
+
+class OnlineWatch(models.Model):
+    """'Tell me when <target> is next online' (one time: it is removed after the push)."""
+    watcher = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='online_watches')
+    target = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='watched_by')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('watcher', 'target')

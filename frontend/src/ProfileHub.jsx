@@ -70,6 +70,16 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
   const [cropFile, setCropFile] = useState(null);          // picture waiting to be adjusted
   const [sounds, setSounds] = useState(soundsEnabled());
   const close = () => setSheet(null);
+  const downloadData = async () => {
+    try {
+      const r = await api.get('account/export/', { responseType: 'blob' });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'chatzy-my-data.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not download') }); }
+  };
 
   const pickPhoto = (e) => {
     const file = e.target.files[0];
@@ -144,6 +154,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       <div className="sc-set-group">
         <SettingRow icon={<BiShield />} title="Privacy" sub="Last seen, photo, read receipts" onClick={() => setSheet('privacy')} right={chev} />
         <SettingRow icon={<BiLock />} title="App lock" sub={lockEnabled() ? 'PIN is on' : 'Off'} onClick={() => setSheet('lock')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>📥</span>} title="Download my data" sub="Profile, friends and your chats as a file" onClick={downloadData} right={chev} />
         <SettingRow icon={<BiDevices />} title="Logged-in devices" onClick={() => setSheet('devices')} right={chev} />
         {me?.is_admin && <SettingRow icon={<BiShield />} title="Admin panel" sub="Users, reports and bans" onClick={() => setSheet('admin')} right={chev} />}
         <SettingRow icon={<BiBlock />} title="Blocked users" sub={blockedUsers.length ? `${blockedUsers.length} blocked` : 'Nobody'} onClick={() => setSheet('blocked')} right={chev} />

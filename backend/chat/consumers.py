@@ -34,6 +34,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self.touch()
         if _connections[self.user.id] == 1:
             await self.broadcast_presence(True)
+            await self.fire_online_watches()
 
     async def disconnect(self, code):
         user = getattr(self, "user", None)
@@ -84,6 +85,24 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if not token:
             return None
         return user_for_key(token)
+
+    @database_sync_to_async
+    def fire_online_watches(self):
+        """Friends who asked 'tell me when X is online' get one push, then the request is gone."""
+        from django.core.cache import cache
+        from .models import OnlineWatch
+        from .push import send_push
+        if CustomUser.objects.filter(pk=self.user.pk, privacy_last_seen="nobody").exists():
+            return
+        rows = list(OnlineWatch.objects.filter(target=self.user))
+        if not rows or not cache.add(f"onlinewatch:{self.user.id}", 1, 60):      # flicker guard: reconnects within a minute
+            return
+        ids = [r.watcher_id for r in rows]
+        OnlineWatch.objects.filter(pk__in=[r.pk for r in rows]).delete()
+        try:
+            send_push(ids, "Chatzy", f"🟢 {self.user.username} is online now", {})
+        except Exception:
+            pass
 
     @database_sync_to_async
     def hides_presence(self):
