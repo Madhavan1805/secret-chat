@@ -23,10 +23,19 @@ function useApkInfo() {
     let live = true;
     (async () => {
       try {
-        const r = await fetch(APK, { method: 'HEAD', cache: 'no-store' });
+        // read only the first bytes: a real APK is a zip file and starts with "PK"; the web page (HTML) does not
+        const r = await fetch(APK, { headers: { Range: 'bytes=0-3' }, cache: 'no-store' });
         const type = (r.headers.get('content-type') || '').toLowerCase();
-        const len = Number(r.headers.get('content-length') || 0);
-        const ok = r.ok && !type.includes('text/html') && len > 1000000;        // a real APK is megabytes: a tiny answer is the web page, not the app
+        let head = new Uint8Array(0);
+        if (r.ok && r.body) {
+          const reader = r.body.getReader();
+          const first = await reader.read();
+          try { await reader.cancel(); } catch (e) { /* ignore */ }
+          head = first.value || head;
+        }
+        const total = Number((r.headers.get('content-range') || '').split('/')[1] || r.headers.get('content-length') || 0);
+        const ok = r.ok && !type.includes('text/html') && head[0] === 0x50 && head[1] === 0x4b;
+        const len = total > 1000000 ? total : 0;
         let version = '';
         try { version = (await (await fetch('/app-version.json', { cache: 'no-store' })).json()).version || ''; } catch (e) { /* optional */ }
         if (live) setInfo({ ready: ok, version, size: len ? `${(len / 1048576).toFixed(1)} MB` : '' });
