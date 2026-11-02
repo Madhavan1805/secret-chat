@@ -25,8 +25,8 @@ function useApkInfo() {
       try {
         const r = await fetch(APK, { method: 'HEAD', cache: 'no-store' });
         const type = (r.headers.get('content-type') || '').toLowerCase();
-        const ok = r.ok && !type.includes('text/html');
         const len = Number(r.headers.get('content-length') || 0);
+        const ok = r.ok && !type.includes('text/html') && len > 1000000;        // a real APK is megabytes: a tiny answer is the web page, not the app
         let version = '';
         try { version = (await (await fetch('/app-version.json', { cache: 'no-store' })).json()).version || ''; } catch (e) { /* optional */ }
         if (live) setInfo({ ready: ok, version, size: len ? `${(len / 1048576).toFixed(1)} MB` : '' });
