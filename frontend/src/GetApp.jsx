@@ -34,12 +34,14 @@ function useApkInfo() {
           head = first.value || head;
         }
         const total = Number((r.headers.get('content-range') || '').split('/')[1] || r.headers.get('content-length') || 0);
-        const ok = r.ok && !type.includes('text/html') && head[0] === 0x50 && head[1] === 0x4b;
+        // hide the button only when we are SURE the file is not an APK (missing, or the web page); unknown = show it
+        const bad = !r.ok || type.includes('text/html') || (head.length >= 2 && !(head[0] === 0x50 && head[1] === 0x4b));
+        const ok = !bad;
         const len = total > 1000000 ? total : 0;
         let version = '';
         try { version = (await (await fetch('/app-version.json', { cache: 'no-store' })).json()).version || ''; } catch (e) { /* optional */ }
         if (live) setInfo({ ready: ok, version, size: len ? `${(len / 1048576).toFixed(1)} MB` : '' });
-      } catch (e) { if (live) setInfo({ ready: false, version: '', size: '' }); }
+      } catch (e) { if (live) setInfo({ ready: true, version: '', size: '' }); }
     })();
     return () => { live = false; };
   }, []);
