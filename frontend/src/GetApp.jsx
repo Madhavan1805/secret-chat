@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { BiDownload, BiMobileAlt } from 'react-icons/bi';
 
 const APK = '/chatzy.apk';
+const FLAG = 'chatzy_app_got';
+// a website cannot tell whether the app is installed, so we remember (in this browser) that the person already took it
+const hasApp = () => { try { return localStorage.getItem(FLAG) === '1'; } catch (e) { return false; } };
+const markApp = () => { try { localStorage.setItem(FLAG, '1'); } catch (e) { /* ignore */ } };
 
 // true inside the Android app (WebView) or an installed home-screen app: no need to offer a download there
 export const insideApp = () => {
@@ -61,12 +65,15 @@ function useInstallPrompt() {
 // small card on the login page (Android browsers only)
 export function GetAppCard() {
   const apk = useApkInfo();
-  if (insideApp() || !isAndroid() || !apk.ready) return null;
+  const [gone, setGone] = useState(hasApp());
+  if (gone || insideApp() || !isAndroid() || !apk.ready) return null;
   return (
     <div className="ga-card">
       <span className="ga-ic"><BiMobileAlt /></span>
       <div className="ga-t"><b>Get the Chatzy app</b><small>Faster, full screen{apk.size ? ` · ${apk.size}` : ''}</small></div>
       <Link to="/download" className="ga-btn">Download</Link>
+      <button type="button" aria-label="I already have the app" title="I already have the app" onClick={() => { markApp(); setGone(true); }}
+              style={{ background: 'none', border: 0, color: 'var(--sub, #999)', fontSize: 20, lineHeight: 1, padding: 4, alignSelf: 'flex-start' }}>×</button>
     </div>
   );
 }
@@ -97,7 +104,7 @@ export function DownloadPage() {
           ) : (
             <>
               {apk.ready ? (
-                <a className="ga-big" href={APK} download="Chatzy.apk"><BiDownload /> Download for Android{apk.version ? ` · v${apk.version}` : ''}</a>
+                <a className="ga-big" href={APK} download="Chatzy.apk" onClick={markApp}><BiDownload /> Download for Android{apk.version ? ` · v${apk.version}` : ''}</a>
               ) : (
                 <div className="ga-box"><b>The Android file is not uploaded yet.</b><p>Please check back soon.</p></div>
               )}
