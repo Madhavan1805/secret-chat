@@ -588,3 +588,20 @@ html, body { background: var(--page-bg, #0F0B14); }
 .sk-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 14px; }
 .sk-grid button { border: 0; background: rgba(127,127,127,.12); border-radius: 14px; padding: 4px; aspect-ratio: 1; }
 .sk-grid img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ---- get the app (download page + login card) ---- */
+.ga-card { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 12px 14px; border-radius: 18px; background: var(--raised, rgba(127,127,127,.12)); border: 1px solid var(--line, rgba(127,127,127,.25)); }
+.ga-ic { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; background: var(--accent, #ff6b81); color: #1a1a1a; flex: none; }
+.ga-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.ga-t small { color: var(--sub, #999); }
+.ga-btn { height: 38px; padding: 0 16px; border-radius: 19px; display: inline-grid; place-items: center; font-weight: 700; background: var(--accent, #ff6b81); color: #1a1a1a !important; text-decoration: none !important; }
+.ga-page { min-height: 100dvh; padding: 36px 20px 28px; max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; background: var(--bg, #120d1a); color: var(--text, #fff); }
+.ga-hero h1 { margin: 12px 0 2px; font-weight: 800; }
+.ga-hero p { margin: 0; opacity: .7; }
+.ga-big { width: 100%; height: 54px; border-radius: 27px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; font-size: 16px; background: var(--accent, #ff6b81); color: #1a1a1a !important; text-decoration: none !important; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.ga-box { width: 100%; padding: 16px; border-radius: 18px; background: rgba(127,127,127,.12); border: 1px solid rgba(127,127,127,.25); }
+.ga-box p { margin: 6px 0 0; opacity: .8; }
+.ga-steps { width: 100%; text-align: left; padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 8px; opacity: .9; }
+.ga-alt { border: 0; background: transparent; color: inherit; text-decoration: underline; opacity: .8; }
+.ga-foot { font-size: 12px; opacity: .6; margin: 0; }
+.ga-back { margin-top: auto; color: inherit; opacity: .7; }

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BiUser, BiLock } from 'react-icons/bi';
 import api from './api';
 import AuthLayout, { Field, PasswordField, Alert, SubmitButton } from './AuthLayout';
+import { GetAppCard } from './GetApp';
 import { saveSession, dropSession, hasToken, apiErrors, sessionIsValid } from './auth';
 
 export default function Login() {
@@ -82,6 +83,7 @@ export default function Login() {
 
         <SubmitButton busy={busy}>Log in</SubmitButton>
       </form>
+      <GetAppCard />
 
       {addMode ? (
         <p className="au-alt"><Link className="au-link" to="/home" replace>Cancel</Link></p>
