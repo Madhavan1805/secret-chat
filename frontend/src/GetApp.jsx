@@ -7,7 +7,7 @@ const APK = '/chatzy.apk';
 // true inside the Android app (WebView) or an installed home-screen app: no need to offer a download there
 export const insideApp = () => {
   try {
-    if (/; wv\)|\bwv\b/.test(navigator.userAgent)) return true;
+    if (/; wv\)|\bwv\b|median|gonative/i.test(navigator.userAgent)) return true;      // the Median / GoNative app adds "median" to the user agent
     if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
     if (window.navigator.standalone) return true;
   } catch (e) { /* ignore */ }
