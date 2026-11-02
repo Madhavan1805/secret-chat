@@ -205,6 +205,8 @@ def is_group_admin(chat, user):
 
 def _admin_group(request, chat_id):
     chat = get_object_or_404(Chat, id=to_int(chat_id), is_group=True, participants=request.user)
+    if chat.is_self:
+        raise PermissionDenied('This chat is only for you.')
     if not is_group_admin(chat, request.user):
         raise PermissionDenied('Only group admins can do that.')
     return chat

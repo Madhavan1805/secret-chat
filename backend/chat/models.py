@@ -98,6 +98,8 @@ class Chat(models.Model):
     group_photo = models.ImageField(upload_to='group_photos/', null=True, blank=True, max_length=255)
     admins = models.ManyToManyField(CustomUser, related_name='admin_of_chats', blank=True)
     announce_only = models.BooleanField(default=False)               # only admins can post
+    is_self = models.BooleanField(default=False)                     # 'Saved messages': a private chat with yourself
+    invite_code = models.CharField(max_length=24, null=True, blank=True, unique=True)   # group invite link
 
     # disappearing messages (server side, shared by everyone in the chat)
     disappearing_time = models.IntegerField(default=0)
