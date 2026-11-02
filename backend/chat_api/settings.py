@@ -150,10 +150,14 @@ CSRF_TRUSTED_ORIGINS = []
 
 # Frontend deploy pannina antha URL-a FRONTEND_URL-la podunga
 # e.g. https://secretchat.vercel.app  (trailing slash illama)
-FRONTEND_URL = os.environ.get('FRONTEND_URL', '').rstrip('/')
-if FRONTEND_URL:
-    CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
-    CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
+# More than one site (new domain + old vercel URL): separate them with commas
+#   FRONTEND_URL=https://chatzy.site,https://secret-chat-umber.vercel.app
+FRONTEND_URL = os.environ.get('FRONTEND_URL', '').strip().rstrip('/')
+for _origin in [o.strip().rstrip('/') for o in FRONTEND_URL.split(',') if o.strip()]:
+    if _origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(_origin)
+    if _origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_origin)
 if RENDER_HOST:
     CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_HOST}')
 if RAILWAY_HOST:
