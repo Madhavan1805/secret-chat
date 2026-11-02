@@ -5,7 +5,10 @@ from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admi
 from .extras2 import album_create_view, album_add_view, mood_view, away_view
 from .extras3 import (live_start_view, live_update_view, game_create_view, game_move_view,
                       ask_send_view, ask_inbox_view, ask_answer_view, ask_public_view,
-                      checklist_create_view, checklist_toggle_view, checklist_add_view)
+                      checklist_create_view, checklist_toggle_view, checklist_add_view,
+                      online_watch_view)
+from .extras4 import (self_chat_view, invite_manage_view, invite_info_view, invite_join_view,
+                      translate_view, link_preview_view, backup_view)
 from .auth_views import login_view, register_view, check_view, forgot_view, reset_view
 from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
@@ -44,6 +47,14 @@ urlpatterns = [
     path('live/update/', live_update_view),
     path('games/create/', game_create_view),
     path('games/move/', game_move_view),
+    path('users/online-watch/', online_watch_view),
+    path('chats/self/', self_chat_view),
+    path('groups/invite/', invite_manage_view),
+    path('groups/invite-info/', invite_info_view),
+    path('groups/join/', invite_join_view),
+    path('messages/translate/', translate_view),
+    path('link/preview/', link_preview_view),
+    path('account/backup/', backup_view),
     path('checklist/create/', checklist_create_view),
     path('checklist/toggle/', checklist_toggle_view),
     path('checklist/add/', checklist_add_view),

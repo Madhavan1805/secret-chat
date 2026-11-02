@@ -288,3 +288,24 @@ def checklist_add_view(request):
     ChecklistItem.objects.create(checklist=c, text=text, position=c.items.count())
     notify_message(chat, c.message, 'update')
     return Response(_out(request, c.message))
+
+
+# ================================================================ tell me when X is online
+from .models import OnlineWatch   # noqa: E402
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def online_watch_view(request):
+    user = request.user
+    if request.method == 'POST':
+        uid = to_int(request.data.get('user_id'))
+        if not uid or uid == user.id or not are_friends(user, uid) or blocked_between(user.id, uid):
+            raise PermissionDenied("You can't watch this person.")
+        if request.data.get('on') in (False, 'false', '0', 0):
+            OnlineWatch.objects.filter(watcher=user, target_id=uid).delete()
+        else:
+            if OnlineWatch.objects.filter(watcher=user).count() >= 30:
+                raise ValidationError({"error": "Too many alerts (max 30)."})
+            OnlineWatch.objects.get_or_create(watcher=user, target_id=uid)
+    return Response(list(OnlineWatch.objects.filter(watcher=user).values_list('target_id', flat=True)))

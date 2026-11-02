@@ -93,6 +93,8 @@ function ChatView() {
   const [showEvent, setShowEvent] = useState(false);
   const [showDoodle, setShowDoodle] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [watching, setWatching] = useState(false);
+  useEffect(() => { if (friendId) api.get('users/online-watch/').then((r) => setWatching((r.data || []).includes(friendId))).catch(() => {}); }, [friendId]);
   useEffect(() => { const t = setTimeout(() => { if (!editing) setDraft(contactName, newMessage); }, 400); return () => clearTimeout(t); }, [newMessage, contactName, editing]);
   const [nickTick, setNickTick] = useState(0);
   const [showCapsule, setShowCapsule] = useState(false);
@@ -753,6 +755,14 @@ function ChatView() {
     } catch (e) { await handleSendError(e, 'Could not create the poll'); return false; }
   };
 
+  const watchToggle = async () => {
+    try {
+      const r = await api.post('users/online-watch/', { user_id: friendId, on: !watching });
+      const on = (r.data || []).includes(friendId);
+      setWatching(on);
+      if (on) ask({ type: 'alert', title: 'Done', message: `You will get one notification when ${contactName} is next online.` });
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+  };
   const nicknameMenu = async () => {
     const v = await ask({ type: 'prompt', title: `Nickname for ${contactName}`, message: 'Only you see it. Leave empty to remove.', initial: getNick(contactName), maxLength: 30, okText: 'Save' });
     if (v === null || v === undefined || v === false) return;
@@ -999,7 +1009,7 @@ function ChatView() {
   const doExport = () => exportChatText(contactName, messages);
 
   const menuItems = !meta ? [] : [
-    ...(!isGroupChat ? [['View profile', () => setProfileOpen(true)], ['Set nickname', nicknameMenu]] : [['Group info and members', () => setShowGroup(true)]]),
+    ...(!isGroupChat ? [['View profile', () => setProfileOpen(true)], ['Set nickname', nicknameMenu], [watching ? '🔕 Cancel online alert' : '🔔 Tell me when online', watchToggle]] : [['Group info and members', () => setShowGroup(true)]]),
     ['Search messages', () => { setSearchOpen(true); }],
     ['Media, docs and links', () => setShowGallery(true)],
     [`Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],

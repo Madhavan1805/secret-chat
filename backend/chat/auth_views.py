@@ -150,7 +150,14 @@ def login_view(request):
         msg = 'This account has been banned.' + (f' Reason: {user.ban_reason}' if user.ban_reason else '')
         return Response({'error': msg, 'banned': True}, status=403)
     if user and authenticate(username=user.username, password=password):
+        had_devices = DeviceSession.objects.filter(user=user).exists()
         session = new_device_session(request, user)      # one token per device
+        if had_devices:                                  # security alert on the phones that are already logged in
+            try:
+                from .push import send_push
+                send_push([user.id], 'Chatzy security', f'New login on {session.device_name or "a new device"}. Not you? Open Profile → Logged-in devices.', {})
+            except Exception:
+                logger.exception('login alert failed')
         return Response({'status': 'success', 'token': session.key, 'username': user.username, 'id': user.id})
     return Response({'error': 'Incorrect user ID or password.'}, status=400)
 

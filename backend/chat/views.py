@@ -507,7 +507,7 @@ class ChatViewSet(viewsets.ModelViewSet):
             }
             if chat.is_group:
                 row.update({
-                    "group_name": chat.group_name, "member_count": len(chat.participants.all()),
+                    "group_name": chat.group_name, "member_count": len(chat.participants.all()), "is_self": chat.is_self,
                     "group_photo": request.build_absolute_uri(chat.group_photo.url) if chat.group_photo else None,
                 })
                 groups.append(row)
@@ -559,6 +559,7 @@ class ChatViewSet(viewsets.ModelViewSet):
             "is_archived": s.is_archived,
             "participants": [{"id": p.id, "username": p.username} for p in chat.participants.all()],
             "group_description": chat.group_description,
+            "is_self": chat.is_self,
             "announce_only": chat.announce_only,
             "group_photo": request.build_absolute_uri(chat.group_photo.url) if chat.group_photo else None,
             "admin_ids": sorted(set(chat.admins.values_list('id', flat=True))
@@ -1338,6 +1339,12 @@ class CallViewSet(viewsets.GenericViewSet):
         call_type = request.data.get('call_type', 'audio')
         room_id = f"group_room_{chat.id}"
         others = chat.participants.exclude(id=user.id).values_list('id', flat=True)
+        try:                                       # a line in the chat so late members can see a call is on and join
+            sysmsg = Message.objects.create(chat=chat, sender=user, message_type='system',
+                                            content=f"📞 {user.username} started a group {call_type} call. Tap the call button to join.")
+            notify_message(chat, sysmsg, 'new')
+        except Exception:
+            pass
         notify_users(others, 'call_incoming', call_id=None, room_id=room_id, caller_id=user.id,
                      caller_name=user.username, call_type=call_type, is_group=True,
                      group_name=chat.group_name, chat_id=chat.id)
