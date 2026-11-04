@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { useBackClose } from './backClose';
-import { themeVars } from './ui';
+import { themeVars } from './theme';
 
 // The "+" menu as a bottom sheet of coloured tiles, grouped, instead of one long text list.
 // items: [{ group, label, icon, hue, onClick, on? }]

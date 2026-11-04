@@ -10,6 +10,7 @@ import GlobalEvents from './GlobalEvents';
 import { getToken } from './config';
 import LockGate from './LockGate';
 import { DownloadPage } from './GetApp';
+import Splash from './Splash';
 
 // pages that need a logged-in user: no token -> back to the login page
 function RequireAuth({ children }) {
@@ -20,9 +21,12 @@ export default function App() {
   // If main.jsx already wraps <App /> in a router, don't add a second one.
   const alreadyInRouter = useInRouterContext();
   const Shell = alreadyInRouter ? React.Fragment : BrowserRouter;
+  const [splash, setSplash] = React.useState(() => { try { return !sessionStorage.getItem('chatzy_splash'); } catch (e) { return true; } });
+  const doneSplash = React.useCallback(() => { try { sessionStorage.setItem('chatzy_splash', '1'); } catch (e) { /* ignore */ } setSplash(false); }, []);
 
   return (
     <Shell>
+      {splash && <Splash onDone={doneSplash} />}
       <LockGate>
       <CallManager />
       <GlobalEvents />

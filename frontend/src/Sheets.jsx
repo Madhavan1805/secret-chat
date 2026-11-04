@@ -179,7 +179,7 @@ function Scanner({ onFound }) {
     return () => { stopped = true; clearInterval(timer); if (stream) stream.getTracks().forEach((t) => t.stop()); };
   }, []);
   if (state === 'unsupported' || state === 'denied') {
-    return <p style={{ color: 'var(--sub)', textAlign: 'center', margin: '24px 0' }}>{state === 'denied' ? 'Camera permission is off.' : 'This browser cannot scan codes.'} Type the Secret ID below instead.</p>;
+    return <p style={{ color: 'var(--sub)', textAlign: 'center', margin: '24px 0' }}>{state === 'denied' ? 'Camera permission is off.' : 'This browser cannot scan codes.'} Type the Chatzy ID below instead.</p>;
   }
   return (
     <div style={{ position: 'relative', borderRadius: 24, overflow: 'hidden', background: '#000', aspectRatio: '1' }}>
@@ -207,7 +207,7 @@ export function QrSheet({ T, me, onClose, onAddUser }) {
       ) : (
         <div style={{ marginTop: 20 }}>
           <Scanner onFound={go} />
-          <label className="sc-label"><BiCamera style={{ verticalAlign: '-2px' }} /> Or type a Secret ID</label>
+          <label className="sc-label"><BiCamera style={{ verticalAlign: '-2px' }} /> Or type a Chatzy ID</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input className="sc-field" placeholder="username" value={manual} onChange={(e) => setManual(e.target.value)} autoCapitalize="none" />
             <button type="button" className="sc-btn" disabled={!manual.trim()} onClick={() => go(manual.trim())}>Add</button>

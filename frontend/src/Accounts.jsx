@@ -51,7 +51,7 @@ export default function AccountsSheet({ T, onClose, ask }) {
       </div>
       <button type="button" className="sc-btn ghost" style={{ width: '100%' }} onClick={add}><BiPlus /> Add account</button>
       <p style={{ color: 'var(--sub)', fontSize: 12.5, margin: '12px 4px 0', lineHeight: 1.5 }}>
-        Log in to another Secret ID and switch between them any time without logging out.
+        Log in to another Chatzy ID and switch between them any time without logging out.
       </p>
     </Sheet>
   );
