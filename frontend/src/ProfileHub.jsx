@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle } from 'react-icons/bi';
+import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import { Sheet, Toggle, SettingRow } from './ui';
+import AvatarPicker from './AvatarPicker';
+import { onlineAlertsEnabled, setOnlineAlertsEnabled } from './onlineAlerts';
 import { PrivacySheet, DevicesSheet, LockSheet, QrSheet, StarredSheet, BlockedSheet } from './Sheets';
 import { APP_MODES, CHAT_THEMES } from './theme';
 import { lockEnabled } from './appLock';
@@ -69,6 +71,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
   const [bio, setBio] = useState('');
   const [cropFile, setCropFile] = useState(null);          // picture waiting to be adjusted
   const [sounds, setSounds] = useState(soundsEnabled());
+  const [onlineAlerts, setOnlineAlerts] = useState(onlineAlertsEnabled());
   const close = () => setSheet(null);
 
   const pickPhoto = (e) => {
@@ -126,6 +129,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
                 <button type="button" className="sc-btn" style={{ flex: 1, height: 40, fontSize: 14, whiteSpace: 'nowrap', padding: '0 12px', minWidth: 0 }} onClick={() => { setName(currentUsername); setBio(me?.bio || ''); setEditing(true); }}><BiEdit /> Edit profile</button>
                 <button type="button" className="sc-btn ghost" style={{ flex: 1, height: 40, fontSize: 14, whiteSpace: 'nowrap', padding: '0 12px', minWidth: 0 }} onClick={() => setSheet('qr')}><BiQrScan /> My QR</button>
               </div>
+              <button type="button" className="sc-btn ghost" style={{ width: '100%', height: 40, fontSize: 14, marginTop: 8 }} onClick={() => setSheet('avatar')}><BiSmile /> Choose a cartoon avatar</button>
             </>
           )}
         </div>
@@ -152,6 +156,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       <div className="sc-set-group">
         <SettingRow icon={<BiPalette />} title="Appearance" sub={(CHAT_THEMES[appTheme] || CHAT_THEMES.default).label} onClick={() => setSheet('theme')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>🌙</span>} title="Quiet hours" sub={getQuiet().on ? `${getQuiet().from} – ${getQuiet().to}` : 'Off'} onClick={() => setSheet('quiet')} right={chev} />
+        <SettingRow icon={<BiBell />} title="Online alerts" sub="A small pop-up when a friend comes online" right={<Toggle on={onlineAlerts} onChange={(v) => { setOnlineAlerts(v); setOnlineAlertsEnabled(v); }} label="Online alerts" />} />
         <SettingRow icon={<BiVolumeFull />} title="Sounds" right={<Toggle on={sounds} onChange={(v) => { setSounds(v); setSoundsEnabled(v); }} label="Sounds" />} />
         {notifPerm !== 'unsupported' && (
           <SettingRow icon={<BiBell />} title="Notifications" sub={notifPerm === 'granted' ? 'On' : 'Tap to allow'} onClick={notifPerm === 'granted' ? undefined : enableNotifications} />
@@ -173,6 +178,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       {sheet === 'mood' && <MoodSheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'admin' && <AdminPanel T={T} onClose={close} ask={ask} />}
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
+      {sheet === 'avatar' && <AvatarPicker T={T} ask={ask} onClose={close} onDone={() => { close(); refresh(); }} />}
       {sheet === 'privacy' && <PrivacySheet T={T} onClose={close} ask={ask} />}
       {sheet === 'devices' && <DevicesSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'lock' && <LockSheet T={T} onClose={() => { close(); }} ask={ask} />}

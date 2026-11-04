@@ -77,7 +77,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         for fid in await self.friend_ids():
             await self.channel_layer.group_send(
                 f"user_{fid}",
-                {"type": "push", "payload": {"event": "presence", "user_id": self.user.id, "is_online": is_online}},
+                {"type": "push", "payload": {"event": "presence", "user_id": self.user.id, "is_online": is_online, "username": self.user.username}},
             )
 
     @database_sync_to_async
