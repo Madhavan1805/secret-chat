@@ -1,4 +1,5 @@
 """Live location, small chat games (tic-tac-toe, rock-paper-scissors) and 'Ask me anything'."""
+import random
 from datetime import timedelta
 
 from django.utils import timezone
@@ -83,15 +84,41 @@ WINS = [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4,
 RPS_BEATS = {'rock': 'scissors', 'paper': 'rock', 'scissors': 'paper'}
 
 
+GROUP_GAMES = {'grps': '🪨📄✂️ Group rock paper scissors', 'gnum': '🔢 Guess the number', 'gspin': '🎡 Truth or dare spinner'}
+TRUTHS = ["What's the most embarrassing thing you've done in public?", "Who in this group do you secretly talk to the most?",
+          "What's a lie you told that you still remember?", "Which of your habits would annoy this group the most?",
+          "Who here would you trust with your phone unlocked?", "What's the last thing you searched on your phone?",
+          "Your biggest fear in one line?", "What song do you play when nobody is around?"]
+DARES = ["Send a voice note singing the chorus of any song.", "Change your status to 'I love homework' for an hour.",
+         "Send your most recent selfie to the group.", "Talk only in emojis for the next 5 minutes.",
+         "Type a message with your eyes closed and send it.", "Send a 10-second voice note in a funny accent.",
+         "Compliment everyone in the group in one line each.", "Say the alphabet backwards in a voice note."]
+
+
+def _members(chat):
+    return list(chat.participants.filter(is_active=True))
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def game_create_view(request):
     user = request.user
     chat = resolve_chat(user, request.data)
-    if chat.is_group:
-        raise ValidationError({"error": "Games are for one-to-one chats."})
     other = _direct_guard(user, chat)
     kind = request.data.get('kind')
+    if chat.is_group:
+        if kind not in GROUP_GAMES:
+            raise ValidationError({"error": "Pick a group game."})
+        label = GROUP_GAMES[kind]
+        msg = Message.objects.create(chat=chat, sender=user, receiver=None, message_type='game', content=f"🎮 {label}", status='sent')
+        state = {}
+        if kind == 'gnum':
+            state = {"secret": random.randint(1, 100), "guesses": []}
+        elif kind == 'gspin':
+            state = {"spins": 0}
+        Game.objects.create(message=msg, kind=kind, starter=user, opponent=None, state=state)
+        notify_message(chat, msg, 'new')
+        return Response(_out(request, msg), status=201)
     if kind not in ('ttt', 'rps'):
         raise ValidationError({"error": "Pick a game."})
     label = 'Tic-tac-toe' if kind == 'ttt' else 'Rock paper scissors'
@@ -103,11 +130,72 @@ def game_create_view(request):
     return Response(_out(request, msg), status=201)
 
 
+def _group_move(g, user, move):
+    chat = g.message.chat
+    if not chat or not chat.participants.filter(pk=user.id).exists():
+        raise PermissionDenied("Not your game.")
+    st = g.state or {}
+    if g.kind == 'grps':
+        if g.finished:
+            raise ValidationError({"error": "This round is over."})
+        picks = st.setdefault('picks', {})
+        if move == 'reveal':
+            if user.id != g.starter_id:
+                raise PermissionDenied("Only the one who started the game can reveal.")
+            if len(picks) < 2:
+                raise ValidationError({"error": "Need at least 2 players."})
+        else:
+            if move not in RPS_BEATS:
+                raise ValidationError({"error": "Pick rock, paper or scissors."})
+            if str(user.id) in picks:
+                raise ValidationError({"error": "You already picked."})
+            picks[str(user.id)] = move
+        everyone = {m.id for m in _members(chat)}
+        if move == 'reveal' or everyone <= {int(k) for k in picks}:
+            kinds = set(picks.values())
+            winners = []
+            if len(kinds) == 2:
+                win = next(k for k in kinds if RPS_BEATS[k] in kinds)
+                winners = [int(u) for u, k in picks.items() if k == win]
+            st['winners'] = winners
+            g.finished = True
+            g.draw = not winners
+            if len(winners) == 1:
+                g.winner_id = winners[0]
+    elif g.kind == 'gnum':
+        if g.finished:
+            raise ValidationError({"error": "Already guessed!"})
+        n = to_int(move)
+        if n is None or not 1 <= n <= 100:
+            raise ValidationError({"error": "Guess a number from 1 to 100."})
+        guesses = st.setdefault('guesses', [])
+        secret = st['secret']
+        guesses.append({"u": user.id, "n": n})
+        st['guesses'] = guesses[-30:]
+        if n == secret:
+            g.finished, g.winner_id = True, user.id
+    elif g.kind == 'gspin':
+        members = _members(chat)
+        if not members:
+            raise ValidationError({"error": "No members."})
+        pick = random.choice(members)
+        kind = 'truth' if (move == 'truth' or (move != 'dare' and random.random() < 0.5)) else 'dare'
+        st.update({"spins": st.get('spins', 0) + 1, "who": pick.id, "who_name": pick.username, "type": kind,
+                   "prompt": random.choice(TRUTHS if kind == 'truth' else DARES), "by": user.username})
+    g.state = st
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def game_move_view(request):
     user = request.user
     g = Game.objects.select_related('message__chat').filter(pk=to_int(request.data.get('game_id'))).first()
+    if g and g.kind in GROUP_GAMES:
+        ensure_unlocked(user, g.message.chat)
+        _group_move(g, user, request.data.get('move'))
+        g.save()
+        notify_message(g.message.chat, g.message, 'update')
+        return Response(_out(request, g.message))
     if not g or user.id not in (g.starter_id, g.opponent_id):
         raise PermissionDenied("Not your game.")
     if g.finished:
@@ -147,8 +235,8 @@ def game_move_view(request):
 
 
 def game_data(g, me_id):
-    """What the app gets. Rock-paper-scissors picks stay hidden until both have picked."""
-    out = {"id": g.id, "kind": g.kind, "starter": g.starter.username, "opponent": g.opponent.username,
+    """What the app gets. Rock-paper-scissors picks stay hidden until both have picked; the number secret never leaves the server."""
+    out = {"id": g.id, "kind": g.kind, "starter": g.starter.username, "opponent": g.opponent.username if g.opponent_id else '',
            "starter_id": g.starter_id, "opponent_id": g.opponent_id, "board": g.board,
            "turn_id": g.turn_id, "winner_id": g.winner_id, "winner": g.winner.username if g.winner_id else None,
            "finished": g.finished, "draw": g.draw}
@@ -156,6 +244,29 @@ def game_data(g, me_id):
         out["picked"] = [int(k) for k in g.picks]
         out["my_pick"] = g.picks.get(str(me_id))
         out["picks"] = {k: v for k, v in g.picks.items()} if g.finished else {}
+    elif g.kind in GROUP_GAMES:
+        st = g.state or {}
+        names = {}
+        chat = g.message.chat
+        if chat:
+            names = {m.id: m.username for m in chat.participants.all()}
+        if g.kind == 'grps':
+            picks = st.get('picks', {})
+            out["picked"] = [int(k) for k in picks]
+            out["my_pick"] = picks.get(str(me_id))
+            out["total"] = len(names)
+            if g.finished:
+                out["picks"] = [{"id": int(k), "name": names.get(int(k), '?'), "pick": v} for k, v in picks.items()]
+                out["winners"] = [names.get(w, '?') for w in st.get('winners', [])]
+        elif g.kind == 'gnum':
+            secret = st.get('secret')
+            out["guesses"] = [{"name": names.get(x['u'], '?'), "n": x['n'],
+                               "hint": 'correct' if x['n'] == secret else ('higher' if x['n'] < secret else 'lower')}
+                              for x in st.get('guesses', [])][-8:]
+            if g.finished:
+                out["secret"] = secret
+        else:
+            out["spin"] = {k: st.get(k) for k in ('who', 'who_name', 'type', 'prompt', 'by', 'spins')}
     return out
 
 

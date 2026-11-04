@@ -37,6 +37,27 @@ export function LiveCard({ msg, meId, onChanged }) {
 
 // ---------------------------------------------------------------- games
 const ICON = { rock: '🪨', paper: '📄', scissors: '✂️' };
+function GuessGame({ g, busy, move }) {
+  const [n, setN] = useState('');
+  const go = (e) => { e.preventDefault(); if (n) { move(Number(n)); setN(''); } };
+  return (
+    <div style={{ minWidth: 220 }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ fontWeight: 700 }}>🔢 Guess the number (1–100)</div>
+      <div style={{ fontSize: 12, opacity: 0.8, margin: '2px 0 6px' }}>{g.finished ? `${g.winner} got it! It was ${g.secret} 🎉` : 'Everybody can guess. First correct wins.'}</div>
+      {(g.guesses || []).map((x, i) => (
+        <div key={i} style={{ fontSize: 13 }}>{x.name}: <b>{x.n}</b> {x.hint === 'correct' ? '✅' : x.hint === 'higher' ? '⬆️ higher' : '⬇️ lower'}</div>
+      ))}
+      {!g.finished && (
+        <form onSubmit={go} style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <input type="number" min="1" max="100" value={n} onChange={(e) => setN(e.target.value)} placeholder="1-100"
+            style={{ width: 80, height: 34, borderRadius: 10, border: 0, padding: '0 10px', background: 'rgba(0,0,0,.25)', color: 'inherit' }} />
+          <button type="submit" disabled={busy || !n} style={{ border: 0, borderRadius: 10, padding: '0 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Guess</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export function GameCard({ msg, meId, onChanged, ask }) {
   const g = msg.game;
   const [busy, setBusy] = useState(false);
@@ -49,6 +70,58 @@ export function GameCard({ msg, meId, onChanged, ask }) {
   const other = meId === g.starter_id ? g.opponent : g.starter;
   const result = g.finished ? (g.draw ? "It's a draw 🤝" : (g.winner_id === meId ? 'You won! 🎉' : `${g.winner} won`)) : null;
 
+  if (g.kind === 'grps') {
+    const picked = (g.picked || []).includes(meId);
+    return (
+      <div style={{ minWidth: 220 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontWeight: 700 }}>🪨📄✂️ Group rock paper scissors</div>
+        <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
+          {g.finished ? (g.winners && g.winners.length ? `Winners: ${g.winners.join(', ')} 🎉` : "It's a draw 🤝") : `${(g.picked || []).length}/${g.total} picked${picked ? ' · you are in' : ''}`}
+        </div>
+        {g.finished ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {(g.picks || []).map((p) => <span key={p.id} style={{ background: 'rgba(0,0,0,.22)', borderRadius: 10, padding: '4px 8px', fontSize: 13 }}>{ICON[p.pick]} {p.name}</span>)}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {Object.keys(ICON).map((k) => (
+                <button type="button" key={k} disabled={picked || busy} onClick={() => move(k)}
+                  style={{ width: 60, height: 52, fontSize: 26, border: g.my_pick === k ? '2px solid currentColor' : 0, borderRadius: 12, background: 'rgba(0,0,0,.22)', color: 'inherit' }}>{ICON[k]}</button>
+              ))}
+            </div>
+            {meId === g.starter_id && (g.picked || []).length >= 2 && (
+              <button type="button" disabled={busy} onClick={() => move('reveal')}
+                style={{ marginTop: 8, border: 0, borderRadius: 10, padding: '6px 12px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Reveal now</button>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+  if (g.kind === 'gnum') {
+    return <GuessGame g={g} busy={busy} move={move} />;
+  }
+  if (g.kind === 'gspin') {
+    const sp = g.spin || {};
+    return (
+      <div style={{ minWidth: 220 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontWeight: 700 }}>🎡 Truth or dare spinner</div>
+        {sp.who ? (
+          <div style={{ margin: '8px 0', padding: 10, borderRadius: 12, background: 'rgba(0,0,0,.22)' }}>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>{sp.who === meId ? 'It is YOU! ' : ''}{sp.who_name} got {sp.type === 'truth' ? '🙊 TRUTH' : '🔥 DARE'}</div>
+            <div style={{ marginTop: 4 }}>{sp.prompt}</div>
+          </div>
+        ) : <div style={{ fontSize: 12, opacity: 0.8, margin: '6px 0' }}>Anyone can spin. Everybody in the group is in!</div>}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['Spin 🎲', ''], ['Truth', 'truth'], ['Dare', 'dare']].map(([l, m]) => (
+            <button type="button" key={l} disabled={busy} onClick={() => move(m)}
+              style={{ border: 0, borderRadius: 10, padding: '7px 12px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>{l}</button>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (g.kind === 'ttt') {
     const myTurn = !g.finished && g.turn_id === meId;
     return (

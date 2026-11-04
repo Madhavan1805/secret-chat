@@ -122,9 +122,56 @@ export function PollSheet({ T, onClose, onCreate }) {
 }
 
 // ------------------------------------------------------------------ group info + admin tools
+// A group member's profile with Follow / Requested / Unfollow.
+function MemberProfile({ T, me, member, onClose, ask }) {
+  const [user, setUser] = useState(null);
+  const [rel, setRel] = useState({ state: 'none', reqId: null });
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    try {
+      const [u, r] = await Promise.all([api.get(`users/${member.id}/`), api.get('requests/')]);
+      setUser(u.data);
+      const row = asList(r.data).find((x) => (x.sender === me.id && x.receiver === member.id) || (x.sender === member.id && x.receiver === me.id));
+      if (!row) setRel({ state: 'none', reqId: null });
+      else if (row.status === 'accepted') setRel({ state: 'friends', reqId: row.id });
+      else if (row.status === 'pending') setRel({ state: row.sender === me.id ? 'sent' : 'incoming', reqId: row.id });
+      else setRel({ state: 'none', reqId: null });
+    } catch (e) { setUser({}); }
+  }, [member.id, me.id]);
+  useEffect(() => { load(); }, [load]);
+  const act = async (fn, fail) => { setBusy(true); try { await fn(); await load(); } catch (e) { ask({ type: 'alert', title: errMsg(e, fail) }); } setBusy(false); };
+  const follow = () => act(() => api.post('requests/', { receiver: member.id }), 'Could not follow');
+  const cancel = () => act(() => api.delete(`requests/${rel.reqId}/`), 'Could not cancel');
+  const accept = () => act(() => api.patch(`requests/${rel.reqId}/`, { status: 'accepted' }), 'Could not accept');
+  const unfollow = async () => {
+    if (!(await ask({ type: 'confirm', title: `Unfollow ${member.username}?`, danger: true, okText: 'Unfollow' }))) return;
+    act(() => api.post('users/unfriend/', { user_id: member.id }), 'Could not unfollow');
+  };
+  const isMe = member.id === me.id;
+  return (
+    <Sheet T={T} title="Profile" onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <Avatar src={user?.profile_picture} name={member.username} size={96} T={T} online={!!user?.is_online} />
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, margin: 0 }}>{member.username}</h2>
+        {user && <span style={{ color: user.is_online ? '#22c55e' : 'var(--sub)', fontSize: 13 }}>{user.is_online ? '● Online' : (user.last_seen ? `Last seen ${formatListTime(user.last_seen)}` : '')}</span>}
+        <p style={{ textAlign: 'center', color: 'var(--sub)', margin: '4px 12px' }}>{user ? (user.bio || 'No bio added.') : 'Loading…'}</p>
+      </div>
+      {!isMe && user && (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          {rel.state === 'none' && <button type="button" className="sc-btn" disabled={busy} onClick={follow}>Follow</button>}
+          {rel.state === 'sent' && <button type="button" className="sc-btn ghost" disabled={busy} onClick={cancel}>Requested · Cancel</button>}
+          {rel.state === 'incoming' && <button type="button" className="sc-btn" disabled={busy} onClick={accept}>Accept follow</button>}
+          {rel.state === 'friends' && <button type="button" className="sc-btn ghost" disabled={busy} onClick={unfollow}>Following · Unfollow</button>}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
 export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
   const [friends, setFriends] = useState([]);
   const [adding, setAdding] = useState(false);
+  const [viewMember, setViewMember] = useState(null);
   const [name, setName] = useState(meta.group_name || '');
   const [desc, setDesc] = useState(meta.group_description || '');
   const [dirty, setDirty] = useState(false);
@@ -155,7 +202,7 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
     call(async () => {
-      const fd = new FormData(); fd.append('chat_id', meta.chat_id); fd.append('photo', shortFile(f));
+      const fd = new FormData(); fd.append('chat_id', meta.chat_id); fd.append('group_photo', shortFile(f));
       await api.post('groups/update/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
     }, 'Could not upload');
   };
@@ -206,13 +253,13 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
       <label className="sc-label">{members.length} members</label>
       <div className="sc-set-group">
         {members.map((u) => (
-          <div key={u.id} className="sc-set" style={{ cursor: 'default' }}>
+          <div key={u.id} className="sc-set" style={{ cursor: 'pointer' }} onClick={() => setViewMember(u)}>
             <Avatar name={u.username} size={38} T={T} />
             <span className="txt"><b>{u.username}{u.id === me.id ? ' (you)' : ''}</b>{admins.has(u.id) && <small style={{ color: 'var(--accent)' }}>{u.id === meta.created_by ? 'Creator · admin' : 'Admin'}</small>}</span>
             {isAdmin && u.id !== me.id && u.id !== meta.created_by && (
               <>
-                <button type="button" className="sc-btn ghost" style={{ height: 32, fontSize: 12, padding: '0 12px' }} onClick={() => setAdmin(u, !admins.has(u.id))}>{admins.has(u.id) ? 'Remove admin' : 'Make admin'}</button>
-                <button type="button" className="sc-iconbtn" style={{ width: 32, height: 32, fontSize: 16 }} aria-label={`Remove ${u.username}`} onClick={() => removeMember(u)}><BiX /></button>
+                <button type="button" className="sc-btn ghost" style={{ height: 32, fontSize: 12, padding: '0 12px' }} onClick={(e) => { e.stopPropagation(); setAdmin(u, !admins.has(u.id)); }}>{admins.has(u.id) ? 'Remove admin' : 'Make admin'}</button>
+                <button type="button" className="sc-iconbtn" style={{ width: 32, height: 32, fontSize: 16 }} aria-label={`Remove ${u.username}`} onClick={(e) => { e.stopPropagation(); removeMember(u); }}><BiX /></button>
               </>
             )}
           </div>
@@ -235,6 +282,7 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
           )}
         </>
       )}
+      {viewMember && <MemberProfile T={T} me={me} member={viewMember} ask={ask} onClose={() => setViewMember(null)} />}
     </Sheet>
   );
 }

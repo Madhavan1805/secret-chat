@@ -457,13 +457,14 @@ class Game(models.Model):
     message = models.OneToOneField(Message, on_delete=models.CASCADE, related_name='game')
     kind = models.CharField(max_length=8)
     starter = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='games_started')
-    opponent = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='games_joined')
+    opponent = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True, related_name='games_joined')   # empty in group games
     board = models.CharField(max_length=20, blank=True, default='')       # ttt: 9 chars of x o . ; rps: unused
     picks = models.JSONField(default=dict, blank=True)                     # rps: {user_id: 'rock'|'paper'|'scissors'}
     turn = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     winner = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     finished = models.BooleanField(default=False)
     draw = models.BooleanField(default=False)
+    state = models.JSONField(default=dict, blank=True)                     # group games: secret / picks / spin result
 
 
 class Question(models.Model):
