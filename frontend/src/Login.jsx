@@ -50,7 +50,7 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout title={addMode ? 'Add account' : 'Welcome back'} subtitle={addMode ? 'Log in to another Secret ID. Your current account stays saved on this phone.' : 'Log in with your user ID, email or mobile number.'}>
+    <AuthLayout title={addMode ? 'Add account' : 'Welcome back'} subtitle={addMode ? 'Log in to another Chatzy ID. Your current account stays saved on this phone.' : 'Log in with your user ID, email or mobile number.'}>
       <form onSubmit={onSubmit} noValidate>
         {notice && !error && <Alert tone="ok">{notice}</Alert>}
         {error && <Alert tone="err">{error}</Alert>}

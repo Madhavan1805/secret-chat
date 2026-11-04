@@ -108,7 +108,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
           </div>
           {editing ? (
             <div style={{ width: '100%', textAlign: 'left', marginTop: 14 }}>
-              <label className="sc-label">Secret ID</label>
+              <label className="sc-label">Chatzy ID</label>
               <input className="sc-field" value={name} onChange={(e) => setName(e.target.value)} />
               <label className="sc-label">Bio</label>
               <textarea className="sc-field" rows="2" value={bio} onChange={(e) => setBio(e.target.value)} />

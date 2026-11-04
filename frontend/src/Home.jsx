@@ -274,7 +274,7 @@ function Home() {
       const res = await api.get(`users/?search=${encodeURIComponent(username)}`);
       const list = Array.isArray(res.data) ? res.data : [];
       const user = list.find((u) => u.username.toLowerCase() === username.toLowerCase());
-      if (!user) { ask({ type: 'alert', title: `No Secret ID named "${username}"` }); return; }
+      if (!user) { ask({ type: 'alert', title: `No Chatzy ID named "${username}"` }); return; }
       if (friends.some((f) => f.id === user.id)) { ask({ type: 'alert', title: `${user.username} is already your friend` }); return; }
       await api.post('requests/', { receiver: user.id });
       refresh();
@@ -573,7 +573,7 @@ function Home() {
                 <div className="sc-empty">
                   <Seal size={64} keyhole style={{ margin: '0 auto' }} />
                   <b>No chats yet</b>
-                  Add a friend with their Secret ID or QR code to start chatting.
+                  Add a friend with their Chatzy ID or QR code to start chatting.
                   <div style={{ marginTop: 16 }}><button type="button" className="sc-btn" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /> Find people</button></div>
                 </div>
               )}

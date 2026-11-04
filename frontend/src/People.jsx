@@ -87,11 +87,11 @@ export function FindPeopleSheet({ T, me, friends, pending, sent, initialQuery = 
       right={<button type="button" className="sc-iconbtn" aria-label="Scan or show QR code" onClick={onOpenQr}><BiQrScan /></button>}>
       <label className="sc-search" style={{ margin: '0 0 8px' }}>
         <BiSearch style={{ fontSize: 20 }} />
-        <input autoFocus placeholder="Search by Secret ID" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search people" autoCapitalize="none" />
+        <input autoFocus placeholder="Search by Chatzy ID" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search people" autoCapitalize="none" />
       </label>
 
-      {!q.trim() && <div className="sc-empty"><BiSearch style={{ fontSize: 34 }} /><b>Find your people</b>Type a Secret ID, or scan a friend's QR code.</div>}
-      {q.trim() && !busy && results.length === 0 && <div className="sc-empty"><b>No one found</b>Check the Secret ID and try again.</div>}
+      {!q.trim() && <div className="sc-empty"><BiSearch style={{ fontSize: 34 }} /><b>Find your people</b>Type a Chatzy ID, or scan a friend's QR code.</div>}
+      {q.trim() && !busy && results.length === 0 && <div className="sc-empty"><b>No one found</b>Check the Chatzy ID and try again.</div>}
 
       {results.map((u) => (
         <div key={u.id} className="sc-row" style={{ cursor: 'default' }}>

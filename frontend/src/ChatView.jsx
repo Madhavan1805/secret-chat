@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { BsCheckAll } from 'react-icons/bs';
-import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPlus, BiSearch, BiLock, BiArrowBack, BiSend, BiCheck, BiSmile, BiVolumeMute } from 'react-icons/bi';
+import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPlus, BiSearch, BiLock, BiArrowBack, BiSend, BiCheck, BiSmile, BiVolumeMute, BiImages, BiCamera, BiMap, BiFile, BiBarChartAlt2, BiCalendarEvent, BiCheckSquare, BiPencil, BiWallet, BiAlarm, BiTime, BiJoystick, BiPhotoAlbum, BiShow } from 'react-icons/bi';
+import AttachSheet from './AttachSheet';
 import api from './api';
 import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
@@ -79,6 +80,8 @@ function ChatView() {
 
   const [showTopMenu, setShowTopMenu] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const docInputRef = useRef(null);
+  const camInputRef = useRef(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -145,7 +148,6 @@ function ChatView() {
   // the back button closes the search bar / emoji panel / attach menu first
   useBackClose(searchOpen, () => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); });
   useBackClose(showEmoji, () => setShowEmoji(false));
-  useBackClose(showAttach, () => setShowAttach(false));
   const extras = useChatExtras({ chatId: meta?.chat_id, ask, messagesLen: messages.length, T, theme: meta?.theme, onTheme: (v) => applyTheme(v) });
 
   // ------------------------------------------------------------- data loaders
@@ -788,6 +790,17 @@ function ChatView() {
       } catch (e) { await handleSendError(e, 'Could not share live location'); }
     }, () => ask({ type: 'alert', title: 'Unable to retrieve your location' }));
   };
+  const pickLocation = async () => {
+    const v = await ask({ type: 'choice', title: 'Share location', choices: [{ label: '📍 Current location', value: 'now' }, { label: '🔴 Live location (1 hour)', value: 'live' }] });
+    if (v === 'now') shareLocation(); else if (v === 'live') startLive();
+  };
+  const pickSendLater = async () => {
+    const v = await ask({ type: 'choice', title: 'Send later', choices: [
+      { label: '⏰ Schedule message', value: 'schedule' }, { label: '⏳ Time capsule', value: 'capsule' }, { label: '🔒 Locked message', value: 'lock' }] });
+    if (v === 'schedule') extras.openSchedule(newMessage, () => setNewMessage(''));
+    else if (v === 'capsule') setShowCapsule(true);
+    else if (v === 'lock') chooseLockMode();
+  };
   const startGame = async () => {
     setShowAttach(false);
     const kind = await ask({ type: 'choice', title: isGroupChat ? 'Play with the group' : 'Play a game', choices: isGroupChat
@@ -1359,7 +1372,27 @@ function ChatView() {
               </div>
             )}
 
-            <input ref={photoInputRef} type="file" multiple className="d-none" accept="*/*" onChange={(e) => addFiles(e)} />
+            {showAttach && (
+              <AttachSheet T={T} onClose={() => setShowAttach(false)} items={[
+                { group: 'Share', label: 'Gallery', icon: <BiImages />, hue: 215, onClick: () => photoInputRef.current && photoInputRef.current.click() },
+                { group: 'Share', label: 'Camera', icon: <BiCamera />, hue: 340, onClick: () => camInputRef.current && camInputRef.current.click() },
+                { group: 'Share', label: 'Location', icon: <BiMap />, hue: 160, onClick: () => { setShowAttach(false); pickLocation(); } },
+                { group: 'Share', label: 'Document', icon: <BiFile />, hue: 265, onClick: () => docInputRef.current && docInputRef.current.click() },
+                { group: 'Create', label: 'Poll', icon: <BiBarChartAlt2 />, hue: 40, onClick: () => { setShowAttach(false); setShowPoll(true); } },
+                { group: 'Create', label: 'Event', icon: <BiCalendarEvent />, hue: 335, onClick: () => { setShowAttach(false); setShowEvent(true); } },
+                { group: 'Create', label: 'Checklist', icon: <BiCheckSquare />, hue: 140, onClick: () => { setShowAttach(false); setShowChecklist(true); } },
+                { group: 'Create', label: 'Doodle', icon: <BiPencil />, hue: 20, onClick: () => { setShowAttach(false); setShowDoodle(true); } },
+                ...(isGroupChat ? [{ group: 'Create', label: 'Split expense', icon: <BiWallet />, hue: 100, onClick: () => { setShowAttach(false); setShowExpense(true); } }] : []),
+                { group: 'Create', label: 'Remind us', icon: <BiAlarm />, hue: 190, onClick: () => { setShowAttach(false); setRemindFor({}); } },
+                { group: 'Create', label: 'Photo album', icon: <BiPhotoAlbum />, hue: 300, onClick: () => { setShowAttach(false); createAlbum(); } },
+                { group: 'More', label: 'Play a game', icon: <BiJoystick />, hue: 250, onClick: startGame },
+                { group: 'More', label: 'Send later', icon: <BiTime />, hue: 55, on: !!sendMode?.timelock, onClick: () => { setShowAttach(false); pickSendLater(); } },
+                ...(isGroupChat ? [{ group: 'More', label: 'Whisper', icon: <BiShow />, hue: 280, onClick: () => { setShowAttach(false); setShowWhisper(true); } }] : []),
+              ]} />
+            )}
+            <input ref={photoInputRef} type="file" multiple className="d-none" accept="image/*,video/*" onChange={(e) => addFiles(e)} />
+            <input ref={docInputRef} type="file" multiple className="d-none" accept="*/*" onChange={(e) => addFiles(e)} />
+            <input ref={camInputRef} type="file" className="d-none" accept="image/*" capture="environment" onChange={(e) => addFiles(e)} />
 
 
             {showEmoji && !isRecording && (
@@ -1385,31 +1418,6 @@ function ChatView() {
                 <div className="sc-pill" style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ position: 'relative' }}>
                     <button type="button" className={`sc-tool${showAttach ? ' on' : ''}`} onClick={() => { setShowEmoji(false); setShowAttach(!showAttach); }} aria-label="Attach"><BiPlus /></button>
-                    {showAttach && (
-                      <>
-                        <div onClick={() => setShowAttach(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
-                        <div className="sc-menu" style={{ bottom: '120%', top: 'auto', left: 0, right: 'auto', minWidth: 210 }}>
-                          {[
-                            ['Photo, video or file', () => photoInputRef.current && photoInputRef.current.click()],
-                            ['Location', shareLocation],
-                            ['Live location (1 hour)', startLive],
-                            ['Play a game', startGame],
-                            ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
-                            ['Checklist', () => { setShowAttach(false); setShowChecklist(true); }],
-                            ['Doodle', () => { setShowAttach(false); setShowDoodle(true); }],
-                            ['Event (RSVP)', () => { setShowAttach(false); setShowEvent(true); }],
-                            ['Photo album (24h)', () => { setShowAttach(false); createAlbum(); }],
-                            [isViewOnce ? 'View once (on, tap to turn off)' : 'View once', () => { setShowAttach(false); setIsViewOnce(!isViewOnce); }],
-                            ['Schedule message', () => { setShowAttach(false); extras.openSchedule(newMessage, () => setNewMessage('')); }],
-                            ['Time capsule', () => { setShowAttach(false); setShowCapsule(true); }],
-                            [sendMode?.timelock ? 'Locked message (on, tap to turn off)' : 'Locked message', chooseLockMode],
-                            ...(isGroupChat ? [['Whisper to some members', () => { setShowAttach(false); setShowWhisper(true); }]] : []),
-                            ['Split expense', () => { setShowAttach(false); setShowExpense(true); }],
-                            ['Remind us', () => { setShowAttach(false); setRemindFor({}); }],
-                          ].map(([l, fn]) => <button type="button" key={l} onClick={fn}>{l}</button>)}
-                        </div>
-                      </>
-                    )}
                   </div>
                   <button type="button" className={`sc-tool${showEmoji ? ' on' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={toggleEmoji} aria-label="Emoji and stickers"><BiSmile /></button>
                   <textarea
@@ -1423,6 +1431,8 @@ function ChatView() {
                     onFocus={closePanels}
                     onKeyDown={onComposerKey}
                   />
+                  <button type="button" className={`sc-tool${isViewOnce ? ' on' : ''}`} onClick={() => setIsViewOnce(!isViewOnce)} aria-label="View once" aria-pressed={isViewOnce} title="View once"
+                    style={{ fontWeight: 800, fontSize: 13 }}><span style={{ display: 'inline-grid', placeItems: 'center', width: 22, height: 22, borderRadius: '50%', border: '2px solid currentColor', lineHeight: 1 }}>1</span></button>
                 </div>
                 {hasText ? (
                   <SealButton label={editing ? 'Save edit' : 'Send'} disabled={sending} stampKey={stamp} onClick={sendMessage}>

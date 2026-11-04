@@ -6,7 +6,7 @@ import { THEME_CSS, themeVars } from './theme';
 // Shown when the DECOY PIN is used: looks like a fresh account with nothing in it.
 // No network calls are made, so none of the real data is touched or loaded.
 const TABS = [
-  ['chats', 'Messages', BiChat, 'No chats yet', 'Add a friend with their Secret ID to start talking.'],
+  ['chats', 'Messages', BiChat, 'No chats yet', 'Add a friend with their Chatzy ID to start talking.'],
   ['groups', 'Groups', BiGroup, 'No groups yet', 'Groups you create or join will show up here.'],
   ['status', 'Status', BiAperture, 'No updates', 'Status updates from your friends will show up here.'],
   ['calls', 'Calls', BiPhoneCall, 'No calls yet', 'Your recent calls will show up here.'],
