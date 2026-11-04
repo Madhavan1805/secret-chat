@@ -125,6 +125,7 @@ export function PollSheet({ T, onClose, onCreate }) {
 // A group member's profile with Follow / Requested / Unfollow.
 function MemberProfile({ T, me, member, onClose, ask }) {
   const [user, setUser] = useState(null);
+  const [photo, setPhoto] = useState(false);
   const [rel, setRel] = useState({ state: 'none', reqId: null });
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
@@ -151,7 +152,10 @@ function MemberProfile({ T, me, member, onClose, ask }) {
   return (
     <Sheet T={T} title="Profile" onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <Avatar src={user?.profile_picture} name={member.username} size={96} T={T} online={!!user?.is_online} />
+        <button type="button" aria-label={user?.profile_picture ? `View ${member.username}'s photo` : undefined} disabled={!user?.profile_picture} onClick={() => setPhoto(true)}
+          style={{ background: 'none', border: 0, padding: 0, lineHeight: 0, cursor: user?.profile_picture ? 'zoom-in' : 'default' }}>
+          <Avatar src={user?.profile_picture} name={member.username} size={96} T={T} online={!!user?.is_online} />
+        </button>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, margin: 0 }}>{member.username}</h2>
         {user && <span style={{ color: user.is_online ? '#22c55e' : 'var(--sub)', fontSize: 13 }}>{user.is_online ? '● Online' : (user.last_seen ? `Last seen ${formatListTime(user.last_seen)}` : '')}</span>}
         <p style={{ textAlign: 'center', color: 'var(--sub)', margin: '4px 12px' }}>{user ? (user.bio || 'No bio added.') : 'Loading…'}</p>
@@ -164,6 +168,7 @@ function MemberProfile({ T, me, member, onClose, ask }) {
           {rel.state === 'friends' && <button type="button" className="sc-btn ghost" disabled={busy} onClick={unfollow}>Following · Unfollow</button>}
         </div>
       )}
+    {photo && user?.profile_picture && <MediaViewer src={getPicUrl(user.profile_picture)} type="image" name={`${member.username}.jpg`} onClose={() => setPhoto(false)} />}
     </Sheet>
   );
 }
@@ -172,6 +177,7 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
   const [friends, setFriends] = useState([]);
   const [adding, setAdding] = useState(false);
   const [viewMember, setViewMember] = useState(null);
+  const [photoUrl, setPhotoUrl] = useState('');       // a photo opened full screen (group photo or a member's)
   const [name, setName] = useState(meta.group_name || '');
   const [desc, setDesc] = useState(meta.group_description || '');
   const [dirty, setDirty] = useState(false);
@@ -219,7 +225,7 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
     <Sheet T={T} title="Group info" onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         {meta.group_photo
-          ? <Avatar src={meta.group_photo} name={meta.group_name} size={96} T={T} />
+          ? <button type="button" aria-label="View group photo" onClick={() => setPhotoUrl(getPicUrl(meta.group_photo))} style={{ background: 'none', border: 0, padding: 0, lineHeight: 0, cursor: 'zoom-in' }}><Avatar src={meta.group_photo} name={meta.group_name} size={96} T={T} /></button>
           : <Seal size={96} keyhole />}
         {isAdmin && (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -254,7 +260,11 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
       <div className="sc-set-group">
         {members.map((u) => (
           <div key={u.id} className="sc-set" style={{ cursor: 'pointer' }} onClick={() => setViewMember(u)}>
-            <Avatar name={u.username} size={38} T={T} />
+            <button type="button" aria-label={u.profile_picture ? `View ${u.username}'s photo` : undefined} disabled={!u.profile_picture}
+              onClick={(e) => { e.stopPropagation(); setPhotoUrl(getPicUrl(u.profile_picture)); }}
+              style={{ background: 'none', border: 0, padding: 0, lineHeight: 0, cursor: u.profile_picture ? 'zoom-in' : 'pointer' }}>
+              <Avatar src={u.profile_picture} name={u.username} size={38} T={T} />
+            </button>
             <span className="txt"><b>{u.username}{u.id === me.id ? ' (you)' : ''}</b>{admins.has(u.id) && <small style={{ color: 'var(--accent)' }}>{u.id === meta.created_by ? 'Creator · admin' : 'Admin'}</small>}</span>
             {isAdmin && u.id !== me.id && u.id !== meta.created_by && (
               <>
@@ -283,6 +293,7 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
         </>
       )}
       {viewMember && <MemberProfile T={T} me={me} member={viewMember} ask={ask} onClose={() => setViewMember(null)} />}
+      {photoUrl && <MediaViewer src={photoUrl} type="image" name="photo.jpg" onClose={() => setPhotoUrl('')} />}
     </Sheet>
   );
 }

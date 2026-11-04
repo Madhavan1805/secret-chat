@@ -543,6 +543,7 @@ class ChatViewSet(viewsets.ModelViewSet):
         purge_expired(chat)
         s = chat_setting(user, chat)
         now = timezone.now()
+        _friends = set(friend_ids_of(user)) if chat.is_group else set()
         data = {
             "chat_id": chat.id,
             "is_group": chat.is_group,
@@ -557,7 +558,12 @@ class ChatViewSet(viewsets.ModelViewSet):
             "is_muted": effective_muted(s),
             "muted_until": s.muted_until,
             "is_archived": s.is_archived,
-            "participants": [{"id": p.id, "username": p.username} for p in chat.participants.all()],
+            "participants": [{"id": p.id, "username": p.username,
+                              # members' photos follow each person's "profile photo" privacy setting
+                              "profile_picture": (request.build_absolute_uri(p.profile_picture.url)
+                                                  if p.profile_picture and visible(p.privacy_photo, user.id, p.id, _friends)
+                                                  else None)}
+                             for p in chat.participants.all()],
             "group_description": chat.group_description,
             "is_self": chat.is_self,
             "announce_only": chat.announce_only,
