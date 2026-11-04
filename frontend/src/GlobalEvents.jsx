@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useRealtime } from './socket';
 import { playSound } from './sounds';
 import { showNotification } from './notify';
+import { onlineAlertsEnabled, shouldAnnounce } from './onlineAlerts';
 
 // Always mounted (see App.jsx). Handles things that must work on every screen:
 //   * message sounds (receive / delete)
@@ -9,6 +10,8 @@ import { showNotification } from './notify';
 export default function GlobalEvents() {
   const [toast, setToast] = useState(null);
   const timer = useRef(null);
+  const [online, setOnline] = useState(null);
+  const onlineTimer = useRef(null);
 
   const popup = (t) => {
     setToast(t);
@@ -31,6 +34,14 @@ export default function GlobalEvents() {
         if (document.hidden) showNotification(evt.title || 'Status liked', evt.body || '❤️ Liked your status', 'status_like');
         break;
 
+      case 'presence':       // a friend just came online -> small cute pop-up (can be switched off in Profile)
+        if (evt.is_online && evt.username && onlineAlertsEnabled() && shouldAnnounce(evt.user_id)) {
+          setOnline({ id: evt.user_id, name: evt.username });
+          clearTimeout(onlineTimer.current);
+          onlineTimer.current = setTimeout(() => setOnline(null), 2800);
+        }
+        break;
+
       case 'request':
         if (evt.action !== 'new') break;
         playSound('receive');
@@ -43,8 +54,18 @@ export default function GlobalEvents() {
     }
   });
 
-  if (!toast) return null;
+  const onlinePop = online && (
+    <div key={`${online.id}-${online.name}`} className="sc-online-pop" role="status" aria-live="polite"
+         style={{ top: toast ? 'calc(var(--safe-top, 0px) + 74px)' : 'calc(var(--safe-top, 0px) + 12px)' }}>
+      <span className="dot" aria-hidden="true" />
+      <span><b>{online.name}</b> is online</span>
+      <span aria-hidden="true">✨</span>
+    </div>
+  );
+  if (!toast) return onlinePop || null;
   return (
+    <>
+    {onlinePop}
     <div
       onClick={() => setToast(null)}
       style={{
@@ -56,5 +77,6 @@ export default function GlobalEvents() {
       <div style={{ fontWeight: 700 }}>{toast.title}</div>
       <div style={{ opacity: 0.85 }}>{toast.body}</div>
     </div>
+    </>
   );
 }
