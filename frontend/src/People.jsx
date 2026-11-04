@@ -6,26 +6,73 @@ import { Sheet } from './ui';
 import { asList } from './config';
 
 // ------------------------------------------------------------------ requests (kept out of the chat list)
-export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel, onClose }) {
+export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel, onClose, asks = [], likedBy = [], noteText = '', onOpenAsks, onMessage }) {
+  const [accepted, setAccepted] = useState([]);          // accepted just now: the button turns into "Message"
+  const [busyId, setBusyId] = useState(null);
+  const confirm = async (r) => {
+    setBusyId(r.id);
+    const ok = await onAccept(r);
+    setBusyId(null);
+    if (ok !== false) setAccepted((a) => [...a, r]);
+  };
+  const open = pending.filter((r) => !accepted.some((a) => a.id === r.id));
+  const empty = open.length === 0 && accepted.length === 0 && sent.length === 0 && asks.length === 0 && likedBy.length === 0;
   return (
-    <Sheet T={T} title="Requests" onClose={onClose}>
-      {pending.length === 0 && sent.length === 0 && (
-        <div className="sc-empty"><BiUserPlus style={{ fontSize: 38, color: 'var(--accent)' }} /><b>No requests</b>When someone adds you, it shows up here.</div>
+    <Sheet T={T} title="Notifications" onClose={onClose}>
+      {empty && (
+        <div className="sc-empty"><BiUserPlus style={{ fontSize: 38, color: 'var(--accent)' }} /><b>Nothing new</b>Friend requests, anonymous questions and note likes show up here.</div>
       )}
 
-      {pending.length > 0 && (
+      {asks.length > 0 && (
+        <>
+          <div className="sc-section">Anonymous messages</div>
+          <button type="button" className="sc-row" onClick={onOpenAsks} style={{ width: '100%', textAlign: 'left' }}>
+            <span style={{ fontSize: 30, width: 46, textAlign: 'center' }}>🙈</span>
+            <div className="sc-row-main">
+              <h3 className="sc-row-name"><span className="t">{asks.length === 1 ? 'Someone asked you something' : `${asks.length} anonymous questions`}</span></h3>
+              <span className="sc-row-sub">{asks[0].text}</span>
+            </div>
+            <span className="sc-btn" style={{ height: 34, fontSize: 13, padding: '0 16px', display: 'inline-grid', placeItems: 'center' }}>Reply</span>
+          </button>
+        </>
+      )}
+
+      {likedBy.length > 0 && (
+        <>
+          <div className="sc-section">Note</div>
+          <div className="sc-row" style={{ cursor: 'default' }}>
+            <span style={{ fontSize: 30, width: 46, textAlign: 'center' }}>❤️</span>
+            <div className="sc-row-main">
+              <h3 className="sc-row-name"><span className="t">{likedBy.length <= 2 ? likedBy.join(' and ') : `${likedBy.slice(0, 2).join(', ')} and ${likedBy.length - 2} more`} liked your note</span></h3>
+              {noteText && <span className="sc-row-sub">“{noteText}”</span>}
+            </div>
+          </div>
+        </>
+      )}
+
+      {(open.length > 0 || accepted.length > 0) && (
         <>
           <div className="sc-section">Wants to connect with you</div>
-          {pending.map((r) => (
+          {open.map((r) => (
             <div key={r.id} className="sc-row" style={{ cursor: 'default' }}>
               <Avatar src={r.sender_profile_picture} name={r.sender_name} size={52} T={T} />
               <div className="sc-row-main">
                 <h3 className="sc-row-name"><span className="t">{r.sender_name}</span></h3>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <button type="button" className="sc-btn" style={{ height: 34, fontSize: 13, padding: '0 18px' }} onClick={() => onAccept(r)}>Confirm</button>
+                  <button type="button" className="sc-btn" disabled={busyId === r.id} style={{ height: 34, fontSize: 13, padding: '0 18px' }} onClick={() => confirm(r)}>Confirm</button>
                   <button type="button" className="sc-btn ghost" style={{ height: 34, fontSize: 13, padding: '0 18px' }} onClick={() => onDecline(r)}>Delete</button>
                 </div>
               </div>
+            </div>
+          ))}
+          {accepted.map((r) => (
+            <div key={r.id} className="sc-row" style={{ cursor: 'default' }}>
+              <Avatar src={r.sender_profile_picture} name={r.sender_name} size={52} T={T} />
+              <div className="sc-row-main">
+                <h3 className="sc-row-name"><span className="t">{r.sender_name}</span></h3>
+                <span className="sc-row-sub">You are now connected</span>
+              </div>
+              <button type="button" className="sc-btn" style={{ height: 34, fontSize: 13, padding: '0 18px' }} onClick={() => onMessage && onMessage(r)}>Message</button>
             </div>
           ))}
         </>
