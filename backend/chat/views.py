@@ -631,6 +631,20 @@ class ChatViewSet(viewsets.ModelViewSet):
         return Response({"ok": True})
 
     @action(detail=False, methods=['post'])
+    def lock_reset(self, request):
+        """Forgot the chat PIN: the account password removes the lock (messages are kept)."""
+        chat = resolve_chat(request.user, request.data)
+        if not check_password(str(request.data.get('password') or ''), request.user.password):
+            return Response({"error": "Wrong account password"}, status=400)
+        s = chat_setting(request.user, chat)
+        s.pin_hash = ''
+        s.unlocked_until = None
+        s.failed_attempts = 0
+        s.blocked_until = None
+        s.save()
+        return Response({"is_locked": False})
+
+    @action(detail=False, methods=['post'])
     def relock(self, request):
         chat = resolve_chat(request.user, request.data)
         ChatUserSetting.objects.filter(user=request.user, chat=chat).update(unlocked_until=None)

@@ -149,7 +149,7 @@ def maybe_auto_reply(chat, sender, msg):
     if not cache.add(f'autoreply:{chat.id}:{receiver.id}', 1, 6 * 3600):
         return
     reply = Message.objects.create(chat=chat, sender=receiver, receiver=sender, message_type='text',
-                                   content=f"🤖 Auto-reply: {receiver.auto_reply}"[:300],
+                                   content=receiver.auto_reply[:300],
                                    status='delivered' if sender.is_online else 'sent')
     notify_message(chat, reply, 'new')
 

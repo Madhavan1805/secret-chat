@@ -790,7 +790,9 @@ function ChatView() {
   };
   const startGame = async () => {
     setShowAttach(false);
-    const kind = await ask({ type: 'choice', title: 'Play a game', choices: [{ label: '❌⭕ Tic-tac-toe', value: 'ttt' }, { label: '🪨📄✂️ Rock paper scissors', value: 'rps' }] });
+    const kind = await ask({ type: 'choice', title: isGroupChat ? 'Play with the group' : 'Play a game', choices: isGroupChat
+      ? [{ label: '🪨📄✂️ Group rock paper scissors', value: 'grps' }, { label: '🔢 Guess the number', value: 'gnum' }, { label: '🎡 Truth or dare spinner', value: 'gspin' }]
+      : [{ label: '❌⭕ Tic-tac-toe', value: 'ttt' }, { label: '🪨📄✂️ Rock paper scissors', value: 'rps' }] });
     if (!kind) return;
     try {
       const r = await api.post('games/create/', { chat_id: meta.chat_id, kind });
@@ -856,6 +858,19 @@ function ChatView() {
       else setPinError(`❌ Incorrect PIN${d?.attempts_left != null ? ` (${d.attempts_left} attempts left)` : ''}`);
       setPinEntry('');
     }
+  };
+
+  const forgotPin = async () => {
+    const pw = await ask({ type: 'prompt', title: 'Forgot PIN? Enter your account password to remove this chat lock', inputType: 'password', placeholder: 'Account password' });
+    if (!pw) return;
+    try {
+      await api.post('chats/lock_reset/', { chat_id: meta.chat_id, password: pw });
+      setPinEntry('');
+      ids.current = { ...ids.current, unlocked: true };
+      setUnlocked(true);
+      await fetchMeta();
+      await fetchMessages();
+    } catch (err) { setPinError(errMsg(err, 'Could not reset')); }
   };
 
   // ------------------------------------------------------------- menu actions
@@ -1085,6 +1100,7 @@ function ChatView() {
               onChange={(e) => setPinEntry(e.target.value.replace(/\D/g, ''))}
               className="sc-field" style={{ textAlign: 'center', fontSize: 26, letterSpacing: 12, height: 56, margin: '18px 0 8px' }} />
             {pinError && <div style={{ color: '#ff7d8c', fontSize: 14, marginBottom: 8 }}>{pinError}</div>}
+            <button type="button" onClick={forgotPin} style={{ background: 'none', border: 0, color: 'var(--accent)', fontSize: 14, margin: '0 0 12px', cursor: 'pointer' }}>Forgot PIN?</button>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               <button type="button" className="sc-btn ghost" onClick={() => navigate('/home')}>Back</button>
               <button type="submit" className="sc-btn" disabled={pinEntry.length !== 4}>Unlock</button>
@@ -1377,7 +1393,7 @@ function ChatView() {
                             ['Photo, video or file', () => photoInputRef.current && photoInputRef.current.click()],
                             ['Location', shareLocation],
                             ['Live location (1 hour)', startLive],
-                            ...(!isGroupChat ? [['Play a game', startGame]] : []),
+                            ['Play a game', startGame],
                             ['Poll', () => { setShowAttach(false); setShowPoll(true); }],
                             ['Checklist', () => { setShowAttach(false); setShowChecklist(true); }],
                             ['Doodle', () => { setShowAttach(false); setShowDoodle(true); }],
