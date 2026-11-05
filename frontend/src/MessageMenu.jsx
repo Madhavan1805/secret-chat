@@ -5,11 +5,26 @@ import { createPortal } from 'react-dom';
 // Hold any emoji (built-in or one of my own) and it grows and wiggles; when it is ready it is sent and rains.
 const HOLD_MS = 480;
 
+// This menu is a portal on <body>, outside the screen that carries the theme colours, so --panel / --text were
+// undefined here and the menu came out see-through with faint text. Copy the colours from the chat screen.
+const VARS = ['--bg', '--panel', '--surface', '--raised', '--accent', '--mine', '--mine-text', '--other', '--text', '--sub', '--line', '--input', '--seal'];
+const FALLBACK = { '--panel': '#1c1626', '--raised': '#2a2038', '--text': '#ffffff', '--sub': 'rgba(255,255,255,.7)', '--line': 'rgba(255,255,255,.16)', '--accent': '#ff6477' };
+const themeFromScreen = () => {
+  const out = { ...FALLBACK };
+  try {
+    const el = document.querySelector('.chat-shell') || document.querySelector('.home-shell') || document.documentElement;
+    const cs = getComputedStyle(el);
+    VARS.forEach((v) => { const val = cs.getPropertyValue(v).trim(); if (val) out[v] = val; });
+  } catch (e) { /* keep the fallback */ }
+  return out;
+};
+
 // the menu is a portal, but React still bubbles its events to the message row (long-press / swipe / double-tap): keep them here
 const stop = (e) => e.stopPropagation();
 
 export default function MessageMenu({ preview, isMe, reactions, mine, showReactions, items, onReact, onFire, onMore, onClose }) {
   const [holding, setHolding] = useState('');
+  const [vars] = useState(themeFromScreen);
   const timer = useRef(null);
   const fired = useRef(false);
 
@@ -34,7 +49,7 @@ export default function MessageMenu({ preview, isMe, reactions, mine, showReacti
   };
 
   return createPortal(
-    <div className="mm-wrap" role="dialog" aria-label="Message options"
+    <div className="mm-wrap" style={vars} role="dialog" aria-label="Message options"
       onTouchStart={stop} onTouchMove={stop} onTouchEnd={stop} onClick={stop} onDoubleClick={stop} onContextMenu={(e) => { e.preventDefault(); stop(e); }}>
       <div className="mm-backdrop" onClick={onClose} />
       <div className={`mm-sheet ${isMe ? 'mm-me' : ''}`}>
