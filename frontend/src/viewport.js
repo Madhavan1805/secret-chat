@@ -11,6 +11,7 @@ export function setupViewport() {
   const vv = window.visualViewport;
   let baseline = window.innerHeight;       // tallest window height seen = the keyboard-closed height
   let settleTimer = null;
+  const last = { h: '', t: '', k: null };       // only touch the page when a value really changed
 
   const isTyping = () => {
     const el = document.activeElement;
@@ -32,11 +33,20 @@ export function setupViewport() {
     // up and off, which hides the header and leaves a blank gap above the keyboard. Follow the pan.
     const top = vv ? Math.max(0, vv.offsetTop) : 0;
     const z = getUiScale();                  // Display size: the page is zoomed, so lengths are divided by it to still fill the real screen
-    root.style.setProperty('--app-height', `${Math.round(h / z)}px`);
-    root.style.setProperty('--app-top', `${Math.round(top / z)}px`);
-    root.classList.toggle('kb-open', isTyping() && h < baseline - 120);
+    const typing = isTyping();
+    const kb = h < baseline - 120;           // a real keyboard-sized change, not just the browser's address bar sliding in / out
+    // Phone Chrome resizes the visual viewport a little every time the address bar hides or shows while you scroll.
+    // Following every one of those tiny changes made the whole screen shake, so outside the keyboard case the
+    // screens just use the browser's own 100dvh and nothing is measured.
+    const useJs = typing || kb;
+    const height = useJs ? `${Math.round(h / z)}px` : `calc(100dvh / ${z})`;
+    const topPx = useJs ? `${Math.round(top / z)}px` : '0px';
+    if (last.h !== height) { root.style.setProperty('--app-height', height); last.h = height; }
+    if (last.t !== topPx) { root.style.setProperty('--app-top', topPx); last.t = topPx; }
+    const kbOpen = typing && kb;
+    if (last.k !== kbOpen) { root.classList.toggle('kb-open', kbOpen); last.k = kbOpen; }
     // the browser sometimes scrolls the whole page up when the keyboard opens - put it back
-    if (window.scrollY !== 0) window.scrollTo(0, 0);
+    if (useJs && window.scrollY !== 0) window.scrollTo(0, 0);
   };
 
   // The keyboard animates for ~300 ms and some WebViews report the final size late, so keep
@@ -51,7 +61,7 @@ export function setupViewport() {
   apply();
   if (vv) {
     vv.addEventListener('resize', settle);
-    vv.addEventListener('scroll', apply);
+    vv.addEventListener('scroll', () => { if (isTyping()) apply(); });
   }
   window.addEventListener('resize', settle);
   window.addEventListener('sc:ui-scale', settle);
