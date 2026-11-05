@@ -102,7 +102,7 @@ def notes_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def note_like_view(request):
-    """Double-tap on a friend's note: like it (stays liked, a second double-tap does nothing)."""
+    """Double-tap on a friend's note: like it. Send unlike=1 to take the like back."""
     user = request.user
     try:
         owner_id = int(request.data.get('user_id'))
@@ -113,6 +113,10 @@ def note_like_view(request):
     note = Note.objects.filter(user_id=owner_id, created_at__gte=timezone.now() - NOTE_TTL).first()
     if not note:
         raise ValidationError({"error": "That note is gone."})
+    if str(request.data.get('unlike') or '').lower() in ('1', 'true', 'yes'):
+        NoteLike.objects.filter(note=note, user=user).delete()
+        notify_users([owner_id], 'note')
+        return Response({"liked": False, "like_count": note.likes.count()})
     _, created = NoteLike.objects.get_or_create(note=note, user=user)
     if created:
         notify_users([owner_id], 'note')

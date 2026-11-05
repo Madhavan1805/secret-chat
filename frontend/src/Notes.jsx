@@ -41,6 +41,7 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked, onError
   const audioRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
   const [likedIds, setLikedIds] = useState([]);
+  const [unlikedIds, setUnlikedIds] = useState([]);
   const taps = useRef({});                                   // last tap time + pending single-tap timer per note
 
   useEffect(() => () => { if (audioRef.current) audioRef.current.pause(); }, []);
@@ -62,7 +63,18 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked, onError
     if (t.last && now - t.last < 320) {
       clearTimeout(t.timer);
       taps.current[n.user_id] = {};
+      const isLiked = (likedIds.includes(n.user_id) || (n.liked_by_me && !unlikedIds.includes(n.user_id)));
+      if (isLiked) {                                                    // double-tap on a liked note takes the like back
+        setLikedIds((p) => p.filter((x) => x !== n.user_id));
+        setUnlikedIds((p) => (p.includes(n.user_id) ? p : [...p, n.user_id]));
+        api.post('notes/like/', { user_id: n.user_id, unlike: 1 }).then(() => onLiked && onLiked()).catch((err) => {
+          setUnlikedIds((p) => p.filter((x) => x !== n.user_id));
+          if (onError) onError(errMsg(err, 'Could not remove the like'));
+        });
+        return;
+      }
       burstAt('❤️', e.clientX, e.clientY, 10);
+      setUnlikedIds((p) => p.filter((x) => x !== n.user_id));
       setLikedIds((p) => (p.includes(n.user_id) ? p : [...p, n.user_id]));
       api.post('notes/like/', { user_id: n.user_id }).then(() => onLiked && onLiked()).catch((err) => {
         setLikedIds((p) => p.filter((x) => x !== n.user_id));           // it did not go through: take the heart back and say why
@@ -96,10 +108,10 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked, onError
       {list.map(({ n, f }) => (
         <button type="button" key={n.user_id} className="nt-item" onClick={(e) => onTap(n, e)} aria-label={`${f.username}'s note. Double tap to like`}>
           <span className="nt-cell">
-            <Bubble note={n} playing={playingId === n.user_id} liked={likedIds.includes(n.user_id)} />
+            <Bubble note={n} playing={playingId === n.user_id} liked={likedIds.includes(n.user_id) || (n.liked_by_me && !unlikedIds.includes(n.user_id))} />
             <span className="nt-av">
               <Avatar src={f.profile_picture} name={f.username} size={64} T={T} />
-              {(likedIds.includes(n.user_id) || n.liked_by_me) && <span className="nt-like">❤️</span>}
+              {(likedIds.includes(n.user_id) || (n.liked_by_me && !unlikedIds.includes(n.user_id))) && <span className="nt-like">❤️</span>}
             </span>
           </span>
           <span className="nt-name">{f.username}</span>

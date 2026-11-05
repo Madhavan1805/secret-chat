@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from './api';
 import { Sheet } from './ui';
-import { CHAT_THEMES } from './theme';
+import { CHAT_THEMES, luminance } from './theme';
 import { useBackClose } from './backClose';
 import { errMsg } from './config';
 
@@ -273,8 +273,34 @@ export function useChatExtras({ chatId, ask, messagesLen, T, theme, onTheme }) {
       ? { backgroundColor: colorOf(wp.preset) }
       : (WALLPAPERS[wp.preset] ? { backgroundImage: WALLPAPERS[wp.preset].css } : {});
 
+  // text on top of the wallpaper follows how light or dark the wallpaper is
+  const [photoLight, setPhotoLight] = useState(false);
+  useEffect(() => {
+    setPhotoLight(false);
+    if (!wp.url) return undefined;
+    let dead = false;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = 16; c.height = 16;
+        const g = c.getContext('2d'); g.drawImage(img, 0, 0, 16, 16);
+        const d = g.getImageData(0, 0, 16, 16).data; let t = 0;
+        for (let i = 0; i < d.length; i += 4) t += luminance(`rgb(${d[i]},${d[i + 1]},${d[i + 2]})`);
+        if (!dead) setPhotoLight(t / 256 * 0.7 > 0.5);          // the photo is dimmed 30 %
+      } catch (e) { /* tainted canvas: keep the dark default */ }
+    };
+    img.src = wp.url;
+    return () => { dead = true; };
+  }, [wp.url]);
+  const wpColors = colorOf(wp.preset) ? [`#${colorOf(wp.preset)}`] : ((WALLPAPERS[wp.preset] && WALLPAPERS[wp.preset].css.match(/#[0-9a-f]{6}/gi)) || []);
+  const wpLight = wp.url ? photoLight : (wpColors.length ? wpColors.reduce((a, c) => a + luminance(c), 0) / wpColors.length > 0.4 : false);
+  const textVars = wpLight
+    ? { '--text': '#1B1322', '--sub': '#4b4156', '--other': 'rgba(255,255,255,0.9)', '--line': 'rgba(27,19,34,0.18)', color: '#1B1322' }
+    : {};
+
   return {
-    wallpaperStyle,
+    wallpaperStyle: { ...wallpaperStyle, ...textVars },
     openTheme: () => setThemeOpen(true),
     wallpaperInput: <input ref={fileRef} type="file" accept="image/*" className="d-none" onChange={onWallpaperFile} />,
     scheduledCount: items.length,
