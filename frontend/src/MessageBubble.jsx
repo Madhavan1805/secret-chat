@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BsCheck, BsCheckAll } from 'react-icons/bs';
-import { BiStar } from 'react-icons/bi';
+import { BiStar, BiReply, BiShare, BiCopy, BiBell, BiEdit, BiPin, BiCheckDouble, BiInfoCircle, BiTrash } from 'react-icons/bi';
+import MessageMenu from './MessageMenu';
 import { Seal } from './ui';
 import AudioPlayer from './AudioPlayer';
 import MediaViewer, { downloadFile } from './MediaViewer';
@@ -134,7 +135,8 @@ export default function MessageBubble({
   onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onAlbumChanged, onAsk, onBalances, onCapsuleOpened, onRain, onUnlockTime,
 }) {
   const [menu, setMenu] = useState(false);
-  const [up, setUp] = useState(false);                        // open the menu above the bubble when there is no room below
+  const bornAt = useRef(Date.now());                          // reactions that arrive after this pop in
+  const [heldChip, setHeldChip] = useState(-1);               // reaction chip being held
   const rowRef = useRef(null);
   const [viewer, setViewer] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);       // tapped the status a reply was about
@@ -170,15 +172,14 @@ export default function MessageBubble({
   const isGame = msg.message_type === 'game' && !!msg.game;
   const isSticker = content.startsWith(STICKER_PREFIX);
   const isGif = content.startsWith(GIF_PREFIX);
+  const previewText = (isViewOnce || msg.masked) ? 'Private message'
+    : (isSticker || isGif) ? 'Sticker'
+      : content && msg.message_type === 'text' ? content
+        : msg.message_type === 'text' ? '' : (msg.file_name || ({ image: 'Photo', video: 'Video', audio: 'Voice message', document: 'Document', location: 'Location', poll: 'Poll' })[msg.message_type] || '');
   const canEdit = isMe && msg.message_type === 'text' && !isViewOnce && !isSticker && !isGif && !msg.is_screenshot
     && Date.now() - new Date(msg.created_at).getTime() < EDIT_MS;
 
-  const openMenu = () => {
-    const r = rowRef.current && rowRef.current.getBoundingClientRect();
-    const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-    setUp(!!r && r.bottom + 330 > h - 80 && r.top > 330);
-    setMenu(true);
-  };
+  const openMenu = () => { if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { /* ignore */ } } setMenu(true); };
 
   // ------------------------------------------------ gestures (own refs => no stale state)
   const start = (e) => {
@@ -216,8 +217,16 @@ export default function MessageBubble({
 
   // tap-hold on a reaction: it rains over this screen and over the other person's chat screen too
   const rainFrom = (emoji) => { rainAll(emoji); if (onRain) onRain(msg, emoji); };
-  const holdStart = (emoji) => { clearTimeout(rainTimer.current); rainTimer.current = setTimeout(() => rainFrom(emoji), 480); };
-  const holdEnd = () => clearTimeout(rainTimer.current);
+  const holdStart = (emoji, i) => { clearTimeout(rainTimer.current); setHeldChip(i); rainTimer.current = setTimeout(() => { setHeldChip(-1); rainFrom(emoji); }, 480); };
+  const holdEnd = () => { clearTimeout(rainTimer.current); setHeldChip(-1); };
+
+  // hold an emoji in the menu: react with it (only adds, never removes mine), pop it, and rain it on both screens
+  const fireReaction = (emoji, x, y) => {
+    setMenu(false);
+    burstAt(emoji, x, y, 12);
+    if (!msg.reactions || msg.reactions[String(meId)] !== emoji) onReact(msg, emoji);
+    rainFrom(emoji);
+  };
 
   // ---------------------------------------------------------------- ticks / seen
   const renderMeta = () => {
@@ -381,49 +390,40 @@ export default function MessageBubble({
 
       {msg.reactions && Object.keys(msg.reactions).length > 0 && (
         <div className="d-flex gap-1 px-2 rounded-pill shadow-sm" style={{ marginTop: -8, fontSize: 13, background: 'var(--raised)', border: '1px solid var(--line)', zIndex: 1, padding: '1px 6px' }}>
-          {Object.values(msg.reactions).map((e, i) => (
-            <span key={i} role="button" aria-label={`Hold to rain ${e}`} style={{ cursor: 'pointer', userSelect: 'none', WebkitTouchCallout: 'none', padding: '2px 1px' }}
-              onTouchStart={(ev) => { ev.stopPropagation(); holdStart(e); }} onTouchEnd={holdEnd} onTouchMove={holdEnd} onTouchCancel={holdEnd}
-              onMouseDown={() => holdStart(e)} onMouseUp={holdEnd} onMouseLeave={holdEnd} onContextMenu={(ev) => { ev.preventDefault(); ev.stopPropagation(); }}>{e}</span>
+          {Object.entries(msg.reactions).map(([uid, e], i) => (
+            <span key={`${uid}-${e}`} role="button" aria-label={`Hold to rain ${e}`}
+              className={`rx-chip ${heldChip === i ? 'rx-hold' : ''} ${Date.now() - bornAt.current > 1500 ? 'rx-pop' : ''}`}
+              style={{ cursor: 'pointer', userSelect: 'none', WebkitTouchCallout: 'none', padding: '2px 1px' }}
+              onTouchStart={(ev) => { ev.stopPropagation(); holdStart(e, i); }} onTouchEnd={holdEnd} onTouchMove={holdEnd} onTouchCancel={holdEnd}
+              onMouseDown={() => holdStart(e, i)} onMouseUp={holdEnd} onMouseLeave={holdEnd} onContextMenu={(ev) => { ev.preventDefault(); ev.stopPropagation(); }}>{e}</span>
           ))}
         </div>
       )}
 
       {menu && (
-        <>
-          <div onClick={() => setMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 1900 }} />
-          <div
-            className="shadow-lg"
-            style={{ position: 'absolute', zIndex: 2000, [up ? 'bottom' : 'top']: '100%', [isMe ? 'right' : 'left']: 0, background: 'var(--raised)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: 18, padding: 8, minWidth: 220, boxShadow: '0 18px 40px rgba(0,0,0,.45)' }}
-          >
-            {!isViewOnce && !msg.is_screenshot && (
-              <div className="d-flex flex-wrap align-items-center gap-1 pb-2 mb-2" style={{ maxWidth: 260, borderBottom: '1px solid var(--line)' }}>
-                {[...DEFAULT_REACTIONS, ...custom].map((e) => (
-                  <button key={e} type="button" className="btn p-0 border-0" style={{ fontSize: 22, lineHeight: 1.15, width: 33, height: 36 }} onClick={act(() => onReact(msg, e))}>{e}</button>
-                ))}
-                <button type="button" aria-label="More reactions" className="sc-iconbtn" style={{ width: 32, height: 32, fontSize: 18 }} onClick={act(() => setPicker(true))}>+</button>
-              </div>
-            )}
-            <div className="d-flex flex-wrap justify-content-between align-items-center mb-2" style={{ maxWidth: 260 }}>
-              {[
-                ['Reply', () => onReply(msg), true],
-                ['Forward', () => onForward(msg), !isViewOnce && !msg.is_screenshot && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isChecklist && !msg.masked],
-                ['Copy', () => onCopy(msg), !!content && !isViewOnce && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isChecklist && !msg.masked],
-                ['Remind us', () => onRemind && onRemind(msg), !!onRemind && !isViewOnce && !msg.masked && !msg.is_screenshot],
-                [msg.is_starred ? 'Remove star' : 'Star', () => onStar && onStar(msg), !!onStar && !isViewOnce],
-                ['Edit', () => onEdit(msg), canEdit],
-                [pinned ? 'Unpin' : 'Pin', () => onPin(msg), !isViewOnce],
-                ['Seen by', () => onSeenBy(msg), isMe && isGroup],
-                ['Message info', () => onInfo && onInfo(msg), !!onInfo && isMe && !isGroup && !msg.is_screenshot],
-                ['Delete', () => onDelete(msg), true],
-              ].filter((x) => x[2]).map(([label, fn]) => (
-                <button key={label} className="btn btn-sm text-start" style={{ color: label === 'Delete' ? '#ff7d8c' : 'var(--text)' }} onClick={act(fn)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+        <MessageMenu
+          isMe={isMe}
+          preview={previewText}
+          showReactions={!isViewOnce && !msg.is_screenshot}
+          reactions={[...DEFAULT_REACTIONS, ...custom]}
+          mine={msg.reactions ? msg.reactions[String(meId)] : ''}
+          onReact={(e) => { setMenu(false); onReact(msg, e); }}
+          onFire={fireReaction}
+          onMore={() => { setMenu(false); setPicker(true); }}
+          onClose={() => setMenu(false)}
+          items={[
+            { label: 'Reply', icon: <BiReply />, fn: act(() => onReply(msg)), show: true },
+            { label: 'Forward', icon: <BiShare />, fn: act(() => onForward(msg)), show: !isViewOnce && !msg.is_screenshot && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isChecklist && !msg.masked },
+            { label: 'Copy', icon: <BiCopy />, fn: act(() => onCopy(msg)), show: !!content && !isViewOnce && !isPoll && !isExpense && !isAlbum && !isLive && !isGame && !isChecklist && !msg.masked },
+            { label: 'Remind us', icon: <BiBell />, fn: act(() => onRemind && onRemind(msg)), show: !!onRemind && !isViewOnce && !msg.masked && !msg.is_screenshot },
+            { label: msg.is_starred ? 'Unstar' : 'Star', icon: <BiStar />, fn: act(() => onStar && onStar(msg)), show: !!onStar && !isViewOnce },
+            { label: 'Edit', icon: <BiEdit />, fn: act(() => onEdit(msg)), show: canEdit },
+            { label: pinned ? 'Unpin' : 'Pin', icon: <BiPin />, fn: act(() => onPin(msg)), show: !isViewOnce },
+            { label: 'Seen by', icon: <BiCheckDouble />, fn: act(() => onSeenBy(msg)), show: isMe && isGroup },
+            { label: 'Info', icon: <BiInfoCircle />, fn: act(() => onInfo && onInfo(msg)), show: !!onInfo && isMe && !isGroup && !msg.is_screenshot },
+            { label: 'Delete', icon: <BiTrash />, fn: act(() => onDelete(msg)), show: true, danger: true },
+          ].filter((x) => x.show)}
+        />
       )}
     </div>
   );

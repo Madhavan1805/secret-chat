@@ -4,6 +4,8 @@
 //  2. html.kb-open : set while the on-screen keyboard is up (the composer then drops its bottom safe-area padding).
 //  3. blocks pinch-zoom / double-tap zoom, because the app should behave like a native app.
 
+import { getUiScale } from './uiScale';
+
 export function setupViewport() {
   const root = document.documentElement;
   const vv = window.visualViewport;
@@ -29,8 +31,9 @@ export function setupViewport() {
     // focused input stays in view (visualViewport.offsetTop > 0). A fixed screen at top:0 is then pushed
     // up and off, which hides the header and leaves a blank gap above the keyboard. Follow the pan.
     const top = vv ? Math.max(0, vv.offsetTop) : 0;
-    root.style.setProperty('--app-height', `${Math.round(h)}px`);
-    root.style.setProperty('--app-top', `${Math.round(top)}px`);
+    const z = getUiScale();                  // Display size: the page is zoomed, so lengths are divided by it to still fill the real screen
+    root.style.setProperty('--app-height', `${Math.round(h / z)}px`);
+    root.style.setProperty('--app-top', `${Math.round(top / z)}px`);
     root.classList.toggle('kb-open', isTyping() && h < baseline - 120);
     // the browser sometimes scrolls the whole page up when the keyboard opens - put it back
     if (window.scrollY !== 0) window.scrollTo(0, 0);
@@ -51,6 +54,7 @@ export function setupViewport() {
     vv.addEventListener('scroll', apply);
   }
   window.addEventListener('resize', settle);
+  window.addEventListener('sc:ui-scale', settle);
   document.addEventListener('focusin', settle);
   document.addEventListener('focusout', settle);
   window.addEventListener('orientationchange', () => {
