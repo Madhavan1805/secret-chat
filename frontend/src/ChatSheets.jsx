@@ -173,6 +173,30 @@ function MemberProfile({ T, me, member, onClose, ask }) {
   );
 }
 
+// Who reacted with what (WhatsApp / Instagram style): tabs per emoji, a row per person
+export function ReactionsSheet({ T, msg, names, me, onClose }) {
+  const entries = Object.entries(msg.reactions || {}).map(([uid, e]) => ({ uid: Number(uid), e, name: Number(uid) === me.id ? 'You' : (names[Number(uid)] || 'Someone') }));
+  const emojis = [...new Set(entries.map((x) => x.e))];
+  const [tab, setTab] = useState('all');
+  const rows = tab === 'all' ? entries : entries.filter((x) => x.e === tab);
+  return (
+    <Sheet T={T} title="Reactions" onClose={onClose}>
+      <div className="rl-tabs hide-scroll">
+        <button type="button" className={`rl-tab${tab === 'all' ? ' on' : ''}`} onClick={() => setTab('all')}>All {entries.length}</button>
+        {emojis.map((e) => <button type="button" key={e} className={`rl-tab${tab === e ? ' on' : ''}`} onClick={() => setTab(e)}>{e} {entries.filter((x) => x.e === e).length}</button>)}
+      </div>
+      {rows.length === 0 && <p style={{ color: 'var(--sub)', textAlign: 'center' }}>No reactions yet.</p>}
+      {rows.map((r) => (
+        <div key={r.uid} className="rl-row">
+          <Avatar name={r.name === 'You' ? me.username : r.name} size={40} T={T} />
+          <span className="n">{r.name}</span>
+          <span className="e">{r.e}</span>
+        </div>
+      ))}
+    </Sheet>
+  );
+}
+
 export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
   const [friends, setFriends] = useState([]);
   const [adding, setAdding] = useState(false);

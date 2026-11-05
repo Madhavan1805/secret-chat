@@ -132,11 +132,12 @@ function StatusPeek({ st, onClose }) {
 export default function MessageBubble({
   msg, isMe, isGroup, T, replyMsg, highlighted, pinned,
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
-  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onAlbumChanged, onAsk, onBalances, onCapsuleOpened, onRain, onUnlockTime,
+  onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onAlbumChanged, onAsk, onBalances, onCapsuleOpened, onRain, onUnlockTime, onShowReactions,
 }) {
   const [menu, setMenu] = useState(false);
   const bornAt = useRef(Date.now());                          // reactions that arrive after this pop in
   const [heldChip, setHeldChip] = useState(-1);               // reaction chip being held
+  const rainFired = useRef(false);
   const rowRef = useRef(null);
   const [viewer, setViewer] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);       // tapped the status a reply was about
@@ -217,7 +218,7 @@ export default function MessageBubble({
 
   // tap-hold on a reaction: it rains over this screen and over the other person's chat screen too
   const rainFrom = (emoji) => { rainAll(emoji); if (onRain) onRain(msg, emoji); };
-  const holdStart = (emoji, i) => { clearTimeout(rainTimer.current); setHeldChip(i); rainTimer.current = setTimeout(() => { setHeldChip(-1); rainFrom(emoji); }, 480); };
+  const holdStart = (emoji, i) => { clearTimeout(rainTimer.current); rainFired.current = false; setHeldChip(i); rainTimer.current = setTimeout(() => { rainFired.current = true; setHeldChip(-1); rainFrom(emoji); }, 480); };
   const holdEnd = () => { clearTimeout(rainTimer.current); setHeldChip(-1); };
 
   // hold an emoji in the menu: react with it (only adds, never removes mine), pop it, and rain it on both screens
@@ -395,6 +396,7 @@ export default function MessageBubble({
               className={`rx-chip ${heldChip === i ? 'rx-hold' : ''} ${Date.now() - bornAt.current > 1500 ? 'rx-pop' : ''}`}
               style={{ cursor: 'pointer', userSelect: 'none', WebkitTouchCallout: 'none', padding: '2px 1px' }}
               onTouchStart={(ev) => { ev.stopPropagation(); holdStart(e, i); }} onTouchEnd={holdEnd} onTouchMove={holdEnd} onTouchCancel={holdEnd}
+              onClick={(ev) => { ev.stopPropagation(); if (!rainFired.current && onShowReactions) onShowReactions(msg); }}
               onMouseDown={() => holdStart(e, i)} onMouseUp={holdEnd} onMouseLeave={holdEnd} onContextMenu={(ev) => { ev.preventDefault(); ev.stopPropagation(); }}>{e}</span>
           ))}
         </div>
