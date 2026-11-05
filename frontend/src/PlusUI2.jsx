@@ -178,7 +178,7 @@ export function AwaySheet({ T, me, onClose, onDone, ask }) {
   };
   return (
     <Sheet T={T} title="Away auto-reply" onClose={onClose}>
-      <p style={{ color: 'var(--sub)', fontSize: 13 }}>When a friend messages you, they get this answer once (then again after 6 hours).</p>
+      <p style={{ color: 'var(--sub)', fontSize: 13 }}>When a friend messages you, they get this answer (then again only after 5 minutes, so it does not spam).</p>
       <textarea className="sc-field" rows={3} maxLength={200} value={text} onChange={(e) => setText(e.target.value)} aria-label="Auto-reply message" />
       <label className="sc-label">Keep it on for</label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>

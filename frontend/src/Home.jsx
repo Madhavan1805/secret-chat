@@ -87,8 +87,8 @@ function Home() {
   const [showQr, setShowQr] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [showAsk, setShowAsk] = useState(false);
+  const [activity, setActivity] = useState([]);
   const [asks, setAsks] = useState([]);                       // unanswered anonymous questions
-  const [seenLikes, setSeenLikes] = useState(() => { try { return JSON.parse(localStorage.getItem('chatzy_seen_likes') || 'null') || {}; } catch (e) { return {}; } });
   const [showFind, setShowFind] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
@@ -196,6 +196,10 @@ function Home() {
     }
   };
 
+  const fetchActivity = async () => {
+    try { const r = await api.get('activity/'); setActivity(asList(r.data)); } catch (e) { /* ignore */ }
+  };
+
   const fetchAsks = async () => {
     try { const r = await api.get('ask/inbox/'); setAsks(asList(r.data).filter((q) => !q.answer)); } catch (e) { /* ignore */ }
   };
@@ -219,6 +223,7 @@ function Home() {
     fetchCalls();
     fetchNotes();
     fetchAsks();
+    fetchActivity();
     const interval = setInterval(() => {
       tickRef.current += 1;
       // WebSocket connected -> only a slow safety refresh; otherwise poll every 3 s
@@ -237,6 +242,9 @@ function Home() {
         break;
       case 'ask':
         fetchAsks();
+        break;
+      case 'activity':
+        fetchActivity();
         break;
       case 'banned':
         wipeSession(); window.location.replace('/');
@@ -518,13 +526,14 @@ function Home() {
     calls: missedCalls ? `${missedCalls} missed` : 'Recent calls',
     profile: 'Your profile and settings',
   }[activeTab];
-  const myLikes = (notes.mine && notes.mine.liked_by) || [];
-  const likeKey = notes.mine ? String(notes.mine.created_at) : '';
-  const unseenLikes = notes.mine ? Math.max(0, myLikes.length - (seenLikes.k === likeKey ? seenLikes.n : 0)) : 0;
-  const bellCount = pendingRequests.length + asks.length + unseenLikes;
+  const unreadActivity = activity.filter((a) => !a.is_read).length;
+  const bellCount = pendingRequests.length + asks.length + unreadActivity;
   const closeBell = () => {
     setShowRequests(false);
-    if (notes.mine) { const v = { k: likeKey, n: myLikes.length }; setSeenLikes(v); try { localStorage.setItem('chatzy_seen_likes', JSON.stringify(v)); } catch (e) { /* ignore */ } }
+    if (unreadActivity) {
+      setActivity((rows) => rows.map((a) => ({ ...a, is_read: true })));
+      api.post('activity/read/').catch(() => {});
+    }
   };
   const badges = { chats: hasNewMessage, groups: groupUnread, calls: missedCalls > 0 };
 
@@ -664,7 +673,7 @@ function Home() {
 
       {showRequests && (
         <RequestsSheet T={T} pending={pendingRequests} sent={sentRequests} onClose={closeBell}
-          asks={asks} likedBy={myLikes} noteText={notes.mine ? notes.mine.text : ''}
+          asks={asks} activity={activity}
           onOpenAsks={() => { closeBell(); setShowAsk(true); }}
           onMessage={(r) => { closeBell(); openFriend({ id: r.sender, username: r.sender_name }); }}
           onAccept={(r) => handleRequestAction(r.id, 'accepted')} onDecline={(r) => handleRequestAction(r.id, 'declined')} onCancel={cancelRequest} />

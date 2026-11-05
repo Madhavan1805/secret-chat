@@ -115,10 +115,14 @@ def note_like_view(request):
         raise ValidationError({"error": "That note is gone."})
     if str(request.data.get('unlike') or '').lower() in ('1', 'true', 'yes'):
         NoteLike.objects.filter(note=note, user=user).delete()
+        from .activity import remove_activity
+        remove_activity(owner_id, user, 'note_like')
         notify_users([owner_id], 'note')
         return Response({"liked": False, "like_count": note.likes.count()})
     _, created = NoteLike.objects.get_or_create(note=note, user=user)
     if created:
+        from .activity import add_activity
+        add_activity(owner_id, user, 'note_like')
         notify_users([owner_id], 'note')
         send_push([owner_id], user.username, "❤️ Liked your note", {})
     return Response({"liked": True, "like_count": note.likes.count()})

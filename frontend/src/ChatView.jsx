@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { BsCheckAll } from 'react-icons/bs';
 import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPlus, BiSearch, BiLock, BiArrowBack, BiSend, BiCheck, BiSmile, BiVolumeMute, BiImages, BiCamera, BiMap, BiFile, BiBarChartAlt2, BiCalendarEvent, BiCheckSquare, BiPencil, BiWallet, BiAlarm, BiTime, BiJoystick, BiPhotoAlbum, BiShow } from 'react-icons/bi';
 import AttachSheet from './AttachSheet';
+import MediaPreview from './MediaPreview';
 import api from './api';
 import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
@@ -1161,6 +1162,7 @@ function ChatView() {
   };
 
   const hasText = !!newMessage.trim() || selectedFiles.length > 0;
+  const mediaSelected = selectedFiles.some((f) => /^(image|video)\//.test(f.type || ''));
   const closePanels = () => { setShowAttach(false); setShowEmoji(false); };
   const replyPreview = (m) => (m.content ? m.content.replace('[VIEW_ONCE]', '').replace('[STICKER]', '') : (m.file_name || 'Media'));
 
@@ -1350,7 +1352,15 @@ function ChatView() {
                 <button type="button" className="sc-dots" aria-label="Cancel edit" onClick={() => { setEditing(null); setNewMessage(''); }}><BiX /></button>
               </div>
             )}
-            {selectedFiles.length > 0 && (
+            {mediaSelected && (
+              <MediaPreview files={selectedFiles} caption={newMessage} setCaption={setNewMessage} sending={sending} progress={sendProg}
+                viewOnce={isViewOnce} onToggleViewOnce={() => setIsViewOnce(!isViewOnce)} name={contactName}
+                onRemove={(i) => setSelectedFiles((p) => p.filter((_, j) => j !== i))}
+                onAdd={() => photoInputRef.current && photoInputRef.current.click()}
+                onClose={() => { setSelectedFiles([]); setNewMessage(''); }}
+                onSend={() => sendMessage()} />
+            )}
+            {selectedFiles.length > 0 && !mediaSelected && (
               <div className="sc-chip-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <b style={{ flex: 1 }}>{sendProg ? `Sending ${sendProg}…` : `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} ready to send`}</b>
