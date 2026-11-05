@@ -254,6 +254,8 @@ def _ludo_move(g, user, move, st):
             raise ValidationError({"error": "Move a token first."})
         die = random.randint(1, 6)
         st['die'] = die
+        st['seq'] = st.get('seq', 0) + 1                      # the app animates the dice when this number changes
+        st['last_die'], st['last_by'] = die, user.id
         movable = _ludo_movable(st, user.id, die)
         if not movable:
             st['msg'] = f"{names.get(user.id, '?')} rolled {die}, no move"
@@ -427,7 +429,8 @@ def game_data(g, me_id):
         elif g.kind == 'ludo':
             out["ludo"] = {"players": [{"id": u, "name": names.get(u, '?')} for u in st.get('players', [])],
                            "started": st.get('started', False), "pos": st.get('pos', {}), "die": st.get('die'),
-                           "turn": st.get('turn', 0), "msg": st.get('msg', ''),
+                           "turn": st.get('turn', 0), "msg": st.get('msg', ''), "seq": st.get('seq', 0),
+                           "last_die": st.get('last_die'), "last_by": st.get('last_by'),
                            "movable": (_ludo_movable(st, st['players'][st['turn']], st['die'])
                                        if st.get('started') and st.get('die') and not g.finished else [])}
         elif g.kind in ('wyr', 'mlt'):

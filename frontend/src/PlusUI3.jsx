@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Sheet } from './ui';
 import api from './api';
 import { errMsg } from './config';
-import LudoBoard, { LUDO_COLORS } from './Ludo';
+import { LudoBoard, LudoGame, LUDO_COLORS } from './Ludo';
 import { sharingId, stopSharing } from './liveShare';
 
 const ago = (iso) => {
@@ -56,6 +56,30 @@ function GuessGame({ g, busy, move }) {
           <button type="submit" disabled={busy || !n} style={{ border: 0, borderRadius: 10, padding: '0 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Guess</button>
         </form>
       )}
+    </div>
+  );
+}
+
+function LudoCard({ g, meId, move, busy }) {
+  const [open, setOpen] = useState(false);
+  const L = g.ludo || { players: [] };
+  const myIdx = L.players.findIndex((p) => p.id === meId);
+  const turnP = L.players[L.turn];
+  const myTurn = L.started && !g.finished && turnP && turnP.id === meId;
+  return (
+    <div className="ld-card" onClick={(e) => e.stopPropagation()}>
+      <div style={{ fontWeight: 700 }}>🎲 Ludo</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '4px 0 6px' }}>
+        {L.players.map((p, i) => {
+          const on = L.started && !g.finished && turnP && turnP.id === p.id;
+          return <span key={p.id} style={{ fontSize: 12, padding: '2px 9px', borderRadius: 10, background: LUDO_COLORS[i], color: '#111', fontWeight: on ? 800 : 500, outline: on ? '2px solid currentColor' : 'none' }}>{p.name}</span>;
+        })}
+      </div>
+      <div style={{ fontSize: 12.5, opacity: 0.9 }}>
+        {g.finished ? `🏆 ${g.winner} won!` : !L.started ? `${L.players.length}/4 joined. ${myIdx < 0 ? 'Tap to join.' : `${g.starter} will start.`}` : myTurn ? '🎯 Your turn!' : `${turnP ? turnP.name : ''}'s turn`}
+      </div>
+      <button type="button" className="ld-open" onClick={() => setOpen(true)}>{g.finished ? 'See board' : myTurn ? 'Play now ▶' : myIdx < 0 && !L.started ? 'Join game' : 'Open game'}</button>
+      {open && <LudoGame g={g} meId={meId} move={move} busy={busy} onClose={() => setOpen(false)} />}
     </div>
   );
 }
@@ -125,39 +149,7 @@ export function GameCard({ msg, meId, onChanged, ask }) {
     );
   }
   if (g.kind === 'ludo') {
-    const L = g.ludo || { players: [] };
-    const myIdx = L.players.findIndex((p) => p.id === meId);
-    const turnP = L.players[L.turn];
-    const myTurn = L.started && !g.finished && turnP && turnP.id === meId;
-    return (
-      <div style={{ minWidth: 250 }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontWeight: 700 }}>🎲 Ludo</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '4px 0 6px' }}>
-          {L.players.map((p, i) => <span key={p.id} style={{ fontSize: 12, padding: '2px 8px', borderRadius: 10, background: LUDO_COLORS[i], color: '#111', fontWeight: p.id === (turnP && turnP.id) && L.started && !g.finished ? 800 : 500, outline: p.id === (turnP && turnP.id) && L.started && !g.finished ? '2px solid currentColor' : 'none' }}>{p.name}</span>)}
-        </div>
-        {!L.started ? (
-          <div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>{L.players.length}/4 joined. Friends tap Join, then {g.starter} starts.</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {myIdx < 0 && <button type="button" disabled={busy} onClick={() => move('join')} style={{ border: 0, borderRadius: 10, padding: '7px 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Join</button>}
-              {meId === g.starter_id && <button type="button" disabled={busy || L.players.length < 2} onClick={() => move('start')} style={{ border: 0, borderRadius: 10, padding: '7px 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Start game</button>}
-            </div>
-          </div>
-        ) : (
-          <>
-            <LudoBoard players={L.players} pos={L.pos} movable={myTurn ? L.movable : []} myIdx={myIdx} onToken={(t) => move(`t${t}`)} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-              <button type="button" disabled={busy || !myTurn || !!L.die} onClick={() => move('roll')}
-                style={{ border: 0, borderRadius: 12, padding: '4px 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontSize: 30, lineHeight: 1.2 }} aria-label="Roll the dice">{L.die ? DICE[L.die] : '🎲'}</button>
-              <div style={{ fontSize: 12, opacity: 0.9 }}>
-                {g.finished ? `${g.winner} won! 🏆` : myTurn ? (L.die ? 'Tap a glowing token' : 'Your turn: roll!') : `${turnP ? turnP.name : ''}'s turn`}
-                {L.msg ? <div style={{ opacity: 0.75 }}>{L.msg}</div> : null}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    );
+    return <LudoCard g={g} meId={meId} move={move} busy={busy} />;
   }
   if (g.kind === 'wyr') {
     const voted = g.my_vote;

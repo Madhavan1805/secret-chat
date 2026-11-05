@@ -28,6 +28,12 @@ const SOUNDS = {
   receive: { type: 'triangle', notes: [[660, 0, 0.1, 0.22], [880, 0.1, 0.14, 0.22]] },
   delete:  { type: 'sine',     notes: [[420, 0, 0.08, 0.2], [260, 0.08, 0.14, 0.2]] },
   tick:    { type: 'sine',     notes: [[1500, 0, 0.04, 0.13], [1500, 0.09, 0.05, 0.13]] },   // double tick
+  dice:    { type: 'square',   notes: [[210, 0, 0.04, 0.07], [330, 0.06, 0.04, 0.07], [180, 0.12, 0.04, 0.07], [360, 0.18, 0.04, 0.07], [240, 0.25, 0.04, 0.07], [300, 0.33, 0.05, 0.07], [520, 0.45, 0.09, 0.1]] },
+  hop:     { type: 'triangle', notes: [[640, 0, 0.07, 0.2], [820, 0.04, 0.06, 0.12]] },
+  capture: { type: 'sawtooth', notes: [[620, 0, 0.08, 0.1], [440, 0.08, 0.09, 0.1], [250, 0.17, 0.2, 0.11]] },
+  home:    { type: 'sine',     notes: [[784, 0, 0.1, 0.2], [988, 0.1, 0.1, 0.2], [1319, 0.2, 0.12, 0.2], [1568, 0.32, 0.25, 0.2]] },
+  win:     { type: 'triangle', notes: [[523, 0, 0.14, 0.22], [659, 0.14, 0.14, 0.22], [784, 0.28, 0.14, 0.22], [1047, 0.42, 0.4, 0.24], [784, 0.6, 0.1, 0.18], [1047, 0.72, 0.5, 0.24]] },
+  turn:    { type: 'sine',     notes: [[880, 0, 0.06, 0.12], [1109, 0.07, 0.1, 0.12]] },
   like:    { type: 'sine',     notes: [[784, 0, 0.08, 0.2], [988, 0.08, 0.08, 0.2], [1319, 0.16, 0.14, 0.2]] },
 };
 
@@ -46,7 +52,7 @@ export function playSound(name) {
   const c = getCtx();
   if (!def || !c) return;
   const now = Date.now();
-  if (lastPlayed[name] && now - lastPlayed[name] < 120) return;   // never stack the same sound
+  if (lastPlayed[name] && now - lastPlayed[name] < (name === 'hop' ? 60 : 120)) return;   // never stack the same sound
   lastPlayed[name] = now;
   try {
     if (c.state === 'suspended') c.resume().catch(() => {});

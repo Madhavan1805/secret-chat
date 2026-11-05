@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0F0B14"><title>Chatzy · Offline</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 30%,#4a1230,#0F0B14 70%);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:24px}
+.w{max-width:320px}.ring{width:120px;height:120px;margin:0 auto 22px;position:relative;display:grid;place-items:center}
+.ring i{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(255,120,110,.55);animation:p 2s ease-out infinite}.ring i:nth-child(2){animation-delay:.6s}.ring i:nth-child(3){animation-delay:1.2s}
+.ring span{font-size:52px;animation:f 2.4s ease-in-out infinite}
+h1{font-size:26px;margin:0 0 8px;color:#FFB36B}p{margin:0 0 22px;opacity:.75;line-height:1.5}
+button{border:0;border-radius:26px;padding:13px 34px;font-weight:800;font-size:16px;background:linear-gradient(135deg,#ffd34e,#ff8a3d);color:#3a2200}
+@keyframes p{0%{transform:scale(.45);opacity:1}100%{transform:scale(1.25);opacity:0}}@keyframes f{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+</style></head><body><div class="w"><div class="ring"><i></i><i></i><i></i><span>📡</span></div>
+<h1>You're offline</h1><p>Chatzy can't reach the internet right now. Turn on Wi-Fi or mobile data, then try again.</p>
+<button onclick="location.reload()">Try again</button></div>
+<script>addEventListener('online',function(){location.reload()})</script></body></html>
