@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BiMusic, BiX, BiPlus } from 'react-icons/bi';
+import { BiMusic, BiX, BiPlus, BiSend } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import { Sheet } from './ui';
@@ -37,10 +37,42 @@ function Bubble({ note, mine, playing, liked }) {
 }
 
 // the row of notes above the chat list (Instagram style)
+// reply to a friend's note: it goes to your chat with them as a normal message that quotes the note
+function NoteReply({ T, n, f, onClose, onError }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const send = async (e) => {
+    e.preventDefault();
+    const t = text.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('receiver', f.id);
+      fd.append('content', `↩️ Replied to your note${n.text ? ` “${n.text}”` : ''}\n${t}`.slice(0, 1000));
+      await api.post('messages/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      onClose();
+    } catch (err) { if (onError) onError(errMsg(err, 'Could not send the reply')); setBusy(false); }
+  };
+  return (
+    <Sheet T={T} title={`Reply to ${f.username}'s note`} onClose={onClose}>
+      <div className="fx-card" style={{ textAlign: 'center' }}>
+        <b>{n.text || (n.music_title ? `🎵 ${n.music_title}` : 'Note')}</b>
+        {n.music_title && n.text ? <div style={{ fontSize: 12, color: 'var(--sub)', marginTop: 4 }}>🎵 {n.music_title}</div> : null}
+      </div>
+      <form onSubmit={send} style={{ display: 'flex', gap: 8 }}>
+        <input className="sc-field" autoFocus placeholder="Write a reply" maxLength={500} value={text} onChange={(e) => setText(e.target.value)} />
+        <button type="submit" className="sc-btn" style={{ height: 44 }} disabled={busy || !text.trim()} aria-label="Send reply"><BiSend /></button>
+      </form>
+    </Sheet>
+  );
+}
+
 export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked, onError }) {
   const audioRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
   const [likedIds, setLikedIds] = useState([]);
+  const [replyTo, setReplyTo] = useState(null);                // { n, f }: replying to this friend's note
   const taps = useRef({});                                   // last tap time + pending single-tap timer per note
 
   useEffect(() => () => { if (audioRef.current) audioRef.current.pause(); }, []);
@@ -103,8 +135,11 @@ export function NotesStrip({ T, me, notes, friends, onEditMine, onLiked, onError
             </span>
           </span>
           <span className="nt-name">{f.username}</span>
+          <span role="button" tabIndex={0} className="nt-reply" onClick={(e) => { e.stopPropagation(); setReplyTo({ n, f }); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setReplyTo({ n, f }); } }}>Reply</span>
         </button>
       ))}
+      {replyTo && <NoteReply T={T} n={replyTo.n} f={replyTo.f} onClose={() => setReplyTo(null)} onError={onError} />}
     </div>
   );
 }
