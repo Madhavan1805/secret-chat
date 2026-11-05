@@ -153,6 +153,7 @@ export default function AuthLayout({ title, subtitle, children }) {
       <style>{CSS}</style>
       <div className="au-wrap">
         <header className="au-brand">
+          <img src="/logo.png" alt="" width="72" height="72" draggable="false" style={{ borderRadius: 18, margin: '0 0 12px', boxShadow: '0 8px 26px rgba(255,105,150,.28)' }} />
           <div className="au-logo">
             <span className="au-logo-a">Chatzy</span>
           </div>

@@ -8,7 +8,7 @@ import { useModal } from './PromptModal';
 import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
 import { getMe, getToken, clearMe, errMsg, formatListTime, formatDuration, startCall, asList } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage } from './theme';
-import { Seal, Sheet } from './ui';
+import { Logo, Sheet } from './ui';
 import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
 import { GlobalSearch } from './PlusUI2';
@@ -592,7 +592,7 @@ function Home() {
 
               {friends.length === 0 && !ql && (
                 <div className="sc-empty">
-                  <Seal size={64} keyhole style={{ margin: '0 auto' }} />
+                  <Logo size={72} style={{ margin: '0 auto' }} />
                   <b>No chats yet</b>
                   Add a friend with their Chatzy ID or QR code to start chatting.
                   <div style={{ marginTop: 16 }}><button type="button" className="sc-btn" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /> Find people</button></div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Seal } from './ui';
+import { Logo } from './ui';
 import { resolveTheme, getAppTheme, themeVars } from './theme';
 import { lockEnabled, shieldEnabled, lockDelaySeconds, checkPin, checkDecoy, decoyEnabled, LOCK_EVENT } from './appLock';
 import DecoyApp from './DecoyApp';
@@ -33,7 +33,7 @@ export function PinPad({ title, hint, onComplete, error, resetKey }) {
 
   return (
     <>
-      <Seal size={84} keyhole />
+      <Logo size={84} />
       <h1>{title}</h1>
       <p>{hint}</p>
       <div className={`sc-pin${shake ? ' shake' : ''}`} aria-label={`${pin.length} of 4 digits entered`}>
@@ -96,7 +96,7 @@ export default function LockGate({ children }) {
   return (
     <>
       {decoy && !locked ? <DecoyApp T={T} /> : children}
-      {shielded && !locked && <div className="sc-shield" style={themeVars(T)}><Seal size={96} keyhole /></div>}
+      {shielded && !locked && <div className="sc-shield" style={themeVars(T)}><Logo size={96} /></div>}
       {locked && (
         <div className="sc-lock" style={themeVars(T)} role="dialog" aria-label="App locked">
           <PinPad title="Chatzy is locked" hint="Enter your 4-digit PIN" onComplete={tryPin} error={err} />
