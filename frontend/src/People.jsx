@@ -5,8 +5,22 @@ import Avatar from './Avatar';
 import { Sheet } from './ui';
 import { asList } from './config';
 
+const ACT_TEXT = { follow_accept: 'accepted your follow request.', unfollow: 'unfollowed you.', note_like: 'liked your note.', status_like: 'liked your status.' };
+const ACT_ICON = { follow_accept: '✅', unfollow: '👋', note_like: '❤️', status_like: '❤️' };
+const shortAgo = (iso) => {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return 'now';
+  if (m < 60) return `${m}m`;
+  if (m < 1440) return `${Math.floor(m / 60)}h`;
+  return `${Math.floor(m / 1440)}d`;
+};
+const bucket = (iso) => {
+  const d = (Date.now() - new Date(iso).getTime()) / 86400000;
+  return d < 1 ? 'Today' : d < 7 ? 'This week' : 'Earlier';
+};
+
 // ------------------------------------------------------------------ requests (kept out of the chat list)
-export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel, onClose, asks = [], likedBy = [], noteText = '', onOpenAsks, onMessage }) {
+export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel, onClose, asks = [], activity = [], onOpenAsks, onMessage }) {
   const [accepted, setAccepted] = useState([]);          // accepted just now: the button turns into "Message"
   const [busyId, setBusyId] = useState(null);
   const confirm = async (r) => {
@@ -16,9 +30,9 @@ export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel,
     if (ok !== false) setAccepted((a) => [...a, r]);
   };
   const open = pending.filter((r) => !accepted.some((a) => a.id === r.id));
-  const empty = open.length === 0 && accepted.length === 0 && sent.length === 0 && asks.length === 0 && likedBy.length === 0;
+  const empty = open.length === 0 && accepted.length === 0 && sent.length === 0 && asks.length === 0 && activity.length === 0;
   return (
-    <Sheet T={T} title="Notifications" onClose={onClose}>
+    <Sheet T={T} title="Activity" onClose={onClose}>
       {empty && (
         <div className="sc-empty"><BiUserPlus style={{ fontSize: 38, color: 'var(--accent)' }} /><b>Nothing new</b>Friend requests, anonymous questions and note likes show up here.</div>
       )}
@@ -34,19 +48,6 @@ export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel,
             </div>
             <span className="sc-btn" style={{ height: 34, fontSize: 13, padding: '0 16px', display: 'inline-grid', placeItems: 'center' }}>Reply</span>
           </button>
-        </>
-      )}
-
-      {likedBy.length > 0 && (
-        <>
-          <div className="sc-section">Note</div>
-          <div className="sc-row" style={{ cursor: 'default' }}>
-            <span style={{ fontSize: 30, width: 46, textAlign: 'center' }}>❤️</span>
-            <div className="sc-row-main">
-              <h3 className="sc-row-name"><span className="t">{likedBy.length <= 2 ? likedBy.join(' and ') : `${likedBy.slice(0, 2).join(', ')} and ${likedBy.length - 2} more`} liked your note</span></h3>
-              {noteText && <span className="sc-row-sub">“{noteText}”</span>}
-            </div>
-          </div>
         </>
       )}
 
@@ -77,6 +78,27 @@ export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel,
           ))}
         </>
       )}
+
+      {activity.length > 0 && ['Today', 'This week', 'Earlier'].map((label) => {
+        const rows = activity.filter((a) => bucket(a.created_at) === label);
+        if (!rows.length) return null;
+        return (
+          <React.Fragment key={label}>
+            <div className="sc-section">{label}</div>
+            {rows.map((a) => (
+              <div key={a.id} className="sc-row" style={{ cursor: 'default', background: a.is_read ? undefined : 'color-mix(in srgb, var(--accent) 10%, transparent)', borderRadius: 14 }}>
+                <span style={{ position: 'relative', flex: 'none' }}>
+                  <Avatar src={a.profile_picture} name={a.username} size={48} T={T} />
+                  <span style={{ position: 'absolute', right: -4, bottom: -4, width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, background: 'var(--panel)', boxShadow: '0 0 0 2px var(--panel)' }}>{ACT_ICON[a.kind] || '🔔'}</span>
+                </span>
+                <div className="sc-row-main" style={{ whiteSpace: 'normal' }}>
+                  <div style={{ fontSize: 14.5, lineHeight: 1.35, color: 'var(--text)' }}><b>{a.username}</b> {ACT_TEXT[a.kind] || 'did something'} <span style={{ color: 'var(--sub)' }}>{shortAgo(a.created_at)}</span></div>
+                </div>
+              </div>
+            ))}
+          </React.Fragment>
+        );
+      })}
 
       {sent.length > 0 && (
         <>

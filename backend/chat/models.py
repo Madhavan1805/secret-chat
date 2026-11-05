@@ -505,3 +505,17 @@ class OnlineWatch(models.Model):
 
     class Meta:
         unique_together = ('watcher', 'target')
+
+
+class Activity(models.Model):
+    """What shows in the bell like Instagram's activity: follow accepted, unfollowed you, liked your note / status."""
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='activities')
+    actor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+    kind = models.CharField(max_length=20)            # follow_accept | unfollow | note_like | status_like
+    ref = models.PositiveIntegerField(default=0)      # status id for status_like
+    created_at = models.DateTimeField(default=timezone.now)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['user', '-created_at'])]

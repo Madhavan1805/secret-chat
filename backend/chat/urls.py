@@ -9,6 +9,7 @@ from .extras3 import (live_start_view, live_update_view, game_create_view, game_
                       online_watch_view)
 from .extras4 import (self_chat_view, invite_manage_view, invite_info_view, invite_join_view,
                       translate_view, link_preview_view, backup_view)
+from .activity import activity_list_view, activity_read_view
 from .auth_views import login_view, register_view, check_view, forgot_view, reset_view
 from .views import (
     UserViewSet, ChatViewSet, MessageViewSet, ChatRequestViewSet,
@@ -45,6 +46,8 @@ urlpatterns = [
     path('users/away/', away_view),
     path('live/start/', live_start_view),
     path('live/update/', live_update_view),
+    path('activity/', activity_list_view),
+    path('activity/read/', activity_read_view),
     path('games/create/', game_create_view),
     path('games/move/', game_move_view),
     path('users/online-watch/', online_watch_view),

@@ -140,13 +140,13 @@ def mood_view(request):
 
 # ------------------------------------------------------------------ away auto-reply
 def maybe_auto_reply(chat, sender, msg):
-    """If the receiver set an auto-reply and is still 'away', answer once per 6 hours per chat."""
+    """If the receiver set an auto-reply and is still 'away', answer once per 5 minutes per chat."""
     receiver = msg.receiver
     if not receiver or not receiver.auto_reply:
         return
     if receiver.auto_reply_until and receiver.auto_reply_until <= timezone.now():
         return
-    if not cache.add(f'autoreply:{chat.id}:{receiver.id}', 1, 6 * 3600):
+    if not cache.add(f'autoreply:{chat.id}:{receiver.id}', 1, 5 * 60):
         return
     reply = Message.objects.create(chat=chat, sender=receiver, receiver=sender, message_type='text',
                                    content=receiver.auto_reply[:300],

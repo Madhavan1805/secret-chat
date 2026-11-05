@@ -443,8 +443,13 @@ class UserViewSet(viewsets.ModelViewSet):
         uid = to_int(request.data.get('user_id'))
         if not uid:
             return Response({"error": "user_id required"}, status=400)
-        ChatRequest.objects.filter(
-            Q(sender=request.user, receiver_id=uid) | Q(sender_id=uid, receiver=request.user)).delete()
+        pair = ChatRequest.objects.filter(
+            Q(sender=request.user, receiver_id=uid) | Q(sender_id=uid, receiver=request.user))
+        was_friends = pair.filter(status='accepted').exists()
+        pair.delete()
+        if was_friends:
+            from .activity import add_activity
+            add_activity(uid, request.user, 'unfollow')
         notify_users([request.user.id, uid], 'friends_changed')
         return Response({"status": "unfriended"})
 
@@ -807,6 +812,8 @@ class ChatRequestViewSet(viewsets.ModelViewSet):
         req.save(update_fields=['status'])
         notify_users([req.sender_id, req.receiver_id], 'friends_changed')
         if new_status == 'accepted':
+            from .activity import add_activity
+            add_activity(req.sender_id, request.user, 'follow_accept')
             send_push([req.sender_id], request.user.username, 'accepted your friend request', {'type': 'request'})
         return Response(self.get_serializer(req).data)
 
@@ -1251,6 +1258,11 @@ class StatusViewSet(viewsets.ModelViewSet):
         row, _ = self._my_view_row(st, user)
         row.liked = not row.liked
         row.save(update_fields=['liked'])
+        from .activity import add_activity, remove_activity
+        if row.liked:
+            add_activity(st.user_id, user, 'status_like', st.id)
+        else:
+            remove_activity(st.user_id, user, 'status_like', st.id)
         if row.liked:
             # a like is only a notification - it is NOT added to the chat
             title = user.username
