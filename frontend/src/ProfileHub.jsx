@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle } from 'react-icons/bi';
+import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle, BiExpand } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import { Sheet, Toggle, SettingRow, Choice } from './ui';
@@ -16,6 +16,7 @@ import { MoodSheet, BirthdaySheet, AwaySheet, QuietSheet } from './PlusUI2';
 import { listAccounts } from './accounts';
 import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
 import { burstAt } from './fx';
+import { UI_SCALES, getUiScale, setUiScale } from './uiScale';
 import PhotoCropper from './PhotoCropper';
 import { soundsEnabled, setSoundsEnabled } from './sounds';
 import { getMe, errMsg, shortFile } from './config';
@@ -50,6 +51,25 @@ function ThemeSheet({ T, onClose, appTheme, onPick }) {
           );
         })}
       </div>
+    </Sheet>
+  );
+}
+
+// Display size: scales the whole app on this phone (for phones where everything looks too big or too small)
+function DisplaySizeSheet({ T, onClose }) {
+  const [v, setV] = useState(getUiScale());
+  const pick = (n) => { setV(n); setUiScale(n); };
+  return (
+    <Sheet T={T} title="Display size" onClose={onClose}>
+      <p style={{ color: 'var(--sub)', fontSize: 13.5, margin: '0 4px 14px', lineHeight: 1.5 }}>Everything looks too big or too small on your phone? Change the size of the whole app here. It is saved on this phone only.</p>
+      <Choice value={v} options={UI_SCALES.map((s) => [s.v, s.label])} onChange={pick} />
+      <input type="range" min="0.8" max="1.2" step="0.05" value={v} aria-label="Display size"
+        onChange={(e) => pick(Math.round(Number(e.target.value) * 100) / 100)} style={{ width: '100%', margin: '18px 0 6px', accentColor: 'var(--accent)' }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--sub)', padding: '0 2px' }}><span>Smaller</span><span>{Math.round(v * 100)}%</span><span>Bigger</span></div>
+      <div style={{ margin: '16px 0 4px', padding: 14, borderRadius: 18, background: 'var(--raised)', border: '1px solid var(--line)' }}>
+        <span style={{ display: 'inline-block', padding: '8px 12px', borderRadius: '16px 16px 16px 4px', background: 'var(--line)', fontSize: 14 }}>Hey! How does this size feel? 👋</span>
+      </div>
+      <button type="button" className="sc-btn" disabled={v === 1} onClick={() => pick(1)} style={{ width: '100%', marginTop: 12 }}>Reset to default</button>
     </Sheet>
   );
 }
@@ -162,6 +182,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       </div>
 
       <div className="sc-set-group">
+        <SettingRow icon={<BiExpand />} title="Display size" sub={getUiScale() === 1 ? 'Default' : `${Math.round(getUiScale() * 100)}%`} onClick={() => setSheet('size')} right={chev} />
         <SettingRow icon={<BiPalette />} title="Appearance" sub={(CHAT_THEMES[appTheme] || CHAT_THEMES.default).label} onClick={() => setSheet('theme')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>🌙</span>} title="Quiet hours" sub={getQuiet().on ? `${getQuiet().from} – ${getQuiet().to}` : 'Off'} onClick={() => setSheet('quiet')} right={chev} />
         <SettingRow icon={<BiBell />} title="Online alerts" sub="A small pop-up when a friend comes online" right={<Toggle on={onlineAlerts} onChange={(v) => { setOnlineAlerts(v); setOnlineAlertsEnabled(v); }} label="Online alerts" />} />
@@ -192,6 +213,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       {sheet === 'lock' && <LockSheet T={T} onClose={() => { close(); }} ask={ask} />}
       {sheet === 'starred' && <StarredSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'blocked' && <BlockedSheet T={T} onClose={close} users={blockedUsers} onUnblock={doUnblock} />}
+      {sheet === 'size' && <DisplaySizeSheet T={T} onClose={close} />}
       {sheet === 'theme' && <ThemeSheet T={T} onClose={close} appTheme={appTheme} onPick={changeAppTheme} />}
       {sheet === 'qr' && <QrSheet T={T} me={me} onClose={close} onAddUser={(u) => { close(); onAddUser(u); }} />}
     </div>

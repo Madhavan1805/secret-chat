@@ -11,7 +11,7 @@ const CSS = `
 .au-root{
   --wine:#0F0B14; --wine-deep:#0A0710; --gold:#FF6477; --gold-d:#E8405A; --ivory:#F6F0FB;
   --mute:rgba(246,240,251,.66); --line:rgba(246,240,251,.14); --err:#ff9b8f; --ok:#6ee7a0;
-  width:100%; min-height:100vh; min-height:100dvh; box-sizing:border-box; padding:28px 16px 40px;
+  width:100%; min-height:100vh; min-height:calc(100dvh / var(--ui-zoom, 1)); box-sizing:border-box; padding:28px 16px 40px;
   display:flex; justify-content:center;
   background:radial-gradient(70% 50% at 10% 0%, rgba(232,64,90,.28), transparent 70%), radial-gradient(60% 50% at 100% 100%, rgba(122,92,255,.16), transparent 70%), var(--wine);
   color:var(--ivory); font-family:'Instrument Sans','Noto Sans Tamil',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;

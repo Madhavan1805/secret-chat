@@ -5,9 +5,11 @@ import App from './App.jsx'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './design.css';
 import { setupViewport } from './viewport';
+import { applyUiScale } from './uiScale';
 import { paintPage, resolveTheme, getAppTheme, applyTypography } from './theme';
 
 // keyboard-safe height + no pinch zoom (must run before the first render)
+applyUiScale();                // saved Display size (Profile > Display size)
 setupViewport();
 applyTypography();
 paintPage(resolveTheme(getAppTheme()));

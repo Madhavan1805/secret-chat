@@ -4,6 +4,8 @@
 
 const reduced = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 
+const zoomNow = () => { try { const z = Number(getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom')); return z > 0 ? z : 1; } catch (e) { return 1; } };
+
 function layer(cls) {
   const el = document.createElement('div');
   el.className = cls;
@@ -13,6 +15,8 @@ function layer(cls) {
 
 export function burstAt(emoji, x, y, count = 9) {
   if (reduced()) return;
+  const z = zoomNow();
+  x /= z; y /= z;                       // pointer / rect coordinates are in screen pixels, the page may be zoomed (Display size)
   const box = layer('fx-layer');
   for (let i = 0; i < count; i += 1) {
     const s = document.createElement('span');
@@ -33,7 +37,7 @@ export function burstAt(emoji, x, y, count = 9) {
 export function rainAll(emoji, count = 46) {
   if (reduced()) return;
   const box = layer('fx-layer');
-  const w = window.innerWidth;
+  const w = window.innerWidth / zoomNow();
   for (let i = 0; i < count; i += 1) {
     const s = document.createElement('span');
     s.className = 'fx-drop';

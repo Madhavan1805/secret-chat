@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BiRotateRight } from 'react-icons/bi';
 import { Sheet } from './ui';
+import { uiZoom } from './uiScale';
 
 // Profile photo: drag to move, pinch / slider / mouse wheel to zoom, rotate, and the circle is exactly what gets saved.
 const OUT = 512;                      // saved size in pixels
@@ -49,7 +50,7 @@ export default function PhotoCropper({ T, file, onCancel, onDone, title = 'Adjus
   const s = base * zoom;
 
   useEffect(() => {
-    const fit = () => setSide(Math.min(window.innerWidth - 32, 380));
+    const fit = () => setSide(Math.min(window.innerWidth / uiZoom() - 32, 380));
     fit(); window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
   }, []);
@@ -83,7 +84,7 @@ export default function PhotoCropper({ T, file, onCancel, onDone, title = 'Adjus
       if (last.current) setZoom((z) => Math.min(4, Math.max(1, z * (d / last.current))));
       last.current = d;
     } else if (p.size === 1) {
-      setOff((o) => clamp({ x: o.x + e.clientX - prev.x, y: o.y + e.clientY - prev.y }));
+      setOff((o) => clamp({ x: o.x + (e.clientX - prev.x) / uiZoom(), y: o.y + (e.clientY - prev.y) / uiZoom() }));
     }
   };
   const up = (e) => { pointers.current.delete(e.pointerId); last.current = null; };
