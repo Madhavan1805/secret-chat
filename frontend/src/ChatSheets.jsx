@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BiImage, BiFile, BiLink, BiPlus, BiX, BiCamera } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
-import { Sheet, Choice, SettingRow, Seal } from './ui';
+import { Sheet, Choice, SettingRow, Logo } from './ui';
 import MediaViewer from './MediaViewer';
 import { getPicUrl, errMsg, formatSize, formatListTime, formatTime, asList, shortFile } from './config';
 
@@ -226,7 +226,7 @@ export function GroupSheet({ T, meta, me, onClose, onChanged, ask }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         {meta.group_photo
           ? <button type="button" aria-label="View group photo" onClick={() => setPhotoUrl(getPicUrl(meta.group_photo))} style={{ background: 'none', border: 0, padding: 0, lineHeight: 0, cursor: 'zoom-in' }}><Avatar src={meta.group_photo} name={meta.group_name} size={96} T={T} /></button>
-          : <Seal size={96} keyhole />}
+          : <Logo size={96} />}
         {isAdmin && (
           <div style={{ display: 'flex', gap: 8 }}>
             <input ref={photoRef} type="file" accept="image/*" className="d-none" onChange={upload} />

@@ -6,15 +6,16 @@ import Avatar from './Avatar';
 import StatusTab from './StatusTab';
 import { useModal } from './PromptModal';
 import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
-import { getMe, getToken, clearMe, errMsg, formatListTime, formatDuration, startCall } from './config';
+import { getMe, getToken, clearMe, errMsg, formatListTime, formatDuration, startCall, asList } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage } from './theme';
-import { Seal, Sheet } from './ui';
+import { Logo, Sheet } from './ui';
 import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
 import { GlobalSearch } from './PlusUI2';
 import { shownName, getDraft } from './nick';
 import { getFolders, addFolder, removeFolder, toggleInFolder } from './folders';
 import { RequestsSheet, FindPeopleSheet } from './People';
+import { AskInbox } from './PlusUI3';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
 import { useBackClose } from './backClose';
@@ -85,6 +86,9 @@ function Home() {
   const [showArchived, setShowArchived] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
+  const [showAsk, setShowAsk] = useState(false);
+  const [asks, setAsks] = useState([]);                       // unanswered anonymous questions
+  const [seenLikes, setSeenLikes] = useState(() => { try { return JSON.parse(localStorage.getItem('chatzy_seen_likes') || 'null') || {}; } catch (e) { return {}; } });
   const [showFind, setShowFind] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
@@ -192,6 +196,10 @@ function Home() {
     }
   };
 
+  const fetchAsks = async () => {
+    try { const r = await api.get('ask/inbox/'); setAsks(asList(r.data).filter((q) => !q.answer)); } catch (e) { /* ignore */ }
+  };
+
   const fetchNotes = async () => {
     try {
       const res = await api.get('notes/');
@@ -210,6 +218,7 @@ function Home() {
     fetchStatuses();
     fetchCalls();
     fetchNotes();
+    fetchAsks();
     const interval = setInterval(() => {
       tickRef.current += 1;
       // WebSocket connected -> only a slow safety refresh; otherwise poll every 3 s
@@ -225,6 +234,9 @@ function Home() {
         break;
       case 'note':
         fetchNotes();
+        break;
+      case 'ask':
+        fetchAsks();
         break;
       case 'banned':
         wipeSession(); window.location.replace('/');
@@ -286,7 +298,8 @@ function Home() {
     try {
       await api.patch(`requests/${reqId}/`, { status: action });
       refresh();
-    } catch (error) { ask({ type: 'alert', title: errMsg(error, 'Failed') }); }
+      return true;
+    } catch (error) { ask({ type: 'alert', title: errMsg(error, 'Failed') }); return false; }
   };
 
   const openFriend = (friend) => navigate(`/chat/${encodeURIComponent(friend.username)}`, { state: { friendId: friend.id } });
@@ -505,6 +518,14 @@ function Home() {
     calls: missedCalls ? `${missedCalls} missed` : 'Recent calls',
     profile: 'Your profile and settings',
   }[activeTab];
+  const myLikes = (notes.mine && notes.mine.liked_by) || [];
+  const likeKey = notes.mine ? String(notes.mine.created_at) : '';
+  const unseenLikes = notes.mine ? Math.max(0, myLikes.length - (seenLikes.k === likeKey ? seenLikes.n : 0)) : 0;
+  const bellCount = pendingRequests.length + asks.length + unseenLikes;
+  const closeBell = () => {
+    setShowRequests(false);
+    if (notes.mine) { const v = { k: likeKey, n: myLikes.length }; setSeenLikes(v); try { localStorage.setItem('chatzy_seen_likes', JSON.stringify(v)); } catch (e) { /* ignore */ } }
+  };
   const badges = { chats: hasNewMessage, groups: groupUnread, calls: missedCalls > 0 };
 
   return (
@@ -516,9 +537,9 @@ function Home() {
         <header className="sc-top">
           <span className="sc-wordmark" aria-label="Chatzy"><span className="w1">Chatzy</span></span>
           <div className="sc-top-actions">
-            <button type="button" className="sc-iconbtn" style={{ position: 'relative' }} aria-label={`Requests${pendingRequests.length ? ` (${pendingRequests.length})` : ''}`} onClick={() => setShowRequests(true)}>
+            <button type="button" className="sc-iconbtn" style={{ position: 'relative' }} aria-label={`Notifications${bellCount ? ` (${bellCount})` : ''}`} onClick={() => setShowRequests(true)}>
               <BiBell />
-              {pendingRequests.length > 0 && <span className="sc-badge" style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, fontSize: 11 }}>{pendingRequests.length}</span>}
+              {bellCount > 0 && <span className="sc-badge" style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, fontSize: 11 }}>{bellCount}</span>}
             </button>
             <button type="button" className="sc-iconbtn" aria-label="Find people" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /></button>
           </div>
@@ -571,7 +592,7 @@ function Home() {
 
               {friends.length === 0 && !ql && (
                 <div className="sc-empty">
-                  <Seal size={64} keyhole style={{ margin: '0 auto' }} />
+                  <Logo size={72} style={{ margin: '0 auto' }} />
                   <b>No chats yet</b>
                   Add a friend with their Chatzy ID or QR code to start chatting.
                   <div style={{ marginTop: 16 }}><button type="button" className="sc-btn" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /> Find people</button></div>
@@ -642,9 +663,13 @@ function Home() {
       </div>
 
       {showRequests && (
-        <RequestsSheet T={T} pending={pendingRequests} sent={sentRequests} onClose={() => setShowRequests(false)}
+        <RequestsSheet T={T} pending={pendingRequests} sent={sentRequests} onClose={closeBell}
+          asks={asks} likedBy={myLikes} noteText={notes.mine ? notes.mine.text : ''}
+          onOpenAsks={() => { closeBell(); setShowAsk(true); }}
+          onMessage={(r) => { closeBell(); openFriend({ id: r.sender, username: r.sender_name }); }}
           onAccept={(r) => handleRequestAction(r.id, 'accepted')} onDecline={(r) => handleRequestAction(r.id, 'declined')} onCancel={cancelRequest} />
       )}
+      {showAsk && <AskInbox T={T} onClose={() => { setShowAsk(false); fetchAsks(); }} ask={ask} />}
       {showFind && (
         <FindPeopleSheet T={T} me={me} friends={friends} pending={pendingRequests} sent={sentRequests} initialQuery={findQuery}
           onAdd={(u) => sendRequest(u.id)} onCancel={cancelRequest} onAccept={(r) => handleRequestAction(r.id, 'accepted')}
