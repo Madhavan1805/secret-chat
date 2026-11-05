@@ -297,8 +297,10 @@ class StatusSerializer(serializers.ModelSerializer):
     def get_viewers(self, obj):
         if not self._is_owner(obj):
             return []
+        request = self.context.get('request')
         return [{"id": v.viewer_id, "username": v.viewer.username, "viewed_at": v.viewed_at,
-                 "liked": v.liked, "reaction": v.reaction}
+                 "liked": v.liked, "reaction": v.reaction,
+                 "profile_picture": _abs(request, v.viewer.profile_picture.url) if v.viewer.profile_picture else None}
                 for v in obj.views.all()]
 
     # --- my own state on someone else's status

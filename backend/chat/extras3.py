@@ -84,7 +84,67 @@ WINS = [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4,
 RPS_BEATS = {'rock': 'scissors', 'paper': 'rock', 'scissors': 'paper'}
 
 
-GROUP_GAMES = {'grps': '🪨📄✂️ Group rock paper scissors', 'gnum': '🔢 Guess the number', 'gspin': '🎡 Truth or dare spinner'}
+GROUP_GAMES = {'grps': '🪨📄✂️ Group rock paper scissors', 'gnum': '🔢 Guess the number', 'gspin': '🎡 Truth or dare spinner',
+               'ludo': '🎲 Ludo', 'wyr': '🤔 Would you rather', 'mlt': '👀 Most likely to'}
+WYR = [("Always be 10 minutes late", "Always be 20 minutes early"), ("Lose your phone for a week", "Lose your wallet for a week"),
+       ("Only eat sweets forever", "Only eat spicy food forever"), ("Be able to fly", "Be invisible"),
+       ("Live in the mountains", "Live by the beach"), ("Never use social media again", "Never watch movies again"),
+       ("Know every language", "Play every instrument"), ("Have unlimited pizza", "Have unlimited biryani"),
+       ("Go back to school days", "Jump 10 years ahead"), ("Be famous", "Be rich and unknown")]
+MLT = ["Most likely to fall asleep in a movie", "Most likely to become a millionaire", "Most likely to get lost with a map",
+       "Most likely to text back after 3 days", "Most likely to cry at a movie", "Most likely to forget a birthday",
+       "Most likely to become famous", "Most likely to eat the last piece", "Most likely to be late to everything",
+       "Most likely to talk to a stranger and make a friend"]
+
+# ---- Ludo: 52 shared cells, 5 home-column cells, token positions -1 (yard), 0..50 track, 51..55 home column, 56 home
+LUDO_SAFE = {0, 8, 13, 21, 26, 34, 39, 47}
+
+
+def _ludo_cell(idx, pos):
+    return (idx * 13 + pos) % 52 if 0 <= pos <= 50 else None
+
+
+def _ludo_movable(st, uid, die):
+    idx = st['players'].index(uid)
+    out = []
+    for t, pos in enumerate(st['pos'][str(uid)]):
+        if pos == -1:
+            if die == 6:
+                out.append(t)
+        elif pos + die <= 56:
+            out.append(t)
+    return out
+
+
+def _ludo_apply(st, uid, t, die):
+    idx = st['players'].index(uid)
+    mine = st['pos'][str(uid)]
+    new = 0 if mine[t] == -1 else mine[t] + die
+    mine[t] = new
+    extra = die == 6
+    note = ''
+    cell = _ludo_cell(idx, new)
+    if cell is not None and cell not in LUDO_SAFE:
+        for oid in st['players']:
+            if oid == uid:
+                continue
+            oi = st['players'].index(oid)
+            for j, op in enumerate(st['pos'][str(oid)]):
+                if _ludo_cell(oi, op) == cell:
+                    st['pos'][str(oid)][j] = -1
+                    extra = True
+                    note = 'captured'
+    if new == 56:
+        extra = True
+        note = 'home'
+    return extra, note
+
+
+def _ludo_next(st, extra):
+    if not extra:
+        st['turn'] = (st['turn'] + 1) % len(st['players'])
+    st['die'] = None
+
 TRUTHS = ["What's the most embarrassing thing you've done in public?", "Who in this group do you secretly talk to the most?",
           "What's a lie you told that you still remember?", "Which of your habits would annoy this group the most?",
           "Who here would you trust with your phone unlocked?", "What's the last thing you searched on your phone?",
@@ -106,19 +166,29 @@ def game_create_view(request):
     chat = resolve_chat(user, request.data)
     other = _direct_guard(user, chat)
     kind = request.data.get('kind')
-    if chat.is_group:
-        if kind not in GROUP_GAMES:
-            raise ValidationError({"error": "Pick a group game."})
+    if kind in GROUP_GAMES:
         label = GROUP_GAMES[kind]
-        msg = Message.objects.create(chat=chat, sender=user, receiver=None, message_type='game', content=f"🎮 {label}", status='sent')
+        msg = Message.objects.create(chat=chat, sender=user, receiver=other, message_type='game', content=f"🎮 {label}",
+                                     status='delivered' if (other and other.is_online) else 'sent')
         state = {}
         if kind == 'gnum':
             state = {"secret": random.randint(1, 100), "guesses": []}
         elif kind == 'gspin':
             state = {"spins": 0}
+        elif kind == 'ludo':
+            players = [user.id] + ([other.id] if other else [])
+            state = {"players": players, "started": bool(other), "die": None, "turn": 0, "msg": '',
+                     "pos": {str(u): [-1, -1, -1, -1] for u in players}}
+        elif kind == 'wyr':
+            a, b = random.choice(WYR)
+            state = {"a": a, "b": b, "votes": {}}
+        elif kind == 'mlt':
+            state = {"q": random.choice(MLT), "votes": {}}
         Game.objects.create(message=msg, kind=kind, starter=user, opponent=None, state=state)
         notify_message(chat, msg, 'new')
         return Response(_out(request, msg), status=201)
+    if chat.is_group:
+        raise ValidationError({"error": "Pick a group game."})
     if kind not in ('ttt', 'rps'):
         raise ValidationError({"error": "Pick a game."})
     label = 'Tic-tac-toe' if kind == 'ttt' else 'Rock paper scissors'
@@ -130,12 +200,101 @@ def game_create_view(request):
     return Response(_out(request, msg), status=201)
 
 
+def _vote_move(g, user, move, st, options):
+    chat = g.message.chat
+    votes = st.setdefault('votes', {})
+    if move == 'reveal':
+        if user.id != g.starter_id:
+            raise PermissionDenied("Only the one who started the game can end it.")
+        g.finished = True
+        return
+    if g.finished:
+        raise ValidationError({"error": "Voting is closed."})
+    if options is not None:
+        if move not in options:
+            raise ValidationError({"error": "Pick A or B."})
+        votes[str(user.id)] = move
+    else:
+        target = to_int(move)
+        if target is None or not chat.participants.filter(pk=target).exists() or target == user.id:
+            raise ValidationError({"error": "Pick someone else from the chat."})
+        votes[str(user.id)] = target
+    if {m.id for m in _members(chat)} <= {int(k) for k in votes}:
+        g.finished = True
+
+
+def _ludo_move(g, user, move, st):
+    chat = g.message.chat
+    members = _members(chat)
+    if not st.get('started'):
+        if move == 'join':
+            if user.id in st['players']:
+                return
+            if len(st['players']) >= 4:
+                raise ValidationError({"error": "Ludo has room for 4 players."})
+            st['players'].append(user.id)
+        elif move == 'start':
+            if user.id != g.starter_id:
+                raise PermissionDenied("Only the one who started the game can start it.")
+            if len(st['players']) < 2:
+                raise ValidationError({"error": "Need at least 2 players. Others can tap Join."})
+            st['started'] = True
+            st['pos'] = {str(u): [-1, -1, -1, -1] for u in st['players']}
+            st['turn'], st['die'], st['msg'] = 0, None, 'Game started'
+        else:
+            raise ValidationError({"error": "The game has not started yet."})
+        return
+    if g.finished:
+        raise ValidationError({"error": "This game is over."})
+    if st['players'][st['turn']] != user.id:
+        raise ValidationError({"error": "Wait for your turn."})
+    names = {m.id: m.username for m in members}
+    if move == 'roll':
+        if st.get('die'):
+            raise ValidationError({"error": "Move a token first."})
+        die = random.randint(1, 6)
+        st['die'] = die
+        movable = _ludo_movable(st, user.id, die)
+        if not movable:
+            st['msg'] = f"{names.get(user.id, '?')} rolled {die}, no move"
+            _ludo_next(st, die == 6)
+        elif len(movable) == 1:
+            extra, note = _ludo_apply(st, user.id, movable[0], die)
+            st['msg'] = f"{names.get(user.id, '?')} rolled {die}" + (' and captured a token!' if note == 'captured' else ' and got a token home!' if note == 'home' else '')
+            _ludo_check_win(g, st, user.id)
+            _ludo_next(st, extra and not g.finished)
+        else:
+            st['msg'] = f"{names.get(user.id, '?')} rolled {die}"
+        return
+    if not st.get('die') or not (isinstance(move, str) and move.startswith('t') and move[1:].isdigit()):
+        raise ValidationError({"error": "Roll the dice first."})
+    t = int(move[1:])
+    die = st['die']
+    if t not in _ludo_movable(st, user.id, die):
+        raise ValidationError({"error": "That token cannot move."})
+    extra, note = _ludo_apply(st, user.id, t, die)
+    st['msg'] = f"{names.get(user.id, '?')} moved" + (' and captured a token!' if note == 'captured' else ' and got a token home!' if note == 'home' else '')
+    _ludo_check_win(g, st, user.id)
+    _ludo_next(st, extra and not g.finished)
+
+
+def _ludo_check_win(g, st, uid):
+    if all(p == 56 for p in st['pos'][str(uid)]):
+        g.finished, g.winner_id = True, uid
+
+
 def _group_move(g, user, move):
     chat = g.message.chat
     if not chat or not chat.participants.filter(pk=user.id).exists():
         raise PermissionDenied("Not your game.")
     st = g.state or {}
-    if g.kind == 'grps':
+    if g.kind == 'ludo':
+        _ludo_move(g, user, move, st)
+    elif g.kind == 'wyr':
+        _vote_move(g, user, move, st, ('a', 'b'))
+    elif g.kind == 'mlt':
+        _vote_move(g, user, move, st, None)
+    elif g.kind == 'grps':
         if g.finished:
             raise ValidationError({"error": "This round is over."})
         picks = st.setdefault('picks', {})
@@ -265,6 +424,31 @@ def game_data(g, me_id):
                               for x in st.get('guesses', [])][-8:]
             if g.finished:
                 out["secret"] = secret
+        elif g.kind == 'ludo':
+            out["ludo"] = {"players": [{"id": u, "name": names.get(u, '?')} for u in st.get('players', [])],
+                           "started": st.get('started', False), "pos": st.get('pos', {}), "die": st.get('die'),
+                           "turn": st.get('turn', 0), "msg": st.get('msg', ''),
+                           "movable": (_ludo_movable(st, st['players'][st['turn']], st['die'])
+                                       if st.get('started') and st.get('die') and not g.finished else [])}
+        elif g.kind in ('wyr', 'mlt'):
+            votes = st.get('votes', {})
+            out["voted"] = [int(k) for k in votes]
+            out["my_vote"] = votes.get(str(me_id))
+            out["total"] = len(names)
+            if g.kind == 'wyr':
+                out["a"], out["b"] = st.get('a'), st.get('b')
+            else:
+                out["q"] = st.get('q')
+                out["members"] = [{"id": i, "name": n} for i, n in names.items()]
+            if g.finished:
+                if g.kind == 'wyr':
+                    out["result"] = {"a": [names.get(int(u), '?') for u, v in votes.items() if v == 'a'],
+                                     "b": [names.get(int(u), '?') for u, v in votes.items() if v == 'b']}
+                else:
+                    tally = {}
+                    for v in votes.values():
+                        tally[v] = tally.get(v, 0) + 1
+                    out["result"] = sorted([{"name": names.get(int(t), '?'), "n": c} for t, c in tally.items()], key=lambda x: -x['n'])
         else:
             out["spin"] = {k: st.get(k) for k in ('who', 'who_name', 'type', 'prompt', 'by', 'spins')}
     return out

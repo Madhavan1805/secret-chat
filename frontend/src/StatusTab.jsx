@@ -622,36 +622,39 @@ function StatusTab({ T, rowBg, me, currentUsername, friends, statuses, refreshSt
               )}
             </div>
 
-            {/* viewers sheet (owner) */}
+            {/* viewers panel (owner): like WhatsApp, the status stays on top, the list slides up below it */}
             {isMine && showViewers && (
-              <div className="position-absolute w-100 p-2" style={{ left: 0, bottom: 'calc(env(safe-area-inset-bottom) + 72px)', zIndex: 6, background: 'rgba(20,20,24,0.97)', borderTop: `1px solid ${T.accent}55`, maxHeight: '45%', overflowY: 'auto' }}>
-                <div className="text-white fw-bold mb-2" style={{ fontSize: 13 }}>Viewed by {st.view_count || 0} • ❤️ {st.like_count || 0}</div>
-                {(st.viewers || []).length === 0 && <small className="text-white-50">Nobody has viewed yet.</small>}
-                {(st.viewers || []).map((v) => (
-                  <div key={v.id} className="d-flex justify-content-between align-items-center text-white py-1" style={{ fontSize: 12 }}>
-                    <span>{v.username}</span>
-                    <span className="d-flex align-items-center gap-2">
-                      {v.liked && <span>❤️</span>}
-                      {v.reaction && <span style={{ fontSize: 16 }}>{v.reaction}</span>}
-                      <span className="opacity-50">{formatListTime(v.viewed_at)}</span>
-                    </span>
-                  </div>
-                ))}
+              <div className="sv-panel" role="dialog" aria-label="Viewed by">
+                <div className="sv-head">
+                  <b>Viewed by {st.view_count || 0}</b>
+                  <span style={{ flex: 1 }} />
+                  <button type="button" className="sv-ic" onClick={doDelete} aria-label="Delete status"><BiTrash /></button>
+                  <button type="button" className="sv-ic" onClick={() => setShowViewers(false)} aria-label="Close list"><BiChevronDown /></button>
+                </div>
+                <div className="sv-list hide-scroll">
+                  {(st.viewers || []).length === 0 && <p className="sv-empty">Nobody has viewed yet.</p>}
+                  {(st.viewers || []).map((v) => (
+                    <div key={v.id} className="sv-row">
+                      <span className="sv-av">
+                        <Avatar src={v.profile_picture} name={v.username} size={50} T={T} />
+                        {(v.liked || v.reaction) && <span className="sv-badge">{v.reaction || '❤️'}</span>}
+                      </span>
+                      <span className="sv-name"><b>{v.username}</b><small>{formatListTime(v.viewed_at)}</small></span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* footer */}
             {isMine ? (
-              <div className="st-foot">
-                <button type="button" className="st-stat" onClick={() => setShowViewers(!showViewers)} aria-expanded={showViewers} aria-label="Who viewed this status">
-                  <BiShow /> {st.view_count || 0}
-                </button>
-                <button type="button" className="st-stat" onClick={() => setShowViewers(!showViewers)} aria-label="Who liked this status">
-                  <span aria-hidden>❤️</span> {st.like_count || 0}
-                </button>
-                <span style={{ flex: 1 }} />
-                <button type="button" className="st-round danger" onClick={doDelete} aria-label="Delete status"><BiTrash /></button>
-              </div>
+              !showViewers && (
+                <div className="st-foot sv-foot">
+                  <button type="button" className="sv-open" onClick={() => setShowViewers(true)} aria-label="Who viewed this status">
+                    <span className="sv-grip" /><span><BiShow /> {st.view_count || 0}{st.like_count ? ` · ❤️ ${st.like_count}` : ''}</span>
+                  </button>
+                </div>
+              )
             ) : (
               <div className="st-foot col">
                 <div className="st-reply">
