@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useRealtime } from './socket';
 import { playSound } from './sounds';
-import { showNotification } from './notify';
+import { showNotification, getActiveChat } from './notify';
+import api from './api';
 import { onlineAlertsEnabled, shouldAnnounce } from './onlineAlerts';
 
 // Always mounted (see App.jsx). Handles things that must work on every screen:
@@ -12,6 +13,30 @@ export default function GlobalEvents() {
   const timer = useRef(null);
   const [online, setOnline] = useState(null);
   const onlineTimer = useRef(null);
+  const [msgPop, setMsgPop] = useState(null);                 // { chat_id, sender_id, is_group, title, body }
+  const [reply, setReply] = useState('');
+  const [sentOk, setSentOk] = useState(false);
+  const msgTimer = useRef(null);
+  const closeMsgPop = () => { clearTimeout(msgTimer.current); setMsgPop(null); setReply(''); setSentOk(false); };
+  const holdMsgPop = () => clearTimeout(msgTimer.current);                       // typing a reply keeps it open
+  const sendReply = async (e) => {
+    e.preventDefault();
+    const t = reply.trim();
+    if (!t || !msgPop) return;
+    try {
+      const fd = new FormData();
+      if (msgPop.is_group) fd.append('chat', msgPop.chat_id); else fd.append('receiver', msgPop.sender_id);
+      fd.append('content', t);
+      await api.post('messages/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setSentOk(true); setReply('');
+      clearTimeout(msgTimer.current);
+      msgTimer.current = setTimeout(closeMsgPop, 900);
+    } catch (err) { /* leave it open so they can try again */ }
+  };
+  const markRead = async () => {
+    if (msgPop && !msgPop.is_group) { try { await api.post('messages/mark_as_read/', { sender_id: msgPop.sender_id }); } catch (e) { /* ignore */ } }
+    closeMsgPop();
+  };
 
   const popup = (t) => {
     setToast(t);
@@ -24,7 +49,16 @@ export default function GlobalEvents() {
     switch (evt.event) {
       case 'message':
         if (evt.mine) break;
-        if (evt.action === 'new' && !evt.muted) playSound('receive');
+        if (evt.action === 'new' && !evt.muted) {
+          playSound('receive');
+          const inThatChat = Number(evt.chat_id) === Number(getActiveChat()) && !document.hidden;
+          if (!inThatChat && !document.hidden) {
+            setMsgPop({ chat_id: evt.chat_id, sender_id: evt.sender_id, is_group: !!evt.is_group, title: evt.title || 'New message', body: evt.body || '' });
+            setReply(''); setSentOk(false);
+            clearTimeout(msgTimer.current);
+            msgTimer.current = setTimeout(closeMsgPop, 8000);
+          }
+        }
         else if (evt.action === 'delete') playSound('delete');
         break;
 
@@ -54,6 +88,19 @@ export default function GlobalEvents() {
     }
   });
 
+  const msgCard = msgPop && (
+    <div className="gm-pop" role="alert" onClick={(e) => e.stopPropagation()}>
+      <div className="gm-head"><b>{msgPop.title}</b><button type="button" className="gm-x" onClick={closeMsgPop} aria-label="Dismiss">✕</button></div>
+      <div className="gm-body">{msgPop.body}</div>
+      {sentOk ? <div className="gm-sent">✓ Sent</div> : (
+        <form className="gm-reply" onSubmit={sendReply}>
+          <input value={reply} onChange={(e) => setReply(e.target.value)} onFocus={holdMsgPop} placeholder="Reply…" aria-label="Reply" maxLength={1000} />
+          <button type="submit" disabled={!reply.trim()}>Send</button>
+        </form>
+      )}
+      {!sentOk && <button type="button" className="gm-read" onClick={markRead}>{msgPop.is_group ? 'Dismiss' : 'Mark as read'}</button>}
+    </div>
+  );
   const onlinePop = online && (
     <div key={`${online.id}-${online.name}`} className="sc-online-pop" role="status" aria-live="polite"
          style={{ top: toast ? 'calc(var(--safe-top, 0px) + 74px)' : 'calc(var(--safe-top, 0px) + 12px)' }}>
@@ -62,10 +109,11 @@ export default function GlobalEvents() {
       <span aria-hidden="true">✨</span>
     </div>
   );
-  if (!toast) return onlinePop || null;
+  if (!toast) return (<>{onlinePop}{msgCard}</>);
   return (
     <>
     {onlinePop}
+    {msgCard}
     <div
       onClick={() => setToast(null)}
       style={{
