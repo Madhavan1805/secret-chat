@@ -804,8 +804,8 @@ function ChatView() {
   const startGame = async () => {
     setShowAttach(false);
     const kind = await ask({ type: 'choice', title: isGroupChat ? 'Play with the group' : 'Play a game', choices: isGroupChat
-      ? [{ label: '🪨📄✂️ Group rock paper scissors', value: 'grps' }, { label: '🔢 Guess the number', value: 'gnum' }, { label: '🎡 Truth or dare spinner', value: 'gspin' }]
-      : [{ label: '❌⭕ Tic-tac-toe', value: 'ttt' }, { label: '🪨📄✂️ Rock paper scissors', value: 'rps' }] });
+      ? [{ label: '🎲 Ludo (2-4 players)', value: 'ludo' }, { label: '🤔 Would you rather', value: 'wyr' }, { label: '👀 Most likely to', value: 'mlt' }, { label: '🪨📄✂️ Group rock paper scissors', value: 'grps' }, { label: '🔢 Guess the number', value: 'gnum' }, { label: '🎡 Truth or dare spinner', value: 'gspin' }]
+      : [{ label: '🎲 Ludo', value: 'ludo' }, { label: '❌⭕ Tic-tac-toe', value: 'ttt' }, { label: '🪨📄✂️ Rock paper scissors', value: 'rps' }, { label: '🤔 Would you rather', value: 'wyr' }, { label: '🔢 Guess the number', value: 'gnum' }] });
     if (!kind) return;
     try {
       const r = await api.post('games/create/', { chat_id: meta.chat_id, kind });

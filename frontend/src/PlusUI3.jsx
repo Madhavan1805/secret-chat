@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Sheet } from './ui';
 import api from './api';
 import { errMsg } from './config';
+import LudoBoard, { LUDO_COLORS } from './Ludo';
 import { sharingId, stopSharing } from './liveShare';
 
 const ago = (iso) => {
@@ -37,6 +38,7 @@ export function LiveCard({ msg, meId, onChanged }) {
 
 // ---------------------------------------------------------------- games
 const ICON = { rock: '🪨', paper: '📄', scissors: '✂️' };
+const DICE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 function GuessGame({ g, busy, move }) {
   const [n, setN] = useState('');
   const go = (e) => { e.preventDefault(); if (n) { move(Number(n)); setN(''); } };
@@ -119,6 +121,78 @@ export function GameCard({ msg, meId, onChanged, ask }) {
               style={{ border: 0, borderRadius: 10, padding: '7px 12px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>{l}</button>
           ))}
         </div>
+      </div>
+    );
+  }
+  if (g.kind === 'ludo') {
+    const L = g.ludo || { players: [] };
+    const myIdx = L.players.findIndex((p) => p.id === meId);
+    const turnP = L.players[L.turn];
+    const myTurn = L.started && !g.finished && turnP && turnP.id === meId;
+    return (
+      <div style={{ minWidth: 250 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontWeight: 700 }}>🎲 Ludo</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '4px 0 6px' }}>
+          {L.players.map((p, i) => <span key={p.id} style={{ fontSize: 12, padding: '2px 8px', borderRadius: 10, background: LUDO_COLORS[i], color: '#111', fontWeight: p.id === (turnP && turnP.id) && L.started && !g.finished ? 800 : 500, outline: p.id === (turnP && turnP.id) && L.started && !g.finished ? '2px solid currentColor' : 'none' }}>{p.name}</span>)}
+        </div>
+        {!L.started ? (
+          <div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>{L.players.length}/4 joined. Friends tap Join, then {g.starter} starts.</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {myIdx < 0 && <button type="button" disabled={busy} onClick={() => move('join')} style={{ border: 0, borderRadius: 10, padding: '7px 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Join</button>}
+              {meId === g.starter_id && <button type="button" disabled={busy || L.players.length < 2} onClick={() => move('start')} style={{ border: 0, borderRadius: 10, padding: '7px 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Start game</button>}
+            </div>
+          </div>
+        ) : (
+          <>
+            <LudoBoard players={L.players} pos={L.pos} movable={myTurn ? L.movable : []} myIdx={myIdx} onToken={(t) => move(`t${t}`)} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <button type="button" disabled={busy || !myTurn || !!L.die} onClick={() => move('roll')}
+                style={{ border: 0, borderRadius: 12, padding: '4px 14px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontSize: 30, lineHeight: 1.2 }} aria-label="Roll the dice">{L.die ? DICE[L.die] : '🎲'}</button>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>
+                {g.finished ? `${g.winner} won! 🏆` : myTurn ? (L.die ? 'Tap a glowing token' : 'Your turn: roll!') : `${turnP ? turnP.name : ''}'s turn`}
+                {L.msg ? <div style={{ opacity: 0.75 }}>{L.msg}</div> : null}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+  if (g.kind === 'wyr') {
+    const voted = g.my_vote;
+    return (
+      <div style={{ minWidth: 230 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontWeight: 700 }}>🤔 Would you rather…</div>
+        <div style={{ fontSize: 12, opacity: 0.8, margin: '2px 0 6px' }}>{g.finished ? 'Final result' : `${(g.voted || []).length}/${g.total} voted`}</div>
+        {['a', 'b'].map((k) => (
+          <button type="button" key={k} disabled={busy || g.finished} onClick={() => move(k)}
+            style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, border: voted === k ? '2px solid currentColor' : 0, borderRadius: 12, padding: '9px 12px', background: 'rgba(0,0,0,.22)', color: 'inherit' }}>
+            <b>{k.toUpperCase()}.</b> {g[k]}
+            {g.finished && g.result && <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{g.result[k].length} · {g.result[k].join(', ') || 'nobody'}</div>}
+          </button>
+        ))}
+        {!g.finished && meId === g.starter_id && (g.voted || []).length >= 1 && <button type="button" disabled={busy} onClick={() => move('reveal')} style={{ border: 0, borderRadius: 10, padding: '5px 12px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Show results</button>}
+      </div>
+    );
+  }
+  if (g.kind === 'mlt') {
+    const voted = g.my_vote;
+    return (
+      <div style={{ minWidth: 230 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontWeight: 700 }}>👀 {g.q}</div>
+        <div style={{ fontSize: 12, opacity: 0.8, margin: '2px 0 6px' }}>{g.finished ? 'Results' : `Vote for someone · ${(g.voted || []).length}/${g.total} voted`}</div>
+        {g.finished ? (
+          (g.result || []).map((r, i) => <div key={r.name} style={{ fontSize: 14 }}>{i === 0 ? '👑 ' : ''}{r.name}: <b>{r.n}</b></div>)
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {(g.members || []).filter((m) => m.id !== meId).map((m) => (
+              <button type="button" key={m.id} disabled={busy} onClick={() => move(m.id)}
+                style={{ border: voted === m.id ? '2px solid currentColor' : 0, borderRadius: 14, padding: '5px 12px', background: 'rgba(0,0,0,.22)', color: 'inherit' }}>{m.name}</button>
+            ))}
+          </div>
+        )}
+        {!g.finished && meId === g.starter_id && (g.voted || []).length >= 1 && <button type="button" disabled={busy} onClick={() => move('reveal')} style={{ marginTop: 8, border: 0, borderRadius: 10, padding: '5px 12px', background: 'rgba(0,0,0,.3)', color: 'inherit', fontWeight: 700 }}>Show results</button>}
       </div>
     );
   }

@@ -695,3 +695,19 @@ html, body { background: var(--page-bg, #0F0B14); }
 .rx-chip.rx-pop { animation: rx-pop .45s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes rx-pop { from { transform: scale(.2) rotate(-25deg); opacity: 0; } 60% { transform: scale(1.4) rotate(8deg); } }
 @media (prefers-reduced-motion: reduce) { .mm-hold, .rx-chip.rx-hold, .rx-chip.rx-pop, .mm-sheet, .mm-backdrop { animation: none; } }
+
+/* ---- status viewers (WhatsApp-style panel under the status) ---- */
+.sv-panel { position: absolute; left: 0; right: 0; bottom: 0; height: 56%; z-index: 6; display: flex; flex-direction: column; background: #101820; color: #fff; border-radius: 18px 18px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.5); animation: as-up .24s cubic-bezier(.2,.8,.25,1); }
+.sv-head { display: flex; align-items: center; gap: 4px; padding: 18px 20px 14px; font-size: 17px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.sv-ic { border: 0; background: transparent; color: #fff; font-size: 24px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; }
+.sv-list { flex: 1; overflow-y: auto; padding: 6px 0 calc(env(safe-area-inset-bottom) + 14px); }
+.sv-empty { text-align: center; opacity: .6; margin: 28px 0; }
+.sv-row { display: flex; align-items: center; gap: 14px; padding: 9px 20px; }
+.sv-av { position: relative; flex: none; }
+.sv-badge { position: absolute; right: -5px; bottom: -3px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: #101820; box-shadow: 0 0 0 2px #101820; }
+.sv-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.sv-name b { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-name small { opacity: .6; font-size: 13px; }
+.sv-foot { justify-content: center; background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+.sv-open { border: 0; background: transparent; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+.sv-grip { width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.55); }
