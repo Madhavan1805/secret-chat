@@ -231,7 +231,7 @@ textarea.sc-field { height: auto; min-height: 84px; padding: 12px 16px; resize: 
 .sc-datechip { align-self: center; margin: 10px 0 6px; padding: 3px 12px; border-radius: 12px; background: var(--raised); color: var(--sub); font-size: 12px; font-weight: 600; }
 .sc-note { align-self: center; max-width: 88%; margin: 4px 0 10px; padding: 7px 14px; border-radius: 14px; background: var(--surface); color: var(--sub); font-size: 12.5px; text-align: center; line-height: 1.4; }
 
-.sc-bubble { padding: 8px 12px 6px; max-width: 80%; word-break: break-word; font-size: 15.5px; line-height: 1.42; user-select: none; }
+.sc-bubble { padding: 8px 12px 6px; max-width: 80%; word-break: break-word; font-size: calc(15.5px * var(--ts, 1)); line-height: 1.42; user-select: none; }
 .sc-bubble.mine { background: var(--mine); color: var(--mine-text); border-radius: 20px 20px 6px 20px; }
 .sc-bubble.theirs { background: var(--other); color: var(--text); border-radius: 20px 20px 20px 6px; }
 .sc-bubble.sticker { background: transparent; padding: 0 4px; }
@@ -649,3 +649,9 @@ html, body { background: var(--page-bg, #0F0B14); }
 .sc-logo-pulse { animation: sc-logo-pulse 1.3s ease-in-out infinite; }
 @keyframes sc-logo-pulse { 0%, 100% { transform: scale(.94); } 50% { transform: scale(1.06); } }
 @media (prefers-reduced-motion: reduce) { .sc-logo-pulse, .spl-logo { animation: none; } }
+
+/* text size (Appearance): chats, lists and the message box follow it */
+.sc-row-name { font-size: calc(17px * var(--ts, 1)); }
+.sc-row-sub { font-size: calc(14px * var(--ts, 1)); }
+.sc-pill textarea { font-size: calc(16px * var(--ts, 1)); }
+.sc-menu button { font-size: calc(14px * var(--ts, 1)); }

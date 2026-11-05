@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
-import { Sheet, Toggle, SettingRow } from './ui';
+import { Sheet, Toggle, SettingRow, Choice } from './ui';
 import AvatarPicker from './AvatarPicker';
 import { onlineAlertsEnabled, setOnlineAlertsEnabled } from './onlineAlerts';
 import { PrivacySheet, DevicesSheet, LockSheet, QrSheet, StarredSheet, BlockedSheet } from './Sheets';
-import { APP_MODES, CHAT_THEMES } from './theme';
+import { APP_MODES, CHAT_THEMES, TEXT_SIZES, FONT_STYLES, getTextScale, setTextScale, getFontStyle, setFontStyle } from './theme';
 import { lockEnabled } from './appLock';
 import AccountsSheet from './Accounts';
 import AdminPanel from './AdminPanel';
@@ -23,9 +23,17 @@ import { getMe, errMsg, shortFile } from './config';
 const chev = <BiChevronRight style={{ fontSize: 20, color: 'var(--sub)' }} />;
 
 function ThemeSheet({ T, onClose, appTheme, onPick }) {
+  const [size, setSize] = useState(getTextScale());
+  const [font, setFont] = useState(getFontStyle());
   const keys = [...APP_MODES.map((m) => m.key), ...Object.keys(CHAT_THEMES).filter((k) => !APP_MODES.some((m) => m.key === k))];
   return (
     <Sheet T={T} title="Appearance" onClose={onClose}>
+      <label className="sc-label">Text size</label>
+      <Choice value={size} options={TEXT_SIZES} onChange={(v) => { setSize(v); setTextScale(v); }} />
+      <label className="sc-label" style={{ marginTop: 14 }}>Font style</label>
+      <Choice value={font} options={FONT_STYLES.map(([k, l]) => [k, l])} onChange={(v) => { setFont(v); setFontStyle(v); }} />
+      <p style={{ margin: '12px 4px', fontSize: 'calc(15px * var(--ts, 1))' }}>The quick brown fox says hello, Chatzy 👋</p>
+      <label className="sc-label" style={{ marginTop: 6 }}>Colour theme</label>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {keys.map((k) => {
           const t = CHAT_THEMES[k];
