@@ -11,6 +11,7 @@ import { getToken } from './config';
 import LockGate from './LockGate';
 import { DownloadPage } from './GetApp';
 import Splash from './Splash';
+import OfflineScreen from './OfflineScreen';
 
 // pages that need a logged-in user: no token -> back to the login page
 function RequireAuth({ children }) {
@@ -27,6 +28,7 @@ export default function App() {
   return (
     <Shell>
       {splash && <Splash onDone={doneSplash} />}
+      <OfflineScreen />
       <LockGate>
       <CallManager />
       <GlobalEvents />
