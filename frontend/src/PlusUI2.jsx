@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BiPlus, BiX } from 'react-icons/bi';
 import { Sheet } from './ui';
 import api from './api';
+import AlbumGallery from './AlbumViewer';
 import { errMsg } from './config';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -50,7 +51,7 @@ const left = (iso) => {
 export function AlbumCard({ album, onChanged, ask }) {
   const input = useRef(null);
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState(null);
+  const [gallery, setGallery] = useState(null);                 // null = closed, number = open at that photo, -1 = grid
   const add = async (e) => {
     const files = [...(e.target.files || [])];
     e.target.value = '';
@@ -75,11 +76,14 @@ export function AlbumCard({ album, onChanged, ask }) {
       {!album.expired && shots.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, marginBottom: 8 }}>
           {shots.map((p) => (
-            <button type="button" key={p.id} onClick={() => setView(p)} style={{ padding: 0, border: 0, aspectRatio: '1', borderRadius: 8, overflow: 'hidden', background: 'rgba(0,0,0,.2)' }}>
+            <button type="button" key={p.id} onClick={() => setGallery(album.photos.indexOf(p))} style={{ padding: 0, border: 0, aspectRatio: '1', borderRadius: 8, overflow: 'hidden', background: 'rgba(0,0,0,.2)' }}>
               <img src={p.url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </button>
           ))}
         </div>
+      )}
+      {!album.expired && album.photos.length > 0 && (
+        <button type="button" className="sc-btn" style={{ height: 36, width: '100%', marginBottom: 6 }} onClick={() => setGallery(-1)}>View all {album.photos.length} · Select &amp; download</button>
       )}
       {!album.expired && (
         <>
@@ -89,13 +93,7 @@ export function AlbumCard({ album, onChanged, ask }) {
           <input ref={input} type="file" accept="image/*" multiple hidden onChange={add} />
         </>
       )}
-      {view && (
-        <div onClick={() => setView(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.92)', display: 'grid', placeItems: 'center' }}>
-          <img src={view.url} alt="" style={{ maxWidth: '100%', maxHeight: '88%', objectFit: 'contain' }} />
-          <span style={{ color: '#fff', position: 'absolute', bottom: 24 }}>by {view.by}</span>
-          <button type="button" aria-label="Close" style={{ position: 'absolute', top: 16, right: 16, border: 0, background: 'rgba(255,255,255,.18)', color: '#fff', borderRadius: '50%', width: 40, height: 40 }}><BiX size={24} /></button>
-        </div>
-      )}
+      {gallery !== null && <AlbumGallery album={album} startIndex={gallery >= 0 ? gallery : null} onClose={() => setGallery(null)} />}
     </div>
   );
 }

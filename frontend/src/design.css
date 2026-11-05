@@ -804,3 +804,33 @@ html, body { background: var(--page-bg, #0F0B14); }
 .gm-reply button { border: 0; border-radius: 20px; padding: 0 16px; font-weight: 800; background: var(--accent, #ff6477); color: #1a1a1a; } .gm-reply button:disabled { opacity: .45; }
 .gm-read { margin-top: 8px; border: 0; background: transparent; color: var(--accent, #ff6477); font-weight: 700; padding: 4px 2px; }
 .gm-sent { color: #22c55e; font-weight: 700; padding: 6px 0; }
+
+/* ---- album gallery ---- */
+.av-root { position: fixed; top: var(--app-top, 0px); left: 0; width: 100%; height: var(--app-height, 100dvh); z-index: 9450; display: flex; flex-direction: column; background: #0b0b0f; color: #fff; }
+.av-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 8px; }
+.av-title { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; } .av-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .av-title small { opacity: .65; }
+.av-ic { width: 42px; height: 42px; border: 0; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff; font-size: 23px; display: grid; place-items: center; }
+.av-sel { border: 0; background: rgba(255,255,255,.14); color: #fff; border-radius: 20px; padding: 9px 16px; font-weight: 700; }
+.av-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; align-content: start; padding-bottom: 80px; }
+.av-cell { position: relative; padding: 0; border: 0; aspect-ratio: 1; background: #1a1a22; overflow: hidden; }
+.av-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.av-cell.on img { opacity: .55; }
+.av-tick { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; display: grid; place-items: center; background: rgba(0,0,0,.25); color: #fff; font-size: 18px; }
+.av-cell.on .av-tick { background: #22c55e; border-color: #22c55e; }
+.av-foot { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, #000 40%); }
+.av-link { border: 0; background: transparent; color: #8ab4ff; font-weight: 700; padding: 8px 4px; }
+.av-dl { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 26px; padding: 12px 22px; font-weight: 800; background: #22c55e; color: #052e16; } .av-dl:disabled { opacity: .5; }
+.av-pager { position: fixed; inset: 0; z-index: 9460; background: #000; display: flex; flex-direction: column; touch-action: pan-y; }
+.av-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 8px; background: linear-gradient(#000a, transparent); }
+.av-count { font-weight: 700; }
+.av-slide { flex: 1; display: grid; place-items: center; transition: transform .12s ease-out; } .av-slide img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; }
+.av-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; font-size: 26px; display: grid; place-items: center; } .av-nav.l { left: 8px; } .av-nav.r { right: 8px; }
+.av-by { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center; opacity: .8; font-size: 14px; }
+
+/* reactions list sheet */
+.rl-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; }
+.rl-tab { flex: none; border: 0; border-radius: 18px; padding: 6px 14px; background: var(--raised); color: var(--text); font-weight: 700; font-size: 14px; }
+.rl-tab.on { background: var(--accent); color: #1a1a1a; }
+.rl-row { display: flex; align-items: center; gap: 12px; padding: 8px 2px; }
+.rl-row .n { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-row .e { font-size: 24px; }

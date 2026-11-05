@@ -18,7 +18,7 @@ import Doodle from './Doodle';
 import { startSharing } from './liveShare';
 import { ChecklistSheet } from './PlusUI3';
 import { shownName, getNick, setNick, getDraft, setDraft } from './nick';
-import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
+import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, ReactionsSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
 import { useBackClose } from './backClose';
@@ -81,6 +81,7 @@ function ChatView() {
 
   const [showTopMenu, setShowTopMenu] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [reactionsFor, setReactionsFor] = useState(null);
   const docInputRef = useRef(null);
   const camInputRef = useRef(null);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -1146,6 +1147,7 @@ function ChatView() {
     onRemind: (m) => setRemindFor(m),
     onSettle,
     onAlbumChanged,
+    onShowReactions: (m) => setReactionsFor(m),
     onAsk: ask,
     onUnlockTime: async (m) => {
       const code = await ask({ type: 'prompt', title: 'Locked message', message: 'Type the time this message was sent, like 1230.', placeholder: '1230', inputType: 'text', inputMode: 'numeric', maxLength: 5, okText: 'Open' });
@@ -1193,6 +1195,13 @@ function ChatView() {
       {showChecklist && <ChecklistSheet T={T} onClose={() => setShowChecklist(false)} onCreate={createChecklist} />}
       {showDoodle && <Doodle T={T} onClose={() => setShowDoodle(false)} onDone={(f) => setSelectedFiles((prev) => [...prev, f].slice(0, MAX_FILES))} />}
       {showEvent && <EventSheet T={T} onClose={() => setShowEvent(false)} onCreate={createPoll} />}
+      {reactionsFor && (() => {
+        const names = {};
+        (meta?.participants || []).forEach((p) => { names[p.id] = p.username; });
+        if (!isGroupChat && friendId != null) names[Number(friendId)] = contactName;
+        const live = messages.find((m) => m.id === reactionsFor.id) || reactionsFor;
+        return <ReactionsSheet T={T} msg={live} names={names} me={me} onClose={() => setReactionsFor(null)} />;
+      })()}
       {showPoll && <PollSheet T={T} onClose={() => setShowPoll(false)} onCreate={createPoll} />}
       {showCapsule && <CapsuleSheet T={T} onClose={() => setShowCapsule(false)} onSet={(iso) => { setSendMode({ unlock_at: iso }); setShowCapsule(false); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }} />}
       {showWhisper && isGroupChat && <WhisperSheet T={T} members={meta?.participants} meId={me?.id} onClose={() => setShowWhisper(false)}
