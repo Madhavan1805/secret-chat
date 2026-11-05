@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@zegocloud/zego-uikit-prebuilt": "^2.18.4",
     "axios": "^1.20.0",
+    "livekit-client": "^2.9.0",
     "bootstrap": "^5.3.8",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

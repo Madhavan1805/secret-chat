@@ -1,20 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
+import { BiPhone, BiPhoneOff } from 'react-icons/bi';
+import CallScreen from './CallScreen';
 import api from './api';
 import { getToken, getMe, clearMe, errMsg } from './config';
 import { connectSocket, disconnectSocket, subscribe, isSocketOpen } from './socket';
 import { maybeNotify, showNotification } from './notify';
 
 
-const ZEGO_APP_ID = Number(import.meta.env.VITE_ZEGO_APP_ID || 505657632);
-const ZEGO_SECRET = import.meta.env.VITE_ZEGO_SERVER_SECRET;
 const RING_SECONDS = 45;
 
 /**
  * Mount ONCE in App.jsx (inside <Router>, outside <Routes>).
  * - keeps the WebSocket connected while logged in
  * - sends a heartbeat every 15 s (online status + "delivered" ticks)
- * - rings on incoming calls (Accept / Decline) and runs the Zego call screen
+ * - rings on incoming calls (Accept / Decline) and runs the call screen (LiveKit, see CallScreen.jsx)
  * - shows browser notifications for new messages
  */
 export default function CallManager() {
@@ -25,8 +24,6 @@ export default function CallManager() {
   const [active, setActive] = useState(null);
   const [toast, setToast] = useState('');
 
-  const containerRef = useRef(null);
-  const zegoRef = useRef(null);
   const ringRef = useRef(null);
   const dismissed = useRef(new Set());
   const S = useRef({});
@@ -83,13 +80,9 @@ export default function CallManager() {
   }, [token]);
 
   // ------------------------------------------------------------ call logic
-  const leaveLocal = () => {
-    if (zegoRef.current) { try { zegoRef.current.destroy(); } catch (e) { /* ignore */ } zegoRef.current = null; }
-    setActive(null);
-  };
+  const leaveLocal = () => setActive(null);
 
   const joinRoom = (info) => {
-    if (!ZEGO_SECRET) { flash('VITE_ZEGO_SERVER_SECRET .env-la set pannala!'); return; }
     stopRing();
     setIncoming(null);
     setOutgoing(null);
@@ -121,7 +114,7 @@ export default function CallManager() {
 
       case 'call_accepted':
         if (s.outgoing && s.outgoing.call.id === evt.call_id) {
-          joinRoom({ room_id: s.outgoing.call.room_id, call_id: evt.call_id, call_type: s.outgoing.call.call_type, is_group: false });
+          joinRoom({ room_id: s.outgoing.call.room_id, call_id: evt.call_id, call_type: s.outgoing.call.call_type, is_group: false, name: s.outgoing.name });
         }
         break;
 
@@ -147,12 +140,12 @@ export default function CallManager() {
     const c = S.current.incoming;
     if (!c) return;
     if (c.is_group) {
-      joinRoom({ room_id: c.room_id, call_id: null, call_type: c.call_type, is_group: true });
+      joinRoom({ room_id: c.room_id, call_id: null, call_type: c.call_type, is_group: true, name: c.group_name || c.caller_name });
       return;
     }
     try {
       const r = await api.post(`calls/${c.call_id}/accept/`);
-      joinRoom({ room_id: r.data.room_id, call_id: c.call_id, call_type: c.call_type, is_group: false });
+      joinRoom({ room_id: r.data.room_id, call_id: c.call_id, call_type: c.call_type, is_group: false, name: c.caller_name });
     } catch (e) {
       setIncoming(null);
       flash(errMsg(e, 'Call expire aayiduchu'));
@@ -176,12 +169,11 @@ export default function CallManager() {
   const start = async (d) => {
     const s = S.current;
     if (s.active || s.outgoing) { flash('Already oru call-la irukeenga'); return; }
-    if (!ZEGO_SECRET) { flash('VITE_ZEGO_SERVER_SECRET .env-la set pannala!'); return; }
     const callType = d.callType === 'video' ? 'video' : 'audio';
     try {
       if (d.group) {
         const r = await api.post('calls/start_group/', { chat_id: d.chatId, call_type: callType });
-        joinRoom({ room_id: r.data.room_id, call_id: null, call_type: callType, is_group: true });
+        joinRoom({ room_id: r.data.room_id, call_id: null, call_type: callType, is_group: true, name: d.name });
       } else {
         const r = await api.post('calls/start/', { receiver_id: d.friendId, call_type: callType });
         setOutgoing({ call: r.data, name: d.name || r.data.receiver_name });
@@ -222,7 +214,7 @@ export default function CallManager() {
         const c = (r.data || []).find((x) => x.id === id);
         if (!c) return;
         if (c.status === 'ongoing') {
-          joinRoom({ room_id: c.room_id, call_id: id, call_type: c.call_type, is_group: false });
+          joinRoom({ room_id: c.room_id, call_id: id, call_type: c.call_type, is_group: false, name: outgoing.name });
         } else if (c.status === 'declined' || c.status === 'missed' || c.status === 'completed') {
           setOutgoing(null);
           flash(c.status === 'declined' ? 'Call declined' : 'No answer');
@@ -249,39 +241,7 @@ export default function CallManager() {
     return () => clearInterval(poll);
   }, [token]);
 
-  // Zego call screen
-  useEffect(() => {
-    if (!active || !containerRef.current) return undefined;
-    let zp;
-    try {
-      const uid = String(S.current.me?.id || `u_${Date.now()}`);
-      const name = S.current.me?.username || localStorage.getItem('username') || 'User';
-      const kit = ZegoUIKitPrebuilt.generateKitTokenForProduction(ZEGO_APP_ID, ZEGO_SECRET, active.room_id, uid, name);
-      zp = ZegoUIKitPrebuilt.create(kit);
-      zegoRef.current = zp;
-      zp.joinRoom({
-        container: containerRef.current,
-        scenario: { mode: active.is_group ? ZegoUIKitPrebuilt.GroupCall : ZegoUIKitPrebuilt.OneONoneCall },
-        showPreJoinView: false,
-        turnOnMicrophoneWhenJoining: true,
-        turnOnCameraWhenJoining: active.call_type === 'video',
-        showMyCameraToggleButton: active.call_type === 'video',
-        showMyMicrophoneToggleButton: true,
-        showAudioVideoSettingsButton: true,
-        onLeaveRoom: () => { endCall(); },
-      });
-    } catch (e) {
-      flash('Call join aagala: ' + (e?.message || e));
-      setActive(null);
-    }
-    return () => { try { zp && zp.destroy(); } catch (e) { /* ignore */ } if (zegoRef.current === zp) zegoRef.current = null; };
-  }, [active]);
-
   // ------------------------------------------------------------------ UI
-  const overlay = { position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(20,5,10,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
-  const card = { background: '#1B1424', border: '1px solid rgba(255,100,119,.45)', borderRadius: 28, padding: 28, width: '100%', maxWidth: 340, textAlign: 'center', color: '#fff', boxShadow: '0 24px 60px rgba(0,0,0,.55)' };
-  const avatar = { width: 84, height: 84, borderRadius: '50%', margin: '0 auto 14px', background: 'linear-gradient(150deg,#E8405A,#A3153A)', color: '#fff', fontSize: 36, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-
   return (
     <>
       {toast && (
@@ -291,35 +251,35 @@ export default function CallManager() {
       )}
 
       {incoming && !active && (
-        <div style={overlay}>
-          <div style={card}>
-            <div style={avatar}>{(incoming.is_group ? '👥' : incoming.caller_name || '?').toString().charAt(0).toUpperCase()}</div>
-            <h5 className="fw-bold mb-1">{incoming.caller_name}</h5>
-            <p className="mb-1" style={{ color: '#FF6477' }}>
-              {incoming.is_group ? `${incoming.group_name || 'Group'} ${incoming.call_type} call` : `Incoming ${incoming.call_type} call…`}
-            </p>
-            <p className="small opacity-50 mb-4">{incoming.call_type === 'video' ? '📹' : '📞'} ringing</p>
-            <div className="d-flex justify-content-center gap-4">
-              <button onClick={decline} className="btn btn-danger rounded-circle fs-4" style={{ width: 64, height: 64 }} title="Decline">✕</button>
-              <button onClick={accept} className="btn btn-success rounded-circle fs-4" style={{ width: 64, height: 64 }} title="Accept">✓</button>
-            </div>
+        <div className="cl-ring">
+          <div>
+            <div className="cl-avatar cl-pulse" style={{ margin: '0 auto' }}>{(incoming.is_group ? '👥' : incoming.caller_name || '?').toString().charAt(0).toUpperCase()}</div>
+            <div className="cl-name">{incoming.is_group ? (incoming.group_name || 'Group') : incoming.caller_name}</div>
+            <div className="cl-sub">{incoming.is_group ? `${incoming.caller_name} started a ${incoming.call_type} call` : `Chatzy ${incoming.call_type === 'video' ? 'video' : 'voice'} call…`}</div>
+          </div>
+          <div className="cl-actions">
+            <button type="button" onClick={decline} className="cl-act cl-decline"><span><BiPhoneOff /></span>Decline</button>
+            <button type="button" onClick={accept} className="cl-act cl-accept"><span><BiPhone /></span>Accept</button>
           </div>
         </div>
       )}
 
       {outgoing && !active && (
-        <div style={overlay}>
-          <div style={card}>
-            <div style={avatar}>{(outgoing.name || '?').charAt(0).toUpperCase()}</div>
-            <h5 className="fw-bold mb-1">{outgoing.name}</h5>
-            <p className="mb-4" style={{ color: '#FF6477' }}>{outgoing.call.call_type === 'video' ? '📹 Video' : '📞 Voice'} calling…</p>
-            <button onClick={cancelOutgoing} className="btn btn-danger rounded-pill px-4 fw-bold">Cancel</button>
+        <div className="cl-ring">
+          <div>
+            <div className="cl-avatar cl-pulse" style={{ margin: '0 auto' }}>{(outgoing.name || '?').charAt(0).toUpperCase()}</div>
+            <div className="cl-name">{outgoing.name}</div>
+            <div className="cl-sub">{outgoing.call.call_type === 'video' ? 'Video calling…' : 'Calling…'}</div>
+          </div>
+          <div className="cl-actions">
+            <button type="button" onClick={cancelOutgoing} className="cl-act cl-decline"><span><BiPhoneOff /></span>Cancel</button>
           </div>
         </div>
       )}
 
       {active && (
-        <div ref={containerRef} style={{ position: 'fixed', inset: 0, zIndex: 10001, background: '#000' }} />
+        <CallScreen key={active.room_id} info={active} name={active.name}
+          onEnd={() => endCall()} onError={(msg, fatal) => { flash(msg); if (fatal) endCall(); }} />
       )}
     </>
   );

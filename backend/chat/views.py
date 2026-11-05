@@ -1382,6 +1382,27 @@ class CallViewSet(viewsets.GenericViewSet):
                      group_name=chat.group_name, chat_id=chat.id)
         return Response({"room_id": room_id, "group_name": chat.group_name})
 
+    def _log_in_chat(self, call):
+        """Leave a line in their 1:1 chat: 'Missed voice call', 'Voice call · 3:24' ...  (best effort)."""
+        try:
+            chat = (Chat.objects.filter(is_group=False, participants=call.caller_id)
+                    .filter(participants=call.receiver_id).first())
+            if not chat:
+                return
+            kind = 'video' if call.call_type == 'video' else 'voice'
+            icon = '📹' if call.call_type == 'video' else '📞'
+            if call.status == 'completed' and call.duration:
+                m, sec = divmod(call.duration, 60)
+                text = f"{icon} {kind.capitalize()} call · {m}:{sec:02d}"
+            elif call.status == 'declined':
+                text = f"{icon} {kind.capitalize()} call declined"
+            else:
+                text = f"{icon} Missed {kind} call"
+            msg = Message.objects.create(chat=chat, sender=call.caller, message_type='system', content=text)
+            notify_message(chat, msg, 'new')
+        except Exception:
+            pass
+
     def _finish(self, call, status, who_to_notify, event):
         now = timezone.now()
         call.status = status
@@ -1390,6 +1411,35 @@ class CallViewSet(viewsets.GenericViewSet):
             call.duration = int((now - call.answered_at).total_seconds())
         call.save()
         notify_users([who_to_notify], event, call_id=call.id)
+        self._log_in_chat(call)
+
+    @action(detail=False, methods=['post'])
+    def token(self, request):
+        """Short-lived LiveKit token for a call room the user is allowed to join.
+        The LiveKit secret lives only on the server (Railway)."""
+        url = os.environ.get('LIVEKIT_URL', '').strip()
+        key = os.environ.get('LIVEKIT_API_KEY', '').strip()
+        secret = os.environ.get('LIVEKIT_API_SECRET', '').strip()
+        if not (url and key and secret):
+            return Response({"error": "Calling is not set up on the server yet."}, status=503)
+        room = str(request.data.get('room_id', ''))
+        user = request.user
+        if room.startswith('call_') and to_int(room[5:]):
+            call = CallHistory.objects.filter(id=to_int(room[5:])).filter(Q(caller=user) | Q(receiver=user)).first()
+            if not call or call.status not in ('ringing', 'ongoing'):
+                return Response({"error": "This call is over."}, status=400)
+        elif room.startswith('group_room_') and to_int(room[11:]):
+            if not Chat.objects.filter(id=to_int(room[11:]), is_group=True, participants=user).exists():
+                raise PermissionDenied("You are not in this group.")
+        else:
+            return Response({"error": "Unknown room"}, status=400)
+        import jwt, time
+        now = int(time.time())
+        token = jwt.encode({
+            "iss": key, "sub": str(user.id), "name": user.username, "nbf": now - 10, "exp": now + 3600,
+            "video": {"room": room, "roomJoin": True, "canPublish": True, "canSubscribe": True},
+        }, secret, algorithm='HS256')
+        return Response({"token": token if isinstance(token, str) else token.decode(), "url": url})
 
     @action(detail=True, methods=['post'])
     def accept(self, request, pk=None):
