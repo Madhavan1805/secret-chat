@@ -118,3 +118,12 @@ export function Sheet({ T, title, onClose, children, right }) {
     document.body,
   );
 }
+
+// The Chatzy app logo as a rounded tile (it has a light background, so it reads well on dark and light themes).
+export function Logo({ size = 64, pulse = false, style }) {
+  return (
+    <img src="/logo.png" alt="" width={size} height={size} draggable="false"
+      className={pulse ? 'sc-logo-pulse' : undefined}
+      style={{ width: size, height: size, borderRadius: Math.round(size * 0.24), display: 'block', boxShadow: '0 8px 26px rgba(255, 105, 150, .28)', ...style }} />
+  );
+}

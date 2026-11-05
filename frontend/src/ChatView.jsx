@@ -11,7 +11,7 @@ import { useModal } from './PromptModal';
 import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, shortFile } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
-import { Seal, SealButton } from './ui';
+import { Seal, SealButton, Logo } from './ui';
 import { EventSheet } from './PlusUI2';
 import Doodle from './Doodle';
 import { startSharing } from './liveShare';
@@ -261,6 +261,7 @@ function ChatView() {
         setFriendId(fid);
         setGroupId(gid);
         ids.current = { ...ids.current, friendId: fid, groupId: gid, me: meData };
+        if (fid) latest.current.fetchReceiver();      // friend details load alongside the chat info, not after it
         const m = await latest.current.fetchMeta();
         if (myToken !== initToken.current) return;
         if (m) {
@@ -272,7 +273,6 @@ function ChatView() {
             await latest.current.fetchMessages();
           }
         }
-        if (fid) latest.current.fetchReceiver();
         setBooting(false);
       } catch (e) {
         if (myToken === initToken.current) { setNotFound(true); setBooting(false); }
@@ -1092,7 +1092,7 @@ function ChatView() {
       <div className={shellClass} style={{ ...vars, alignItems: 'center' }}>
         <style>{THEME_CSS}</style>
         <div style={{ textAlign: 'center', alignSelf: 'center', color: 'var(--text)' }}>
-          {booting ? (<><Seal size={64} keyhole /><p style={{ marginTop: 14, color: 'var(--sub)' }}>Opening chat…</p></>) : (
+          {booting ? (<><Logo size={76} pulse style={{ margin: '0 auto' }} /><p style={{ marginTop: 16, color: 'var(--sub)' }}>Opening chat…</p></>) : (
             <><p>Could not find this chat.</p><button type="button" className="sc-btn" onClick={() => navigate('/home')}>Back to chats</button></>
           )}
         </div>
@@ -1105,7 +1105,7 @@ function ChatView() {
       <div className={shellClass} style={vars}>
         <style>{THEME_CSS}</style>
         <div className="sc-card" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 28, gap: 6 }}>
-          <Seal size={84} keyhole />
+          <Logo size={84} />
           <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, margin: '14px 0 2px' }}>{contactName} is locked</h2>
           <p style={{ color: 'var(--sub)', margin: 0 }}>Enter this chat's 4-digit PIN</p>
           <form onSubmit={submitPin} style={{ width: '100%', maxWidth: 260 }}>
@@ -1228,7 +1228,7 @@ function ChatView() {
                onClick={() => (isGroupChat ? setShowGroup(true) : setProfileOpen(true))}
                onKeyDown={(e) => { if (e.key === 'Enter') (isGroupChat ? setShowGroup(true) : setProfileOpen(true)); }}>
             {isGroupChat
-              ? (meta?.group_photo ? <Avatar src={meta.group_photo} name={contactName} size={42} T={T} /> : <Seal size={42} keyhole seed={4} />)
+              ? (meta?.group_photo ? <Avatar src={meta.group_photo} name={contactName} size={42} T={T} /> : <Logo size={42} />)
               : <Avatar src={receiver?.profile_picture} name={contactName} size={42} online={online} T={T} />}
             <div style={{ minWidth: 0 }}>
               <h2 className="sc-chat-name">
