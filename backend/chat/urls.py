@@ -1,7 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admin_unban_view,
-                        admin_reports_view, admin_resolve_view, report_view)
+                        admin_reports_view, admin_resolve_view, report_view,
+                        admin_user_detail_view, admin_logout_view, admin_password_view, admin_photo_view,
+                        admin_clear_view, admin_delete_user_view, admin_groups_view, admin_delete_group_view)
 from .extras2 import album_create_view, album_add_view, mood_view, away_view
 from .extras3 import (live_start_view, live_update_view, game_create_view, game_move_view,
                       ask_send_view, ask_inbox_view, ask_answer_view, ask_public_view,
@@ -68,6 +70,14 @@ urlpatterns = [
     path('admin-api/stats/', admin_stats_view),
     path('admin-api/users/', admin_users_view),
     path('admin-api/users/ban/', admin_ban_view),
+    path('admin-api/users/logout/', admin_logout_view),
+    path('admin-api/users/password/', admin_password_view),
+    path('admin-api/users/photo/', admin_photo_view),
+    path('admin-api/users/clear/', admin_clear_view),
+    path('admin-api/users/delete/', admin_delete_user_view),
+    path('admin-api/users/<int:user_id>/', admin_user_detail_view),
+    path('admin-api/groups/', admin_groups_view),
+    path('admin-api/groups/delete/', admin_delete_group_view),
     path('admin-api/users/unban/', admin_unban_view),
     path('admin-api/reports/', admin_reports_view),
     path('admin-api/reports/resolve/', admin_resolve_view),
