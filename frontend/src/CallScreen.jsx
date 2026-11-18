@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BiMicrophone, BiMicrophoneOff, BiVideo, BiVideoOff, BiPhoneOff, BiCamera } from 'react-icons/bi';
+import { BiMicrophone, BiMicrophoneOff, BiVideo, BiVideoOff, BiPhoneOff, BiCamera, BiDesktop } from 'react-icons/bi';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import api from './api';
 
@@ -18,6 +18,8 @@ export default function CallScreen({ info, name, onEnd, onError }) {
   const [mic, setMic] = useState(true);
   const [cam, setCam] = useState(isVideo);
   const [facing, setFacing] = useState('user');
+  const [sharing, setSharing] = useState(false);                // I am sharing my screen
+  const canShare = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);   // not in every phone browser
   const [secs, setSecs] = useState(0);
   const endedRef = useRef(false);
 
@@ -33,15 +35,17 @@ export default function CallScreen({ info, name, onEnd, onError }) {
         a.setAttribute('playsinline', 'true');
         audioHost.current && audioHost.current.appendChild(a);
       } else if (track.kind === Track.Kind.Video) {
-        setRemote((m) => ({ ...m, [participant.identity]: { name: participant.name || participant.identity, track } }));
+        const shared = track.source === Track.Source.ScreenShare;      // a screen share gets its own tile
+        setRemote((m) => ({ ...m, [shared ? `${participant.identity}:screen` : participant.identity]: { name: `${participant.name || participant.identity}${shared ? ' (screen)' : ''}`, track, shared } }));
       }
     };
     room
       .on(RoomEvent.TrackSubscribed, (track, pub, p) => attach(track, p))
       .on(RoomEvent.TrackUnsubscribed, (track, pub, p) => {
         track.detach().forEach((el) => el.remove());
-        if (track.kind === Track.Kind.Video) setRemote((m) => { const n = { ...m }; delete n[p.identity]; return n; });
+        if (track.kind === Track.Kind.Video) setRemote((m) => { const n = { ...m }; delete n[track.source === Track.Source.ScreenShare ? `${p.identity}:screen` : p.identity]; return n; });
       })
+      .on(RoomEvent.LocalTrackUnpublished, (pub) => { if (pub.source === Track.Source.ScreenShare) setSharing(false); })   // stopped from the browser's own button
       .on(RoomEvent.ParticipantConnected, sync)
       .on(RoomEvent.ParticipantDisconnected, () => {
         sync();
@@ -87,6 +91,10 @@ export default function CallScreen({ info, name, onEnd, onError }) {
 
   const toggleMic = async () => { const n = !mic; setMic(n); try { await roomRef.current.localParticipant.setMicrophoneEnabled(n); } catch (e) { setMic(!n); } };
   const toggleCam = async () => { const n = !cam; setCam(n); try { await roomRef.current.localParticipant.setCameraEnabled(n, { facingMode: facing }); } catch (e) { setCam(!n); onError('Camera open aagala'); } };
+  const toggleShare = async () => {
+    const n = !sharing;
+    try { await roomRef.current.localParticipant.setScreenShareEnabled(n); setSharing(n); } catch (e) { setSharing(false); if (n) onError('Screen share start aagala'); }
+  };
   const flip = async () => {
     const next = facing === 'user' ? 'environment' : 'user';
     try {
@@ -104,7 +112,7 @@ export default function CallScreen({ info, name, onEnd, onError }) {
   return (
     <div className="cl-screen" role="dialog" aria-label="Call">
       <div ref={audioHost} style={{ display: 'none' }} />
-      {isVideo && tiles.length > 0 ? (
+      {tiles.length > 0 ? (
         <div className={`cl-grid cl-n${Math.min(tiles.length, 4)}`}>
           {tiles.map(([id, t]) => <RemoteTile key={id} tile={t} />)}
         </div>
@@ -121,6 +129,7 @@ export default function CallScreen({ info, name, onEnd, onError }) {
       <div className="cl-bar">
         <button type="button" className={`cl-btn ${mic ? '' : 'cl-off'}`} onClick={toggleMic} aria-label={mic ? 'Mute' : 'Unmute'}>{mic ? <BiMicrophone /> : <BiMicrophoneOff />}</button>
         {isVideo && <button type="button" className={`cl-btn ${cam ? '' : 'cl-off'}`} onClick={toggleCam} aria-label="Camera">{cam ? <BiVideo /> : <BiVideoOff />}</button>}
+        {canShare && <button type="button" className="cl-btn" style={sharing ? { background: '#2d9cdb', color: '#fff' } : undefined} onClick={toggleShare} aria-label={sharing ? 'Stop sharing screen' : 'Share screen'} title="Share screen"><BiDesktop /></button>}
         {isVideo && cam && <button type="button" className="cl-btn" onClick={flip} aria-label="Flip camera"><BiCamera /></button>}
         <button type="button" className="cl-btn cl-end" onClick={end} aria-label="End call"><BiPhoneOff /></button>
       </div>
@@ -137,7 +146,7 @@ function RemoteTile({ tile }) {
   }, [tile.track]);
   return (
     <div className="cl-tile">
-      <video ref={ref} autoPlay playsInline />
+      <video ref={ref} autoPlay playsInline style={tile.shared ? { objectFit: 'contain', background: '#000' } : undefined} />
       <span className="cl-tname">{tile.name}</span>
     </div>
   );

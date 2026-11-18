@@ -109,6 +109,11 @@ def resolve_chat(user, data):
     raise ValidationError({"error": "chat_id or friend_id required"})
 
 
+def pinned_payload(chat):
+    from .extras5 import pinned_payload as _p
+    return _p(chat)
+
+
 def chat_setting(user, chat):
     return ChatUserSetting.objects.get_or_create(user=user, chat=chat)[0]
 
@@ -563,6 +568,9 @@ class ChatViewSet(viewsets.ModelViewSet):
             "is_muted": effective_muted(s),
             "muted_until": s.muted_until,
             "is_archived": s.is_archived,
+            "tone": s.tone,
+            "call_tone": s.call_tone,
+            "pinned_message": pinned_payload(chat),
             "participants": [{"id": p.id, "username": p.username,
                               # members' photos follow each person's "profile photo" privacy setting
                               "profile_picture": (request.build_absolute_uri(p.profile_picture.url)
@@ -605,9 +613,17 @@ class ChatViewSet(viewsets.ModelViewSet):
             s.muted_until = timezone.now() + timedelta(hours=hours) if hours > 0 else None
         if 'is_archived' in request.data:
             s.is_archived = to_bool(request.data.get('is_archived'))
+        from .extras5 import TONES
+        for field in ('tone', 'call_tone'):
+            if field in request.data:
+                val = str(request.data.get(field) or '')
+                if val not in TONES:
+                    return Response({"error": "Unknown tone"}, status=400)
+                setattr(s, field, val)
         s.save()
         return Response({"is_pinned": s.is_pinned, "is_muted": effective_muted(s),
-                         "muted_until": s.muted_until, "is_archived": s.is_archived})
+                         "muted_until": s.muted_until, "is_archived": s.is_archived,
+                         "tone": s.tone, "call_tone": s.call_tone})
 
     # ------------------------------------------------ secure chat lock
     @action(detail=False, methods=['post'])

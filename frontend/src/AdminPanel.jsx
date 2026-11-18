@@ -16,6 +16,11 @@ export default function AdminPanel({ T, onClose, ask }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const [open, setOpen] = useState(null);                 // user id whose details are open
+  const [detail, setDetail] = useState(null);             // full details of that user
+  const [groups, setGroups] = useState([]);
+  const [gq, setGq] = useState('');
+  const [anTitle, setAnTitle] = useState('');
+  const [anText, setAnText] = useState('');
   const [busy, setBusy] = useState(false);
 
   const loadStats = useCallback(() => api.get('admin-api/stats/').then((r) => setStats(r.data)).catch(() => {}), []);
@@ -24,9 +29,46 @@ export default function AdminPanel({ T, onClose, ask }) {
     .catch((e) => ask({ type: 'alert', title: errMsg(e, 'Could not load users') })), [q, filter, ask]);
   const loadReports = useCallback(() => api.get('admin-api/reports/').then((r) => setReports(r.data.reports)).catch(() => {}), []);
 
+  const loadGroups = useCallback(() => api.get('admin-api/groups/', { params: { q: gq } }).then((r) => setGroups(r.data.groups)).catch(() => {}), [gq]);
+  const loadDetail = useCallback((id) => api.get(`admin-api/users/${id}/`).then((r) => setDetail(r.data)).catch(() => setDetail(null)), []);
+
   useEffect(() => { loadStats(); loadReports(); }, [loadStats, loadReports]);
+  useEffect(() => { if (tab === 'groups') { const t = setTimeout(loadGroups, 250); return () => clearTimeout(t); } return undefined; }, [tab, loadGroups]);
+  useEffect(() => { setDetail(null); if (open) loadDetail(open); }, [open, loadDetail]);
   useEffect(() => { const t = setTimeout(loadUsers, 250); return () => clearTimeout(t); }, [loadUsers]);
-  const reload = () => { loadStats(); loadUsers(); loadReports(); };
+  const reload = () => { loadStats(); loadUsers(); loadReports(); if (tab === 'groups') loadGroups(); if (open) loadDetail(open); };
+
+  // one small helper for the simple confirm -> POST -> reload actions
+  const act = async (url, body, title, message, okText, danger) => {
+    const ok = await ask({ type: 'confirm', title, message, okText, danger });
+    if (!ok) return false;
+    setBusy(true);
+    try { await api.post(url, body); reload(); setBusy(false); return true; } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not do that') }); }
+    setBusy(false);
+    return false;
+  };
+  const setPassword = async (id, name) => {
+    const pw = await ask({ type: 'prompt', title: `New password for ${name}`, message: 'At least 6 characters. They are signed out everywhere and must log in with this. Tell them in person.', initial: '', maxLength: 40, okText: 'Set password' });
+    if (!pw) return;
+    setBusy(true);
+    try { await api.post('admin-api/users/password/', { user_id: id, password: pw }); reload(); ask({ type: 'alert', title: 'Password changed' }); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not change') }); }
+    setBusy(false);
+  };
+  const deleteUser = async (id, name) => {
+    if (await act('admin-api/users/delete/', { user_id: id }, `Delete ${name} for good?`, 'Their account, chats, messages and media are removed. This cannot be undone.', 'Delete', true)) setOpen(null);
+  };
+  const sendAnnouncement = async () => {
+    const ok = await ask({ type: 'confirm', title: 'Send to every user?', message: 'A pop-up shows in the app and a phone notification is sent to everyone.', okText: 'Send' });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const r = await api.post('admin-api/announce/', { title: anTitle, text: anText });
+      setAnTitle(''); setAnText('');
+      ask({ type: 'alert', title: `Sent to ${r.data.sent_to} users` });
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not send') }); }
+    setBusy(false);
+  };
+  const deleteGroup = (g) => act('admin-api/groups/delete/', { chat_id: g.id }, `Delete group "${g.name}"?`, 'All its messages are removed for every member. This cannot be undone.', 'Delete group', true);
 
   const ban = async (id, name) => {
     const reason = await ask({ type: 'prompt', title: `Ban ${name}?`, message: 'They are logged out on every phone and cannot log in. Reason (shown to them):', initial: '', maxLength: 200, okText: 'Ban', danger: true });
@@ -49,11 +91,14 @@ export default function AdminPanel({ T, onClose, ask }) {
   return (
     <Sheet T={T} title="Admin" onClose={onClose}>
       <div className="ad-stats">
-        {stat(stats?.total, 'Users')}{stat(stats?.online, 'Online')}{stat(stats?.new_today, 'New today')}{stat(stats?.open_reports, 'Reports')}{stat(stats?.banned, 'Banned')}
+        {stat(stats?.total, 'Users')}{stat(stats?.online, 'Online')}{stat(stats?.active_24h, 'Active 24h')}{stat(stats?.new_today, 'New today')}{stat(stats?.banned, 'Banned')}
+        {stat(stats?.groups, 'Groups')}{stat(stats?.messages, 'Messages')}{stat(stats?.messages_today, 'Msgs today')}{stat(stats?.open_reports, 'Reports')}
       </div>
       <div className="ad-tabs">
         <button type="button" className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Users</button>
         <button type="button" className={tab === 'reports' ? 'on' : ''} onClick={() => setTab('reports')}>Reports{stats?.open_reports ? ` (${stats.open_reports})` : ''}</button>
+        <button type="button" className={tab === 'groups' ? 'on' : ''} onClick={() => setTab('groups')}>Groups</button>
+        <button type="button" className={tab === 'announce' ? 'on' : ''} onClick={() => setTab('announce')}>Announce</button>
       </div>
 
       {tab === 'users' && (
@@ -78,9 +123,30 @@ export default function AdminPanel({ T, onClose, ask }) {
                   <p>Mobile: {u.phone_number || '—'}</p>
                   <p>Last seen: {u.last_seen ? formatListTime(u.last_seen) : '—'} · Devices: {u.devices}</p>
                   {u.is_banned && <p>Banned {day(u.banned_at)}{u.ban_reason ? ` — ${u.ban_reason}` : ''}</p>}
-                  {!u.is_admin && (u.is_banned
-                    ? <button type="button" className="sc-btn" disabled={busy} onClick={() => unban(u.id, u.username)}>Unban</button>
-                    : <button type="button" className="sc-btn danger" disabled={busy} onClick={() => ban(u.id, u.username)}>Ban this account</button>)}
+                  {detail && detail.id === u.id && (
+                    <>
+                      <p>Bio: {detail.bio || '—'}</p>
+                      <p>Messages sent: {detail.messages_sent} · Chats: {detail.chats} · Statuses: {detail.statuses}</p>
+                      <p>Reported others: {detail.reports_made} · Reported by others: {detail.reports_received}</p>
+                      {detail.groups.length > 0 && <p>Groups: {detail.groups.map((g) => g.name).join(', ')}</p>}
+                      {detail.sessions.length > 0 && <p>Logged in on:</p>}
+                      {detail.sessions.map((d, i) => <p key={i} className="ad-sub">• {d.device} · {d.ip || 'ip ?'} · {formatListTime(d.last_used)}</p>)}
+                    </>
+                  )}
+                  <div className="ad-acts">
+                    <button type="button" className="sc-btn ghost" disabled={busy} onClick={() => act('admin-api/users/logout/', { user_id: u.id }, `Sign ${u.username} out?`, 'Logged out on every phone. They can log in again.', 'Sign out')}>Sign out everywhere</button>
+                    {!u.is_admin && (
+                      <>
+                        <button type="button" className="sc-btn ghost" disabled={busy} onClick={() => setPassword(u.id, u.username)}>Set new password</button>
+                        {u.profile_picture && <button type="button" className="sc-btn ghost" disabled={busy} onClick={() => act('admin-api/users/photo/', { user_id: u.id }, 'Remove profile photo?', '', 'Remove')}>Remove photo</button>}
+                        <button type="button" className="sc-btn ghost" disabled={busy} onClick={() => act('admin-api/users/clear/', { user_id: u.id }, 'Clear note, mood and statuses?', 'Their note, mood and all statuses are removed.', 'Clear')}>Clear note and statuses</button>
+                        {u.is_banned
+                          ? <button type="button" className="sc-btn" disabled={busy} onClick={() => unban(u.id, u.username)}>Unban</button>
+                          : <button type="button" className="sc-btn danger" disabled={busy} onClick={() => ban(u.id, u.username)}>Ban this account</button>}
+                        <button type="button" className="sc-btn danger" disabled={busy} onClick={() => deleteUser(u.id, u.username)}>Delete account</button>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -104,6 +170,32 @@ export default function AdminPanel({ T, onClose, ask }) {
             </div>
           ))}
           {!reports.length && <p className="ad-count">No open reports.</p>}
+        </>
+      )}
+
+      {tab === 'announce' && (
+        <>
+          <p className="ad-count" style={{ textAlign: 'left' }}>Send a message to every user: shows as a pop-up in the app and as a phone notification.</p>
+          <input className="form-control mb-2" placeholder="Title (optional)" maxLength={80} value={anTitle} onChange={(e) => setAnTitle(e.target.value)} aria-label="Announcement title" />
+          <textarea className="form-control mb-2" rows={4} placeholder="Message" maxLength={500} value={anText} onChange={(e) => setAnText(e.target.value)} aria-label="Announcement text" />
+          <button type="button" className="sc-btn" disabled={busy || !anText.trim()} onClick={sendAnnouncement}>Send to everyone</button>
+        </>
+      )}
+
+      {tab === 'groups' && (
+        <>
+          <input className="form-control mb-2" placeholder="Search group name" value={gq} onChange={(e) => setGq(e.target.value)} aria-label="Search groups" />
+          <p className="ad-count">{groups.length} group{groups.length === 1 ? '' : 's'}</p>
+          {groups.map((g) => (
+            <div key={g.id} className="ad-user">
+              <div className="ad-more" style={{ borderTop: 0, paddingLeft: 4 }}>
+                <p><b>{g.name}</b></p>
+                <p>{g.members} members · {g.messages} messages · by {g.created_by || '—'} · {day(g.created_at)}</p>
+                <button type="button" className="sc-btn danger" disabled={busy} onClick={() => deleteGroup(g)}>Delete group</button>
+              </div>
+            </div>
+          ))}
+          {!groups.length && <p className="ad-count">No groups.</p>}
         </>
       )}
     </Sheet>

@@ -14,6 +14,8 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [needCode, setNeedCode] = useState(false);          // 2-step verification: ask for the authenticator code
+  const [code, setCode] = useState('');
   const notice = (location.state && location.state.notice) || '';
   const addMode = !!(location.state && location.state.addAccount);       // adding a second account from "Switch account"
 
@@ -38,11 +40,13 @@ export default function Login() {
     }
     setBusy(true);
     try {
-      const res = await api.post('login/', { username: identifier.trim(), password });
+      const res = await api.post('login/', { username: identifier.trim(), password, ...(needCode ? { totp: code.trim() } : {}) });
+      if (res.data && res.data.needs_2fa) { setNeedCode(true); setBusy(false); return; }
       saveSession(res.data);
       if (addMode) window.location.assign('/home');       // reload so the whole app starts fresh as the new account
       else navigate('/home', { replace: true });
     } catch (err) {
+      if (err?.response?.data?.needs_2fa) setNeedCode(true);
       setError(apiErrors(err, 'Could not log in. Try again.').general);
     } finally {
       setBusy(false);
@@ -77,6 +81,18 @@ export default function Login() {
           onToggle={() => setShowPw((s) => !s)}
           autoFocus={!!identifier}
         />
+        {needCode && (
+          <Field
+            id="login-code"
+            label="6-digit code from your authenticator app"
+            icon={BiLock}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            autoFocus
+          />
+        )}
         <div className="au-row">
           <Link className="au-link" to="/forgot-password">Forgot password?</Link>
         </div>

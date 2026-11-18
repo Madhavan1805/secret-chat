@@ -333,8 +333,11 @@ const GIPHY_KEY = import.meta.env.VITE_GIPHY_KEY || '';
 export const gifsAvailable = !!GIPHY_KEY;
 
 export function StickerPanel({ onSticker, onGif }) {
-  const tabs = [...Object.keys(STICKER_PACKS), ...(gifsAvailable ? ['GIF'] : [])];
-  const [tab, setTab] = useState(tabs[0]);
+  const tabs = ['⭐ Mine', ...Object.keys(STICKER_PACKS), ...(gifsAvailable ? ['GIF'] : [])];
+  const [tab, setTab] = useState('Faces');
+  const [mine, setMine] = useState(null);                 // my own photo stickers
+  const [editing, setEditing] = useState(false);
+  const [upBusy, setUpBusy] = useState(false);
   const [q, setQ] = useState('');
   const [gifs, setGifs] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -350,6 +353,22 @@ export function StickerPanel({ onSticker, onGif }) {
       .catch(() => setGifs([])).finally(() => setBusy(false));
   }, []);
   useEffect(() => { if (tab === 'GIF') loadGifs(''); }, [tab, loadGifs]);
+  useEffect(() => { if (tab === '⭐ Mine' && mine === null) api.get('stickers/').then((r) => setMine(r.data.stickers)).catch(() => setMine([])); }, [tab, mine]);
+  const addSticker = async (file) => {
+    if (!file) return;
+    setUpBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const r = await api.post('stickers/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setMine(r.data.stickers);
+    } catch (e) { window.alert(errMsg(e, 'Could not make the sticker')); }
+    setUpBusy(false);
+  };
+  const delSticker = async (st) => {
+    if (!window.confirm('Delete this sticker?')) return;
+    try { await api.post('stickers/delete/', { id: st.id }); setMine((p) => (p || []).filter((x) => x.id !== st.id)); } catch (e) { /* ignore */ }
+  };
   const onQ = (v) => { setQ(v); clearTimeout(timer.current); timer.current = setTimeout(() => loadGifs(v.trim()), 400); };
 
   return (
@@ -360,7 +379,26 @@ export function StickerPanel({ onSticker, onGif }) {
             style={{ flexShrink: 0, border: 0, borderRadius: 14, padding: '6px 14px', fontWeight: 600, fontSize: 13, background: tab === t ? 'var(--mine)' : 'transparent', color: tab === t ? 'var(--mine-text)' : 'var(--sub)' }}>{t}</button>
         ))}
       </div>
-      {tab === 'GIF' ? (
+      {tab === '⭐ Mine' ? (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 4px 6px', fontSize: 12.5, color: 'var(--sub)' }}>
+            <span>Make stickers from your photos</span>
+            {!!mine?.length && <button type="button" onClick={() => setEditing((v) => !v)} style={{ border: 0, background: 'transparent', color: 'var(--accent, inherit)', fontWeight: 600 }}>{editing ? 'Done' : 'Edit'}</button>}
+          </div>
+          <div className="hide-scroll" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+            <label style={{ aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14, border: '2px dashed var(--line)', fontSize: 30, color: 'var(--sub)', cursor: 'pointer' }} aria-label="Add a sticker from a photo">
+              {upBusy ? '…' : '+'}
+              <input type="file" accept="image/*" hidden onChange={(e) => { addSticker(e.target.files[0]); e.target.value = ''; }} />
+            </label>
+            {(mine || []).map((st) => (
+              <button key={st.id} type="button" onClick={() => (editing ? delSticker(st) : onGif(st.url))} style={{ position: 'relative', border: 0, padding: 0, background: 'transparent', borderRadius: 14 }} aria-label="Sticker">
+                <img src={st.url} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 14, display: 'block' }} />
+                {editing && <span style={{ position: 'absolute', top: 2, right: 2, background: '#e5484d', color: '#fff', borderRadius: 10, width: 20, height: 20, fontSize: 13, lineHeight: '20px' }}>✕</span>}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : tab === 'GIF' ? (
         <>
           <input className="sc-field" style={{ height: 38, marginBottom: 8 }} placeholder="Search GIFs" value={q} onChange={(e) => onQ(e.target.value)} />
           <div className="hide-scroll" style={{ maxHeight: 220, overflowY: 'auto', columns: 3, columnGap: 6 }}>

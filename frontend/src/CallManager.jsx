@@ -5,6 +5,7 @@ import api from './api';
 import { getToken, getMe, clearMe, errMsg } from './config';
 import { connectSocket, disconnectSocket, subscribe, isSocketOpen } from './socket';
 import { maybeNotify, showNotification } from './notify';
+import { getCallTone } from './tones';
 
 
 const RING_SECONDS = 45;
@@ -36,19 +37,27 @@ export default function CallManager() {
     const r = ringRef.current;
     if (r) { clearInterval(r.id); try { r.ctx.close(); } catch (e) { /* ignore */ } ringRef.current = null; }
   };
-  const startRing = () => {
+  // ringtone pattern per tone name (notes in Hz, played one after another every 1.5 s)
+  const RINGS = { '': [480], pop: [700, 900], chime: [660, 880, 1100], bell: [1200, 1600], drop: [1000, 600], bubble: [500, 760, 1000] };
+  const startRing = (tone = '') => {
     stopRing();
+    if (tone === 'silent') return;                                      // the pop-up still shows
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       const ctx = new Ctx();
+      const notes = RINGS[tone] || RINGS[''];
       const beep = () => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.frequency.value = 480;
-        g.gain.value = 0.08;
-        o.connect(g); g.connect(ctx.destination);
-        o.start();
-        setTimeout(() => { try { o.stop(); } catch (e) { /* ignore */ } }, 450);
+        notes.forEach((f, i) => setTimeout(() => {
+          try {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.frequency.value = f;
+            g.gain.value = 0.08;
+            o.connect(g); g.connect(ctx.destination);
+            o.start();
+            setTimeout(() => { try { o.stop(); } catch (e) { /* ignore */ } }, notes.length > 1 ? 180 : 450);
+          } catch (e) { /* ignore */ }
+        }, i * 220));
       };
       beep();
       ringRef.current = { ctx, id: setInterval(beep, 1500) };
@@ -194,7 +203,7 @@ export default function CallManager() {
   // ring while a call is incoming (auto-stop after 45 s)
   useEffect(() => {
     if (!incoming) { stopRing(); return undefined; }
-    startRing();
+    startRing(incoming.is_group ? '' : getCallTone(incoming.caller_id));
     const t = setTimeout(() => setIncoming(null), RING_SECONDS * 1000);
     return () => { clearTimeout(t); stopRing(); };
   }, [incoming]);

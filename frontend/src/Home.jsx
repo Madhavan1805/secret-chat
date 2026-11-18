@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus } from 'react-icons/bi';
@@ -59,7 +60,7 @@ function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, m
 
 // the floating bottom navigation
 function NavBar({ tab, setTab, badges }) {
-  const items = [['chats', 'Messages', BiChat], ['groups', 'Groups', BiGroup], ['status', 'Status', BiAperture], ['calls', 'Calls', BiPhoneCall], ['profile', 'You', BiUser]];
+  const items = [['chats', t('Messages'), BiChat], ['groups', t('Groups'), BiGroup], ['status', t('Status'), BiAperture], ['calls', t('Calls'), BiPhoneCall], ['profile', t('You'), BiUser]];
   return (
     <nav className="sc-nav" aria-label="Main">
       <div className="sc-nav-bar">
@@ -518,7 +519,7 @@ function Home() {
     );
   };
 
-  const tabTitle = { chats: 'Messages', groups: 'Groups', status: 'Status', calls: 'Calls', profile: 'You' }[activeTab];
+  const tabTitle = { chats: t('Messages'), groups: t('Groups'), status: t('Status'), calls: t('Calls'), profile: t('You') }[activeTab];
   const tabSub = {
     chats: `Hi ${currentUsername}`,
     groups: `${groups.length} group${groups.length === 1 ? '' : 's'}`,
@@ -563,7 +564,7 @@ function Home() {
             <>
               <label className="sc-search">
                 <BiSearch style={{ fontSize: 20 }} />
-                <input type="text" placeholder="Search your chats" value={searchQuery}
+                <input type="text" placeholder={t('Search your chats')} value={searchQuery}
                   onChange={handleSearch} aria-label="Search chats" />
                 <button type="button" onClick={() => setGlobalOpen(true)} style={{ border: 0, background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap' }}>In messages</button>
               </label>

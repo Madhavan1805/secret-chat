@@ -525,7 +525,7 @@ html, body { background: var(--page-bg, #0F0B14); }
 .se-text textarea { width: 100%; background: transparent; border: 0; outline: 0; resize: none; text-align: center; font: 700 28px/1.25 'Fredoka', system-ui, sans-serif; text-shadow: 0 1px 8px rgba(0,0,0,.45); }
 
 /* ---- admin panel ---- */
-.ad-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
+.ad-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
 .ad-stat { background: var(--card, rgba(127,127,127,.12)); border-radius: 12px; padding: 8px 2px; text-align: center; }
 .ad-stat b { display: block; font-size: 18px; } .ad-stat span { font-size: 10.5px; color: var(--sub); }
 .ad-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
@@ -546,6 +546,9 @@ html, body { background: var(--page-bg, #0F0B14); }
 .ad-more { padding: 6px 4px 12px 54px; font-size: 13.5px; }
 .ad-more p { margin: 2px 0; word-break: break-word; }
 .ad-more .sc-btn { height: 38px; margin-top: 8px; }
+.ad-sub { opacity: .75; font-size: 12.5px; }
+.ad-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.ad-acts .sc-btn { flex: 1 1 45%; padding: 0 10px; font-size: 13px; }
 .ad-more .sc-btn.danger { background: #ff3b30; color: #fff; }
 
 /* ---- chat folders + checklist ---- */
