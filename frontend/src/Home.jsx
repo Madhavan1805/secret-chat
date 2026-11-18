@@ -553,10 +553,10 @@ function Home() {
               <BiBell />
               {bellCount > 0 && <span className="sc-badge" style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, fontSize: 11 }}>{bellCount}</span>}
             </button>
-            <button type="button" className="sc-iconbtn" aria-label="Feedback" onClick={() => setShowFeedback(true)}><BiMessageSquareDetail /></button>
             <button type="button" className="sc-iconbtn" aria-label="Find people" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /></button>
           </div>
         </header>
+        <button type="button" className="sc-feedback-fab" aria-label="Send feedback" onClick={() => setShowFeedback(true)}><BiMessageSquareDetail /></button>
 
         <h1 className="sc-title">{tabTitle}<small>{tabSub}</small></h1>
 
