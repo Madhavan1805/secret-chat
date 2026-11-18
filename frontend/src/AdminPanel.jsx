@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Sheet } from './ui';
 import api from './api';
 import { errMsg, getPicUrl, formatListTime } from './config';
+import { KINDS, STATUS } from './Feedback';
 
 const FILTERS = [['all', 'All'], ['reported', 'Reported'], ['banned', 'Banned']];
 const day = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -22,12 +23,27 @@ export default function AdminPanel({ T, onClose, ask }) {
   const [anTitle, setAnTitle] = useState('');
   const [anText, setAnText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [fbs, setFbs] = useState([]);                       // feedback from users
+  const [fbAll, setFbAll] = useState(false);
+  const [fbReply, setFbReply] = useState({});
 
   const loadStats = useCallback(() => api.get('admin-api/stats/').then((r) => setStats(r.data)).catch(() => {}), []);
   const loadUsers = useCallback(() => api.get('admin-api/users/', { params: { q, filter } })
     .then((r) => { setUsers(r.data.users); setCount(r.data.count); })
     .catch((e) => ask({ type: 'alert', title: errMsg(e, 'Could not load users') })), [q, filter, ask]);
   const loadReports = useCallback(() => api.get('admin-api/reports/').then((r) => setReports(r.data.reports)).catch(() => {}), []);
+
+  const loadFeedback = useCallback(() => api.get('admin-api/feedback/', { params: { status: fbAll ? 'all' : 'open' } }).then((r) => setFbs(r.data.feedback)).catch(() => {}), [fbAll]);
+  useEffect(() => { if (tab === 'feedback') loadFeedback(); }, [tab, loadFeedback]);
+  const updateFeedback = async (id, status) => {
+    setBusy(true);
+    try {
+      await api.post('admin-api/feedback/update/', { id, status, reply: (fbReply[id] || '').trim() });
+      setFbReply((m) => ({ ...m, [id]: '' }));
+      await loadFeedback(); loadStats();
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not update') }); }
+    setBusy(false);
+  };
 
   const loadGroups = useCallback(() => api.get('admin-api/groups/', { params: { q: gq } }).then((r) => setGroups(r.data.groups)).catch(() => {}), [gq]);
   const loadDetail = useCallback((id) => api.get(`admin-api/users/${id}/`).then((r) => setDetail(r.data)).catch(() => setDetail(null)), []);
@@ -97,6 +113,7 @@ export default function AdminPanel({ T, onClose, ask }) {
       <div className="ad-tabs">
         <button type="button" className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Users</button>
         <button type="button" className={tab === 'reports' ? 'on' : ''} onClick={() => setTab('reports')}>Reports{stats?.open_reports ? ` (${stats.open_reports})` : ''}</button>
+        <button type="button" className={tab === 'feedback' ? 'on' : ''} onClick={() => setTab('feedback')}>Feedback{stats?.open_feedback ? ` (${stats.open_feedback})` : ''}</button>
         <button type="button" className={tab === 'groups' ? 'on' : ''} onClick={() => setTab('groups')}>Groups</button>
         <button type="button" className={tab === 'announce' ? 'on' : ''} onClick={() => setTab('announce')}>Announce</button>
       </div>
@@ -170,6 +187,31 @@ export default function AdminPanel({ T, onClose, ask }) {
             </div>
           ))}
           {!reports.length && <p className="ad-count">No open reports.</p>}
+        </>
+      )}
+
+      {tab === 'feedback' && (
+        <>
+          <div className="ad-tabs sm">
+            <button type="button" className={!fbAll ? 'on' : ''} onClick={() => setFbAll(false)}>Open</button>
+            <button type="button" className={fbAll ? 'on' : ''} onClick={() => setFbAll(true)}>All</button>
+          </div>
+          {fbs.map((f) => (
+            <div key={f.id} className="ad-user">
+              <div className="ad-more" style={{ borderTop: 0 }}>
+                <p><b>{f.user}</b> · {(KINDS.find((k) => k[0] === f.kind) || KINDS[2])[1]} · {formatListTime(f.created_at)} · <b>{STATUS[f.status]}</b></p>
+                <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{f.text}</p>
+                {f.reply && <p style={{ opacity: .8 }}>Your reply: {f.reply}</p>}
+                <textarea className="form-control mb-2" rows={2} maxLength={500} placeholder="Reply to this user (optional)" value={fbReply[f.id] || ''} onChange={(e) => setFbReply((m) => ({ ...m, [f.id]: e.target.value }))} aria-label="Reply" />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {f.status === 'new' && <button type="button" className="sc-btn ghost" disabled={busy} onClick={() => updateFeedback(f.id, 'seen')}>Mark seen</button>}
+                  <button type="button" className="sc-btn" disabled={busy} onClick={() => updateFeedback(f.id, 'done')}>{(fbReply[f.id] || '').trim() ? 'Reply and mark done' : 'Mark done'}</button>
+                  {(fbReply[f.id] || '').trim() && <button type="button" className="sc-btn ghost" disabled={busy} onClick={() => updateFeedback(f.id, f.status)}>Reply only</button>}
+                </div>
+              </div>
+            </div>
+          ))}
+          {!fbs.length && <p className="ad-count">No feedback yet.</p>}
         </>
       )}
 

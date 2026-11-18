@@ -58,6 +58,23 @@ class Report(models.Model):
         return f"{self.reporter.username} reported {self.reported.username}"
 
 
+# ---------------------------------------- feedback box: users write, the admin reads and answers
+class Feedback(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='feedbacks')
+    kind = models.CharField(max_length=12, default='idea')           # idea | bug | other
+    text = models.CharField(max_length=1000)
+    status = models.CharField(max_length=12, default='new')          # new | seen | done
+    reply = models.CharField(max_length=500, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    replied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username}: {self.text[:30]}"
+
+
 # ---------------------------------------- one row per logged-in device (so a device can be signed out)
 class DeviceSession(models.Model):
     key = models.CharField(max_length=40, primary_key=True)          # the token the app sends
