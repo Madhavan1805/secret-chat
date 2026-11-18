@@ -59,7 +59,7 @@ export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
     const f = e.target.files[0];
     e.target.value = '';
     if (!f) return;
-    if (f.size > 12 * 1024 * 1024) { setErr('Song is too big (max 12 MB)'); return; }
+    if (f.size > 25 * 1024 * 1024) { setErr('Song is too big (max 25 MB)'); return; }
     stop();
     setPicked({ file: f, ...parseSongFile(f) });
   };
@@ -68,6 +68,10 @@ export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
 
   return (
     <Sheet T={T} title="Add song" onClose={() => { stop(); onClose(); }}>
+      <label htmlFor="song-file" className="sc-btn" style={{ width: '100%', marginBottom: 6 }}><BiUpload /> Full song from your phone</label>
+      <input id="song-file" type="file" accept="audio/*" className="d-none" onChange={pickFile} />
+      <p style={{ color: 'var(--sub)', fontSize: 12.5, textAlign: 'center', margin: '0 0 14px' }}>Pick any song saved on your phone, then choose the exact part to use.</p>
+
       <label className="sc-search" style={{ margin: '0 0 12px' }}>
         <BiSearch style={{ fontSize: 20 }} />
         <input type="text" autoFocus placeholder="Search songs or artists" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search songs" />
@@ -76,22 +80,20 @@ export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
       {busy && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5 }}>Searching…</p>}
       {err && <p className="text-danger small" style={{ textAlign: 'center' }}>{err}</p>}
       {!busy && !err && q.trim().length >= 2 && rows.length === 0 && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5 }}>No songs found</p>}
-      {!q.trim() && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5, margin: '24px 0' }}><BiMusic style={{ fontSize: 28, display: 'block', margin: '0 auto 6px' }} />Search gives 30 second previews only. For the full song, upload it from your phone and pick any part.</p>}
+      {!q.trim() && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5, margin: '24px 0' }}><BiMusic style={{ fontSize: 28, display: 'block', margin: '0 auto 6px' }} />Search can only give 30 second previews. For a full song, use the button above and pick any part.</p>}
 
       <div className="sp-list">
         {rows.map((row) => (
           <div key={row.id} className="sp-row">
             <button type="button" className="sp-main" onClick={() => choose(row)} aria-label={`Use ${row.title} by ${row.artist}`}>
               {row.art ? <img src={row.art} alt="" width={46} height={46} /> : <span className="sp-art"><BiMusic /></span>}
-              <span className="sp-txt"><b>{row.title}</b><small>{row.artist}</small></span>
+              <span className="sp-txt"><b>{row.title}</b><small>{row.artist} · 30s preview</small></span>
             </button>
             <button type="button" className="sc-iconbtn" onClick={() => preview(row)} aria-label={playing === row.id ? 'Pause preview' : 'Play preview'}>{playing === row.id ? <BiPause /> : <BiPlay />}</button>
           </div>
         ))}
       </div>
 
-      <label htmlFor="song-file" className="sc-btn ghost" style={{ width: '100%', marginTop: 16 }}><BiUpload /> Upload full song from phone</label>
-      <input id="song-file" type="file" accept="audio/*" className="d-none" onChange={pickFile} />
     </Sheet>
   );
 }
