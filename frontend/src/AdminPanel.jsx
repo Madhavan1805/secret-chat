@@ -19,6 +19,8 @@ export default function AdminPanel({ T, onClose, ask }) {
   const [detail, setDetail] = useState(null);             // full details of that user
   const [groups, setGroups] = useState([]);
   const [gq, setGq] = useState('');
+  const [anTitle, setAnTitle] = useState('');
+  const [anText, setAnText] = useState('');
   const [busy, setBusy] = useState(false);
 
   const loadStats = useCallback(() => api.get('admin-api/stats/').then((r) => setStats(r.data)).catch(() => {}), []);
@@ -55,6 +57,17 @@ export default function AdminPanel({ T, onClose, ask }) {
   const deleteUser = async (id, name) => {
     if (await act('admin-api/users/delete/', { user_id: id }, `Delete ${name} for good?`, 'Their account, chats, messages and media are removed. This cannot be undone.', 'Delete', true)) setOpen(null);
   };
+  const sendAnnouncement = async () => {
+    const ok = await ask({ type: 'confirm', title: 'Send to every user?', message: 'A pop-up shows in the app and a phone notification is sent to everyone.', okText: 'Send' });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const r = await api.post('admin-api/announce/', { title: anTitle, text: anText });
+      setAnTitle(''); setAnText('');
+      ask({ type: 'alert', title: `Sent to ${r.data.sent_to} users` });
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not send') }); }
+    setBusy(false);
+  };
   const deleteGroup = (g) => act('admin-api/groups/delete/', { chat_id: g.id }, `Delete group "${g.name}"?`, 'All its messages are removed for every member. This cannot be undone.', 'Delete group', true);
 
   const ban = async (id, name) => {
@@ -85,6 +98,7 @@ export default function AdminPanel({ T, onClose, ask }) {
         <button type="button" className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Users</button>
         <button type="button" className={tab === 'reports' ? 'on' : ''} onClick={() => setTab('reports')}>Reports{stats?.open_reports ? ` (${stats.open_reports})` : ''}</button>
         <button type="button" className={tab === 'groups' ? 'on' : ''} onClick={() => setTab('groups')}>Groups</button>
+        <button type="button" className={tab === 'announce' ? 'on' : ''} onClick={() => setTab('announce')}>Announce</button>
       </div>
 
       {tab === 'users' && (
@@ -156,6 +170,15 @@ export default function AdminPanel({ T, onClose, ask }) {
             </div>
           ))}
           {!reports.length && <p className="ad-count">No open reports.</p>}
+        </>
+      )}
+
+      {tab === 'announce' && (
+        <>
+          <p className="ad-count" style={{ textAlign: 'left' }}>Send a message to every user: shows as a pop-up in the app and as a phone notification.</p>
+          <input className="form-control mb-2" placeholder="Title (optional)" maxLength={80} value={anTitle} onChange={(e) => setAnTitle(e.target.value)} aria-label="Announcement title" />
+          <textarea className="form-control mb-2" rows={4} placeholder="Message" maxLength={500} value={anText} onChange={(e) => setAnText(e.target.value)} aria-label="Announcement text" />
+          <button type="button" className="sc-btn" disabled={busy || !anText.trim()} onClick={sendAnnouncement}>Send to everyone</button>
         </>
       )}
 

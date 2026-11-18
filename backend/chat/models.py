@@ -35,6 +35,8 @@ class CustomUser(AbstractUser):
     privacy_last_seen = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='everyone')   # last seen + online dot
     privacy_photo = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='everyone')       # profile photo
     read_receipts = models.BooleanField(default=True)                                                  # blue ticks
+    totp_secret = models.CharField(max_length=40, blank=True, default='')       # 2-step verification (authenticator app)
+    totp_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return self.username
@@ -109,6 +111,8 @@ class Chat(models.Model):
     is_locked = models.BooleanField(default=False)
     chat_pin = models.CharField(max_length=4, blank=True, null=True)
 
+    pinned_message = models.ForeignKey('Message', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')   # shown to everyone
+
     def __str__(self):
         return self.group_name if self.is_group else f"Chat {self.id}"
 
@@ -128,6 +132,8 @@ class ChatUserSetting(models.Model):
         # private wallpaper (only this user sees it)
     wallpaper_preset = models.CharField(max_length=20, blank=True, default='')
     wallpaper_image = models.ImageField(upload_to='wallpapers/', null=True, blank=True)
+    tone = models.CharField(max_length=16, blank=True, default='')           # message sound for this chat ('' = default)
+    call_tone = models.CharField(max_length=16, blank=True, default='')      # ringtone for calls from this person
 
     class Meta:
         unique_together = ('user', 'chat')
@@ -519,3 +525,46 @@ class Activity(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [models.Index(fields=['user', '-created_at'])]
+
+
+# ------------------------------------- custom stickers (made from the user's own photos)
+class Sticker(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='stickers')
+    image = models.ImageField(upload_to='stickers/', max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+# ------------------------------------- broadcast list: one message to many friends, each gets a normal 1:1 chat message
+class BroadcastList(models.Model):
+    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='broadcast_lists')
+    name = models.CharField(max_length=40)
+    recipients = models.ManyToManyField(CustomUser, related_name='+', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+# ------------------------------------- admin announcement shown to every user once
+class Announcement(models.Model):
+    title = models.CharField(max_length=80, blank=True, default='')
+    text = models.CharField(max_length=500)
+    created_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+# ------------------------------------- quick replies: type /shortcut in a chat to insert the saved text
+class QuickReply(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='quick_replies')
+    shortcut = models.CharField(max_length=20)
+    text = models.CharField(max_length=500)
+
+    class Meta:
+        unique_together = ('user', 'shortcut')
+        ordering = ['shortcut']

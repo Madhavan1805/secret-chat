@@ -150,6 +150,13 @@ def login_view(request):
         msg = 'This account has been banned.' + (f' Reason: {user.ban_reason}' if user.ban_reason else '')
         return Response({'error': msg, 'banned': True}, status=403)
     if user and authenticate(username=user.username, password=password):
+        if user.totp_enabled:                            # 2-step verification
+            from .extras5 import verify_totp
+            code = request.data.get('totp')
+            if not code:
+                return Response({'needs_2fa': True, 'error': 'Enter the 6-digit code from your authenticator app.'})
+            if not verify_totp(user.totp_secret, code):
+                return Response({'needs_2fa': True, 'error': 'That code is not correct.'}, status=400)
         had_devices = DeviceSession.objects.filter(user=user).exists()
         session = new_device_session(request, user)      # one token per device
         if had_devices:                                  # security alert on the phones that are already logged in

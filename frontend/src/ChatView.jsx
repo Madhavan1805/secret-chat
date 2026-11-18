@@ -18,6 +18,8 @@ import Doodle from './Doodle';
 import { startSharing } from './liveShare';
 import { ChecklistSheet } from './PlusUI3';
 import { shownName, getNick, setNick, getDraft, setDraft } from './nick';
+import { QuickReplyList, ToneSheet } from './Extras5UI';
+import { t } from './i18n';
 import { gifsAvailable as gifsOn, GallerySheet, InfoSheet, PollSheet, GroupSheet, ReactionsSheet, StickerPanel, MentionList, exportChatText } from './ChatSheets';
 import { setActiveChat } from './notify';
 import { useChatExtras } from './chatExtras';
@@ -91,6 +93,9 @@ function ChatView() {
   const [searchResults, setSearchResults] = useState([]);
   const [forwardMsg, setForwardMsg] = useState(null);
   const [pinnedMsg, setPinnedMsg] = useState(null);
+  const [showTone, setShowTone] = useState(false);
+  const [quickReplies, setQuickReplies] = useState([]);
+  const [slashQuery, setSlashQuery] = useState(null);
   const [highlightId, setHighlightId] = useState(null);
   const [showGallery, setShowGallery] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
@@ -151,6 +156,9 @@ function ChatView() {
   useBackClose(searchOpen, () => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); });
   useBackClose(showEmoji, () => setShowEmoji(false));
   const extras = useChatExtras({ chatId: meta?.chat_id, ask, messagesLen: messages.length, T, theme: meta?.theme, onTheme: (v) => applyTheme(v) });
+
+  useEffect(() => { setPinnedMsg(meta?.pinned_message || null); }, [meta?.chat_id, meta?.pinned_message?.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { api.get('quick-replies/').then((r) => setQuickReplies(r.data.replies || [])).catch(() => {}); }, []);
 
   // ------------------------------------------------------------- data loaders
   const fetchMeta = async () => {
@@ -268,8 +276,6 @@ function ChatView() {
         if (myToken !== initToken.current) return;
         if (m) {
           setActiveChat(m.chat_id);
-          const saved = localStorage.getItem(`pinned_msg_${gid ? `group_${gid}` : `user_${fid}`}`);
-          if (saved) { try { setPinnedMsg(JSON.parse(saved)); } catch (e) { setPinnedMsg(null); } } else setPinnedMsg(null);
           if (m.is_unlocked) {
             ids.current = { ...ids.current, chatId: m.chat_id, locked: m.is_locked, unlocked: true };
             await latest.current.fetchMessages();
@@ -452,6 +458,8 @@ function ChatView() {
       const m = e.target.value.slice(0, e.target.selectionStart).match(/(^|\s)@([\w.\-]*)$/);
       setMentionQuery(m ? m[2] : null);
     }
+    const sl = e.target.value.match(/^\/(\w*)$/);                  // "/busy" -> quick reply suggestions
+    setSlashQuery(sl && quickReplies.length ? sl[1] : null);
     if (Date.now() - lastTypingSent.current > 1500) { lastTypingSent.current = Date.now(); sendTyping(true); }
     clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => { lastTypingSent.current = 0; sendTyping(false); }, 1800);
@@ -665,12 +673,13 @@ function ChatView() {
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Delete failed') }); }
   };
 
-  const onPin = (msg) => {
-    const key = `pinned_msg_${groupId ? `group_${groupId}` : `user_${friendId}`}`;
-    if (pinnedMsg && pinnedMsg.id === msg.id) { localStorage.removeItem(key); setPinnedMsg(null); return; }
-    const small = { id: msg.id, content: msg.content, message_type: msg.message_type, file_name: msg.file_name };
-    localStorage.setItem(key, JSON.stringify(small));
-    setPinnedMsg(small);
+  // the pinned message lives on the server, so every member sees the same one
+  const onPin = async (msg) => {
+    const unpin = !!(pinnedMsg && pinnedMsg.id === msg.id);
+    try {
+      await api.post('chats/pin-message/', { chat_id: meta.chat_id, message_id: unpin ? null : msg.id });
+      setPinnedMsg(unpin ? null : { id: msg.id, content: msg.content, message_type: msg.message_type, file_name: msg.file_name });
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not pin') }); }
   };
 
   const onEdit = (msg) => {
@@ -1040,11 +1049,12 @@ function ChatView() {
 
   const menuItems = !meta ? [] : [
     ...(!isGroupChat ? [['View profile', () => setProfileOpen(true)], ['Set nickname', nicknameMenu], [watching ? '🔕 Cancel online alert' : '🔔 Tell me when online', watchToggle]] : [['Group info and members', () => setShowGroup(true)]]),
-    ['Search messages', () => { setSearchOpen(true); }],
+    [t('Search in this chat'), () => { setSearchOpen(true); }],
     ['Media, docs and links', () => setShowGallery(true)],
     [`Disappearing: ${humanDuration(meta.disappearing_time)}`, disappearingMenu],
     [meta.is_locked ? 'Chat lock (change or remove)' : 'Chat lock', lockMenu],
     ['Chat theme and wallpaper', extras.openTheme],
+    [t('Chat tone'), () => setShowTone(true)],
     [`Scheduled messages (${extras.scheduledCount})`, extras.openScheduledList],
     ['Expense balances', () => setShowBalances(true)],
     [meta.is_pinned ? 'Unpin chat' : 'Pin chat', () => toggleSetting('is_pinned')],
@@ -1202,6 +1212,7 @@ function ChatView() {
         const live = messages.find((m) => m.id === reactionsFor.id) || reactionsFor;
         return <ReactionsSheet T={T} msg={live} names={names} me={me} onClose={() => setReactionsFor(null)} />;
       })()}
+      {showTone && meta && <ToneSheet T={T} chatId={meta.chat_id} friendId={friendId} isGroup={isGroupChat} tone={meta.tone} callTone={meta.call_tone} onClose={() => { setShowTone(false); fetchMeta(); }} ask={ask} />}
       {showPoll && <PollSheet T={T} onClose={() => setShowPoll(false)} onCreate={createPoll} />}
       {showCapsule && <CapsuleSheet T={T} onClose={() => setShowCapsule(false)} onSet={(iso) => { setSendMode({ unlock_at: iso }); setShowCapsule(false); setTimeout(() => inputRef.current && inputRef.current.focus(), 80); }} />}
       {showWhisper && isGroupChat && <WhisperSheet T={T} members={meta?.participants} meId={me?.id} onClose={() => setShowWhisper(false)}
@@ -1275,7 +1286,7 @@ function ChatView() {
           <div style={{ flexShrink: 0, padding: '8px 12px 0' }}>
             <div className="sc-search" style={{ margin: 0 }}>
               <BiSearch style={{ fontSize: 20 }} />
-              <input autoFocus placeholder="Search in this chat" value={searchQ} onChange={(e) => doSearch(e.target.value)} aria-label="Search in this chat" />
+              <input autoFocus placeholder={t('Search in this chat')} value={searchQ} onChange={(e) => doSearch(e.target.value)} aria-label="Search in this chat" />
               <button type="button" className="sc-dots" aria-label="Close search" onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); }}><BiX /></button>
             </div>
             {searchQ.trim() && (
@@ -1346,6 +1357,9 @@ function ChatView() {
           <div className="sc-composer" style={{ textAlign: 'center', color: 'var(--sub)' }}>📢 Only admins can send messages in this group.</div>
         ) : (
           <form onSubmit={sendMessage} className="sc-composer">
+            {slashQuery !== null && (
+              <QuickReplyList replies={quickReplies} query={slashQuery} onPick={(txt) => { setNewMessage(txt); setSlashQuery(null); setTimeout(() => inputRef.current && inputRef.current.focus(), 30); }} />
+            )}
             {mentionQuery !== null && isGroupChat && (
               <MentionList names={(meta?.participants || []).map((p) => p.username).filter((n) => n !== me?.username)} query={mentionQuery} onPick={pickMention} />
             )}
@@ -1442,7 +1456,7 @@ function ChatView() {
                   <textarea
                     ref={inputRef}
                     rows={1}
-                    placeholder={editing ? 'Edit message' : 'Message'}
+                    placeholder={editing ? 'Edit message' : t('Message')}
                     aria-label="Message"
                     value={newMessage}
                     onChange={(e) => { caretRef.current = e.target.selectionStart; handleTyping(e); }}

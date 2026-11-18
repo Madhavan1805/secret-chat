@@ -1,3 +1,5 @@
+import { t, getLang } from './i18n';
+import { TwoFactorSheet, BroadcastSheet, StorageSheet, QuickRepliesSheet, LanguageSheet } from './Extras5UI';
 import React, { useState } from 'react';
 import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle, BiExpand } from 'react-icons/bi';
 import api from './api';
@@ -28,7 +30,7 @@ function ThemeSheet({ T, onClose, appTheme, onPick }) {
   const [font, setFont] = useState(getFontStyle());
   const keys = [...APP_MODES.map((m) => m.key), ...Object.keys(CHAT_THEMES).filter((k) => !APP_MODES.some((m) => m.key === k))];
   return (
-    <Sheet T={T} title="Appearance" onClose={onClose}>
+    <Sheet T={T} title={t('Appearance')} onClose={onClose}>
       <label className="sc-label">Text size</label>
       <Choice value={size} options={TEXT_SIZES} onChange={(v) => { setSize(v); setTextScale(v); }} />
       <label className="sc-label" style={{ marginTop: 14 }}>Font style</label>
@@ -60,7 +62,7 @@ function DisplaySizeSheet({ T, onClose }) {
   const [v, setV] = useState(getUiScale());
   const pick = (n) => { setV(n); setUiScale(n); };
   return (
-    <Sheet T={T} title="Display size" onClose={onClose}>
+    <Sheet T={T} title={t('Display size')} onClose={onClose}>
       <p style={{ color: 'var(--sub)', fontSize: 13.5, margin: '0 4px 14px', lineHeight: 1.5 }}>Everything looks too big or too small on your phone? Change the size of the whole app here. It is saved on this phone only.</p>
       <Choice value={v} options={UI_SCALES.map((s) => [s.v, s.label])} onChange={pick} />
       <input type="range" min="0.8" max="1.2" step="0.05" value={v} aria-label="Display size"
@@ -79,7 +81,7 @@ function QuickReactionSheet({ T, onClose }) {
   const [cur, setCur] = useState(getQuickReaction());
   const all = [...DEFAULT_REACTIONS, ...getCustomReactions()];
   return (
-    <Sheet T={T} title="Double-tap reaction" onClose={onClose}>
+    <Sheet T={T} title={t('Double-tap reaction')} onClose={onClose}>
       <p style={{ color: 'var(--sub)', fontSize: 13.5, margin: '0 4px 14px', lineHeight: 1.5 }}>Double-tap any message and this emoji is sent as your reaction. Hold a reaction to make it rain.</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {all.map((e) => (
@@ -155,7 +157,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
               <p style={{ margin: '0 0 14px', color: 'var(--sub)', fontSize: 14, maxWidth: 280, lineHeight: 1.45 }}>{me?.bio || 'No bio yet'}</p>
               <div style={{ display: 'flex', gap: 8, width: '100%' }}>
                 <button type="button" className="sc-btn" style={{ flex: 1, height: 40, fontSize: 14, whiteSpace: 'nowrap', padding: '0 12px', minWidth: 0 }} onClick={() => { setName(currentUsername); setBio(me?.bio || ''); setEditing(true); }}><BiEdit /> Edit profile</button>
-                <button type="button" className="sc-btn ghost" style={{ flex: 1, height: 40, fontSize: 14, whiteSpace: 'nowrap', padding: '0 12px', minWidth: 0 }} onClick={() => setSheet('qr')}><BiQrScan /> My QR</button>
+                <button type="button" className="sc-btn ghost" style={{ flex: 1, height: 40, fontSize: 14, whiteSpace: 'nowrap', padding: '0 12px', minWidth: 0 }} onClick={() => setSheet('qr')}><BiQrScan /> {t('My QR')}</button>
               </div>
               <button type="button" className="sc-btn ghost" style={{ width: '100%', height: 40, fontSize: 14, marginTop: 8 }} onClick={() => setSheet('avatar')}><BiSmile /> Choose a cartoon avatar</button>
             </>
@@ -164,37 +166,42 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       </div>
 
       <div className="sc-set-group">
-        <SettingRow icon={<BiUserCircle />} title="Switch account" sub={listAccounts().length > 1 ? `${listAccounts().length} accounts on this phone` : 'Add another account'} onClick={() => setSheet('accounts')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>🙈</span>} title="Ask me anything" sub="Anonymous questions from friends" onClick={() => setSheet('ask')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>🎂</span>} title="My birthday" sub={me?.birthday ? `${me.birthday.split('-')[1]}/${me.birthday.split('-')[0]}` : 'Friends get a note on the day'} onClick={() => setSheet('bday')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>🤖</span>} title="Away auto-reply" sub={me?.away ? 'On' : 'Off'} onClick={() => setSheet('away')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>{me?.mood?.emoji || '🙂'}</span>} title="My mood" sub={me?.mood ? `${me.mood.emoji} ${me.mood.text}`.trim() : 'Show friends how you feel for 24 hours'} onClick={() => setSheet('mood')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>{getQuickReaction()}</span>} title="Double-tap reaction" sub="Sent when you double-tap a message" onClick={() => setSheet('quick')} right={chev} />
-        <SettingRow icon={<BiStar />} title="Starred messages" onClick={() => setSheet('starred')} right={chev} />
+        <SettingRow icon={<BiUserCircle />} title={t('Switch account')} sub={listAccounts().length > 1 ? `${listAccounts().length} accounts on this phone` : 'Add another account'} onClick={() => setSheet('accounts')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>🙈</span>} title={t('Ask me anything')} sub="Anonymous questions from friends" onClick={() => setSheet('ask')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>🎂</span>} title={t('My birthday')} sub={me?.birthday ? `${me.birthday.split('-')[1]}/${me.birthday.split('-')[0]}` : 'Friends get a note on the day'} onClick={() => setSheet('bday')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>🤖</span>} title={t('Away auto-reply')} sub={me?.away ? 'On' : 'Off'} onClick={() => setSheet('away')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>{me?.mood?.emoji || '🙂'}</span>} title={t('My mood')} sub={me?.mood ? `${me.mood.emoji} ${me.mood.text}`.trim() : 'Show friends how you feel for 24 hours'} onClick={() => setSheet('mood')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>{getQuickReaction()}</span>} title={t('Double-tap reaction')} sub="Sent when you double-tap a message" onClick={() => setSheet('quick')} right={chev} />
+        <SettingRow icon={<BiStar />} title={t('Starred messages')} onClick={() => setSheet('starred')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>⚡</span>} title={t('Quick replies')} sub="Type / in a chat to use them" onClick={() => setSheet('qreplies')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>📢</span>} title={t('Broadcast lists')} sub="One message to many friends" onClick={() => setSheet('broadcast')} right={chev} />
       </div>
 
       <div className="sc-set-group">
-        <SettingRow icon={<BiShield />} title="Privacy" sub="Last seen, photo, read receipts" onClick={() => setSheet('privacy')} right={chev} />
-        <SettingRow icon={<BiLock />} title="App lock" sub={lockEnabled() ? 'PIN is on' : 'Off'} onClick={() => setSheet('lock')} right={chev} />
-        <SettingRow icon={<BiDevices />} title="Logged-in devices" onClick={() => setSheet('devices')} right={chev} />
-        {me?.is_admin && <SettingRow icon={<BiShield />} title="Admin panel" sub="Users, reports and bans" onClick={() => setSheet('admin')} right={chev} />}
-        <SettingRow icon={<BiBlock />} title="Blocked users" sub={blockedUsers.length ? `${blockedUsers.length} blocked` : 'Nobody'} onClick={() => setSheet('blocked')} right={chev} />
+        <SettingRow icon={<BiShield />} title={t('Privacy')} sub="Last seen, photo, read receipts" onClick={() => setSheet('privacy')} right={chev} />
+        <SettingRow icon={<BiShield />} title={t('2-step verification')} sub="Authenticator code when you log in" onClick={() => setSheet('twofa')} right={chev} />
+        <SettingRow icon={<BiLock />} title={t('App lock')} sub={lockEnabled() ? 'PIN is on' : 'Off'} onClick={() => setSheet('lock')} right={chev} />
+        <SettingRow icon={<BiDevices />} title={t('Logged-in devices')} onClick={() => setSheet('devices')} right={chev} />
+        {me?.is_admin && <SettingRow icon={<BiShield />} title={t('Admin panel')} sub="Users, reports and bans" onClick={() => setSheet('admin')} right={chev} />}
+        <SettingRow icon={<BiBlock />} title={t('Blocked users')} sub={blockedUsers.length ? `${blockedUsers.length} blocked` : 'Nobody'} onClick={() => setSheet('blocked')} right={chev} />
       </div>
 
       <div className="sc-set-group">
-        <SettingRow icon={<BiExpand />} title="Display size" sub={getUiScale() === 1 ? 'Default' : `${Math.round(getUiScale() * 100)}%`} onClick={() => setSheet('size')} right={chev} />
-        <SettingRow icon={<BiPalette />} title="Appearance" sub={(CHAT_THEMES[appTheme] || CHAT_THEMES.default).label} onClick={() => setSheet('theme')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>🌙</span>} title="Quiet hours" sub={getQuiet().on ? `${getQuiet().from} – ${getQuiet().to}` : 'Off'} onClick={() => setSheet('quiet')} right={chev} />
-        <SettingRow icon={<BiBell />} title="Online alerts" sub="A small pop-up when a friend comes online" right={<Toggle on={onlineAlerts} onChange={(v) => { setOnlineAlerts(v); setOnlineAlertsEnabled(v); }} label="Online alerts" />} />
-        <SettingRow icon={<BiVolumeFull />} title="Sounds" right={<Toggle on={sounds} onChange={(v) => { setSounds(v); setSoundsEnabled(v); }} label="Sounds" />} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>🌐</span>} title={t('Language')} sub={getLang() === 'ta' ? 'தமிழ்' : 'English'} onClick={() => setSheet('lang')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>💾</span>} title={t('Storage')} sub="Media size, clear cache" onClick={() => setSheet('storage')} right={chev} />
+        <SettingRow icon={<BiExpand />} title={t('Display size')} sub={getUiScale() === 1 ? 'Default' : `${Math.round(getUiScale() * 100)}%`} onClick={() => setSheet('size')} right={chev} />
+        <SettingRow icon={<BiPalette />} title={t('Appearance')} sub={(CHAT_THEMES[appTheme] || CHAT_THEMES.default).label} onClick={() => setSheet('theme')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>🌙</span>} title={t('Quiet hours')} sub={getQuiet().on ? `${getQuiet().from} – ${getQuiet().to}` : 'Off'} onClick={() => setSheet('quiet')} right={chev} />
+        <SettingRow icon={<BiBell />} title={t('Online alerts')} sub="A small pop-up when a friend comes online" right={<Toggle on={onlineAlerts} onChange={(v) => { setOnlineAlerts(v); setOnlineAlertsEnabled(v); }} label="Online alerts" />} />
+        <SettingRow icon={<BiVolumeFull />} title={t('Sounds')} right={<Toggle on={sounds} onChange={(v) => { setSounds(v); setSoundsEnabled(v); }} label="Sounds" />} />
         {notifPerm !== 'unsupported' && (
-          <SettingRow icon={<BiBell />} title="Notifications" sub={notifPerm === 'granted' ? 'On' : 'Tap to allow'} onClick={notifPerm === 'granted' ? undefined : enableNotifications} />
+          <SettingRow icon={<BiBell />} title={t('Notifications')} sub={notifPerm === 'granted' ? 'On' : 'Tap to allow'} onClick={notifPerm === 'granted' ? undefined : enableNotifications} />
         )}
       </div>
 
       <div className="sc-set-group">
-        <SettingRow icon={<BiLogOut />} title="Log out" onClick={doLogout} />
-        <SettingRow icon={<BiTrash />} title="Delete my account" sub="Erases everything. Cannot be undone." onClick={deleteAccount} danger />
+        <SettingRow icon={<BiLogOut />} title={t('Log out')} onClick={doLogout} />
+        <SettingRow icon={<BiTrash />} title={t('Delete my account')} sub="Erases everything. Cannot be undone." onClick={deleteAccount} danger />
       </div>
       <p style={{ textAlign: 'center', color: 'var(--sub)', fontSize: 12, margin: '18px 0 0' }}>Chatzy · Designed and built by Madhavan</p>
 
@@ -205,6 +212,11 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       {sheet === 'bday' && <BirthdaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'away' && <AwaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'mood' && <MoodSheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
+      {sheet === 'twofa' && <TwoFactorSheet T={T} onClose={close} ask={ask} />}
+      {sheet === 'broadcast' && <BroadcastSheet T={T} onClose={close} ask={ask} />}
+      {sheet === 'storage' && <StorageSheet T={T} onClose={close} ask={ask} />}
+      {sheet === 'qreplies' && <QuickRepliesSheet T={T} onClose={close} ask={ask} />}
+      {sheet === 'lang' && <LanguageSheet T={T} onClose={close} />}
       {sheet === 'admin' && <AdminPanel T={T} onClose={close} ask={ask} />}
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'avatar' && <AvatarPicker T={T} ask={ask} onClose={close} onDone={() => { close(); refresh(); }} />}

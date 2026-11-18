@@ -1,15 +1,31 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRealtime } from './socket';
 import { playSound } from './sounds';
 import { showNotification, getActiveChat } from './notify';
 import api from './api';
 import { onlineAlertsEnabled, shouldAnnounce } from './onlineAlerts';
+import { hasToken } from './auth';
+import { loadTones, playMessageTone } from './tones';
 
 // Always mounted (see App.jsx). Handles things that must work on every screen:
 //   * message sounds (receive / delete)
 //   * "X liked your status" pop-up (notification only - it is NOT added to the chat)
 export default function GlobalEvents() {
   const [toast, setToast] = useState(null);
+  const [announce, setAnnounce] = useState(null);             // { id, title, text } from the admin
+  const seenAnnounce = () => { try { return Number(localStorage.getItem('seen_announcement') || 0); } catch (e) { return 0; } };
+  const closeAnnounce = () => {
+    if (announce) { try { localStorage.setItem('seen_announcement', String(announce.id)); } catch (e) { /* ignore */ } }
+    setAnnounce(null);
+  };
+  useEffect(() => {                                           // tones + the newest announcement, once per app start
+    if (!hasToken()) return;
+    loadTones();
+    api.get('announcements/latest/').then((r) => {
+      const a = r.data && r.data.announcement;
+      if (a && a.id > seenAnnounce()) setAnnounce(a);
+    }).catch(() => {});
+  }, []);                                                     // eslint-disable-line react-hooks/exhaustive-deps
   const timer = useRef(null);
   const [online, setOnline] = useState(null);
   const onlineTimer = useRef(null);
@@ -50,7 +66,7 @@ export default function GlobalEvents() {
       case 'message':
         if (evt.mine) break;
         if (evt.action === 'new' && !evt.muted) {
-          playSound('receive');
+          playMessageTone(evt.chat_id);
           const inThatChat = Number(evt.chat_id) === Number(getActiveChat()) && !document.hidden;
           if (!inThatChat && !document.hidden) {
             setMsgPop({ chat_id: evt.chat_id, sender_id: evt.sender_id, is_group: !!evt.is_group, title: evt.title || 'New message', body: evt.body || '' });
@@ -74,6 +90,11 @@ export default function GlobalEvents() {
           clearTimeout(onlineTimer.current);
           onlineTimer.current = setTimeout(() => setOnline(null), 2800);
         }
+        break;
+
+      case 'announcement':
+        if (evt.id > seenAnnounce()) setAnnounce({ id: evt.id, title: evt.title, text: evt.text });
+        playSound('receive');
         break;
 
       case 'request':
@@ -109,11 +130,23 @@ export default function GlobalEvents() {
       <span aria-hidden="true">✨</span>
     </div>
   );
-  if (!toast) return (<>{onlinePop}{msgCard}</>);
+  const announceCard = announce && (
+    <div role="dialog" aria-label="Announcement" onClick={closeAnnounce}
+         style={{ position: 'fixed', inset: 0, zIndex: 30000, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--panel, #1c1c22)', color: 'var(--text, #fff)', borderRadius: 22, padding: '22px 20px', maxWidth: 360, width: '100%', boxShadow: '0 14px 50px rgba(0,0,0,.5)' }}>
+        <div style={{ fontSize: 30, textAlign: 'center' }}>📢</div>
+        <h3 style={{ margin: '6px 0 8px', textAlign: 'center', fontSize: 19 }}>{announce.title || 'Chatzy'}</h3>
+        <p style={{ margin: '0 0 16px', lineHeight: 1.5, textAlign: 'center', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{announce.text}</p>
+        <button type="button" className="sc-btn" style={{ width: '100%' }} onClick={closeAnnounce}>Got it</button>
+      </div>
+    </div>
+  );
+  if (!toast) return (<>{onlinePop}{msgCard}{announceCard}</>);
   return (
     <>
     {onlinePop}
     {msgCard}
+    {announceCard}
     <div
       onClick={() => setToast(null)}
       style={{
