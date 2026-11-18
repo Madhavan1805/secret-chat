@@ -29,7 +29,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Chat, CustomUser, DeviceSession, Message, Note, Report, Status
+from .models import Chat, CustomUser, DeviceSession, Feedback, Message, Note, Report, Status
 from .music import clean_text
 from .realtime import notify_users
 
@@ -77,6 +77,7 @@ def admin_stats_view(request):
         "online": CustomUser.objects.filter(is_online=True, is_active=True).count(),
         "new_today": CustomUser.objects.filter(date_joined__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)).count(),
         "open_reports": Report.objects.filter(resolved=False).count(),
+        "open_feedback": Feedback.objects.exclude(status="done").count(),
         "groups": Chat.objects.filter(is_group=True).count(),
         "messages": Message.objects.count(),
         "messages_today": Message.objects.filter(created_at__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)).count(),
@@ -165,6 +166,65 @@ def report_view(request):
         return Response({"ok": True})                                # already reported, no duplicates
     Report.objects.create(reporter=request.user, reported=target, reason=reason,
                           details=clean_text(request.data.get('details'), 500))
+    return Response({"ok": True})
+
+
+KINDS = ('idea', 'bug', 'other')
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def feedback_view(request):
+    """GET: my own feedback with the admin's answers.  POST {text, kind}: send new feedback (max 5 a day)."""
+    if request.method == 'POST':
+        text = clean_text(request.data.get('text'), 1000)
+        if len(text) < 3:
+            raise ValidationError({"error": "Write a few words first."})
+        since = timezone.now() - timedelta(days=1)
+        if Feedback.objects.filter(user=request.user, created_at__gte=since).count() >= 5:
+            raise ValidationError({"error": "You have sent a lot of feedback today. Try again tomorrow."})
+        kind = request.data.get('kind')
+        Feedback.objects.create(user=request.user, kind=kind if kind in KINDS else 'idea', text=text)
+        return Response({"ok": True})
+    return Response({"feedback": [{"id": f.id, "kind": f.kind, "text": f.text, "status": f.status,
+                                   "reply": f.reply, "created_at": f.created_at}
+                                  for f in Feedback.objects.filter(user=request.user)[:30]]})
+
+
+@api_view(['GET'])
+@permission_classes([IsChatzyAdmin])
+def admin_feedback_view(request):
+    qs = Feedback.objects.select_related('user')
+    if (request.query_params.get('status') or 'open') != 'all':
+        qs = qs.exclude(status='done')
+    return Response({"feedback": [{"id": f.id, "user": f.user.username, "user_id": f.user_id, "kind": f.kind,
+                                   "text": f.text, "status": f.status, "reply": f.reply, "created_at": f.created_at}
+                                  for f in qs[:200]]})
+
+
+@api_view(['POST'])
+@permission_classes([IsChatzyAdmin])
+def admin_feedback_update_view(request):
+    """{id, status: seen|done, reply?}  - the reply (if any) is shown to the user and pushed to their phone."""
+    try:
+        f = Feedback.objects.select_related('user').get(pk=int(request.data.get('id')))
+    except (TypeError, ValueError, Feedback.DoesNotExist):
+        raise ValidationError({"error": "Feedback not found."})
+    status = request.data.get('status')
+    if status in ('new', 'seen', 'done'):
+        f.status = status
+    reply = clean_text(request.data.get('reply'), 500)
+    if reply:
+        f.reply = reply
+        f.replied_at = timezone.now()
+    f.save()
+    if reply:
+        try:
+            from .push import send_push
+            send_push([f.user_id], 'Chatzy feedback', reply, {})
+            notify_users([f.user_id], 'feedback_reply')
+        except Exception:
+            pass
     return Response({"ok": True})
 
 

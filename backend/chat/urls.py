@@ -7,8 +7,9 @@ from .extras5 import (pin_message_view, twofa_status_view, twofa_setup_view, two
 from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admin_unban_view,
                         admin_reports_view, admin_resolve_view, report_view,
                         admin_user_detail_view, admin_logout_view, admin_password_view, admin_photo_view,
-                        admin_clear_view, admin_delete_user_view, admin_groups_view, admin_delete_group_view)
-from .extras2 import album_create_view, album_add_view, mood_view, away_view
+                        admin_clear_view, admin_delete_user_view, admin_groups_view, admin_delete_group_view,
+                        feedback_view, admin_feedback_view, admin_feedback_update_view)
+from .extras2 import album_create_view, album_add_view, mood_view, away_view, birthdays_today_view
 from .extras3 import (live_start_view, live_update_view, game_create_view, game_move_view,
                       ask_send_view, ask_inbox_view, ask_answer_view, ask_public_view,
                       checklist_create_view, checklist_toggle_view, checklist_add_view,
@@ -46,6 +47,10 @@ router.register(r'calls', CallViewSet, basename='call')
 urlpatterns = [
     path('login/', login_view, name='login'),
     path('reports/', report_view),
+    path('feedback/', feedback_view),
+    path('birthdays/today/', birthdays_today_view),
+    path('admin-api/feedback/', admin_feedback_view),
+    path('admin-api/feedback/update/', admin_feedback_update_view),
     path('albums/create/', album_create_view),
     path('albums/add/', album_add_view),
     path('users/mood/', mood_view),

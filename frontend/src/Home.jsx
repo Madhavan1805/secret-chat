@@ -1,7 +1,8 @@
 import { t } from './i18n';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus } from 'react-icons/bi';
+import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus, BiMessageSquareDetail } from 'react-icons/bi';
+import FeedbackSheet from './Feedback';
 import api from './api';
 import Avatar from './Avatar';
 import StatusTab from './StatusTab';
@@ -91,6 +92,7 @@ function Home() {
   const [activity, setActivity] = useState([]);
   const [asks, setAsks] = useState([]);                       // unanswered anonymous questions
   const [showFind, setShowFind] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [muteFor, setMuteFor] = useState(null);
@@ -554,6 +556,7 @@ function Home() {
             <button type="button" className="sc-iconbtn" aria-label="Find people" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /></button>
           </div>
         </header>
+        <button type="button" className="sc-feedback-fab" aria-label="Send feedback" onClick={() => setShowFeedback(true)}><BiMessageSquareDetail /></button>
 
         <h1 className="sc-title">{tabTitle}<small>{tabSub}</small></h1>
 
@@ -680,6 +683,7 @@ function Home() {
           onAccept={(r) => handleRequestAction(r.id, 'accepted')} onDecline={(r) => handleRequestAction(r.id, 'declined')} onCancel={cancelRequest} />
       )}
       {showAsk && <AskInbox T={T} onClose={() => { setShowAsk(false); fetchAsks(); }} ask={ask} />}
+      {showFeedback && <FeedbackSheet T={T} onClose={() => setShowFeedback(false)} ask={ask} />}
       {showFind && (
         <FindPeopleSheet T={T} me={me} friends={friends} pending={pendingRequests} sent={sentRequests} initialQuery={findQuery}
           onAdd={(u) => sendRequest(u.id)} onCancel={cancelRequest} onAccept={(r) => handleRequestAction(r.id, 'accepted')}
