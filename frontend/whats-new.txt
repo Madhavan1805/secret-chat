@@ -1,4 +1,10 @@
-Instagram-style voice and video calls
-Display size setting in Profile
-New message menu, hold an emoji to make it rain
-See who reacted and swipe through albums
+📞 Voice and video calls, Instagram style: new call screen, mute, camera flip, group calls
+💬 Missed call and call duration now show in the chat
+🎨 Cartoon avatar picker for your profile photo
+👥 Tap a group or member photo to view it full size
+🟢 Cute "is online" pop-up when a friend comes online
+😍 New message menu: reactions, preview and action buttons in one tidy sheet
+🌧️ Hold any emoji, even your own custom ones, and it rains on both screens
+👀 See who reacted to a message, with a tab for each emoji
+🖼️ Photo albums open in a gallery: swipe, select and download
+📱 Display size in Profile to make the whole app bigger or smaller

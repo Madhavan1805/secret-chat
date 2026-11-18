@@ -33,7 +33,7 @@ export default function UpdateGate() {
         const r = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
         if (!r.ok) return;
         const j = await r.json();
-        if (j && j.v && j.v !== __BUILD_ID__) { found.current = true; setNews({ notes: Array.isArray(j.notes) ? j.notes.slice(0, 6) : [] }); }
+        if (j && j.v && j.v !== __BUILD_ID__) { found.current = true; setNews({ notes: Array.isArray(j.notes) ? j.notes.slice(0, 12) : [] }); }
       } catch (e) { /* offline: try again later */ }
     };
     check();
