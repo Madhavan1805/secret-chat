@@ -871,3 +871,13 @@ html, body { background: var(--page-bg, #0F0B14); }
 .cl-accept span { background: #2fc46b; animation: cl-bounce 1.2s ease-in-out infinite; }
 @keyframes cl-bounce { 50% { transform: scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .cl-pulse, .cl-accept span { animation: none; } }
+
+/* ---------- forced update popup ---------- */
+.ug-wrap { box-sizing: border-box; position: fixed; top: var(--app-top, 0px); left: 0; width: 100%; height: var(--app-height, 100dvh); z-index: 20000; background: rgba(8, 5, 12, .82); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); display: grid; place-items: center; padding: 20px; }
+.ug-card { width: min(100%, 360px); box-sizing: border-box; padding: 26px 22px 22px; border-radius: 26px; background: var(--raised, #261C33); border: 1px solid var(--line, rgba(255,255,255,.12)); color: var(--text, #fff); text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,.55); animation: mm-rise .28s cubic-bezier(.2, .9, .3, 1); }
+.ug-ico { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 20px; display: grid; place-items: center; font-size: 34px; color: #fff; background: linear-gradient(150deg, #E8405A, #A3153A); }
+.ug-title { font-family: var(--font-display, inherit); font-size: 21px; margin: 0 0 6px; }
+.ug-sub { margin: 0 0 12px; font-size: 14px; color: var(--sub, rgba(255,255,255,.7)); line-height: 1.45; }
+.ug-notes { max-height: 40vh; overflow-y: auto; list-style: none; text-align: left; margin: 0 0 16px; padding: 10px 14px; border-radius: 16px; background: var(--line, rgba(255,255,255,.08)); font-size: 13.5px; line-height: 1.5; }
+.ug-btn { width: 100%; border: 0; border-radius: 16px; padding: 13px; font-weight: 700; font-size: 15px; color: #fff; background: linear-gradient(150deg, #E8405A, #A3153A); cursor: pointer; }
+.ug-btn:disabled { opacity: .7; }

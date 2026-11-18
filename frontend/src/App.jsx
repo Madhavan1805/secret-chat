@@ -12,6 +12,7 @@ import LockGate from './LockGate';
 import { DownloadPage } from './GetApp';
 import Splash from './Splash';
 import OfflineScreen from './OfflineScreen';
+import UpdateGate from './UpdateGate';
 
 // pages that need a logged-in user: no token -> back to the login page
 function RequireAuth({ children }) {
@@ -29,6 +30,7 @@ export default function App() {
     <Shell>
       {splash && <Splash onDone={doneSplash} />}
       <OfflineScreen />
+      <UpdateGate />
       <LockGate>
       <CallManager />
       <GlobalEvents />
