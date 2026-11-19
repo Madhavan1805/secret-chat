@@ -51,6 +51,12 @@ export function Seal({ size = 40, children, keyhole = false, seed = 3, style }) 
   );
 }
 
+// blue tick for accounts an admin has verified
+export function Tick({ on, size = 15 }) {
+  if (!on) return null;
+  return <span title="Verified" aria-label="Verified" style={{ display: 'inline-grid', placeItems: 'center', width: size, height: size, borderRadius: '50%', background: '#2d9cdb', color: '#fff', fontSize: Math.round(size * 0.68), fontWeight: 800, marginLeft: 4, verticalAlign: 'middle', lineHeight: 1, flex: '0 0 auto' }}>✓</span>;
+}
+
 // the send button: a seal that gets "stamped" every time you press it
 export function SealButton({ onClick, disabled, label = 'Send', stampKey, children, size = 46 }) {
   const [stamp, setStamp] = useState(false);

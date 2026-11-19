@@ -186,7 +186,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
         <SettingRow icon={<BiShield />} title={t('2-step verification')} sub="Authenticator code when you log in" onClick={() => setSheet('twofa')} right={chev} />
         <SettingRow icon={<BiLock />} title={t('App lock')} sub={lockEnabled() ? 'PIN is on' : 'Off'} onClick={() => setSheet('lock')} right={chev} />
         <SettingRow icon={<BiDevices />} title={t('Logged-in devices')} onClick={() => setSheet('devices')} right={chev} />
-        {me?.is_admin && <SettingRow icon={<BiShield />} title={t('Admin panel')} sub="Users, reports and bans" onClick={() => setSheet('admin')} right={chev} />}
+        {me?.is_admin && <SettingRow icon={<BiShield />} title={t('Admin panel')} sub="Users, reports, groups and tools" onClick={() => setSheet('admin')} right={chev} />}
         <SettingRow icon={<BiBlock />} title={t('Blocked users')} sub={blockedUsers.length ? `${blockedUsers.length} blocked` : 'Nobody'} onClick={() => setSheet('blocked')} right={chev} />
       </div>
 

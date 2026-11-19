@@ -145,9 +145,12 @@ def deliver_otp(user, code):
 def login_view(request):
     identifier = request.data.get('username') or request.data.get('identifier')
     password = request.data.get('password') or ''
+    from .admin_api import lift_expired_bans
+    lift_expired_bans()                                   # temporary bans end by themselves
     user = find_user(identifier)
     if user and not user.is_active and user.check_password(password):
-        msg = 'This account has been banned.' + (f' Reason: {user.ban_reason}' if user.ban_reason else '')
+        until = f" until {user.banned_until.strftime('%d %b %Y, %I:%M %p')} (UTC)" if user.banned_until else ''
+        msg = f'This account has been banned{until}.' + (f' Reason: {user.ban_reason}' if user.ban_reason else '')
         return Response({'error': msg, 'banned': True}, status=403)
     if user and authenticate(username=user.username, password=password):
         if user.totp_enabled:                            # 2-step verification
