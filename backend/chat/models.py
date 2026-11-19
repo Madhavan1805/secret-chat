@@ -616,3 +616,50 @@ class BannedWord(models.Model):
 class AppSetting(models.Model):
     key = models.CharField(max_length=40, unique=True)
     value = models.TextField(blank=True, default='')
+
+
+# ---------------------------------------- Reels: short vertical videos (friends only, or everyone)
+def reel_upload_to(instance, filename):
+    import uuid
+    ext = (filename.rsplit('.', 1)[-1] if '.' in filename else 'mp4').lower()[:5]
+    return f"reels/{uuid.uuid4().hex}.{ext}"
+
+
+class Reel(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='reels')
+    video = models.FileField(upload_to=reel_upload_to, max_length=255)
+    caption = models.CharField(max_length=200, blank=True, default='')
+    audience = models.CharField(max_length=8, default='friends')      # friends | all
+    duration = models.FloatField(default=0)
+    views = models.PositiveIntegerField(default=0)
+    hidden = models.BooleanField(default=False)                       # hidden after 3 different people reported it
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-id']
+
+
+class ReelLike(models.Model):
+    reel = models.ForeignKey(Reel, on_delete=models.CASCADE, related_name='likes')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+
+    class Meta:
+        unique_together = ('reel', 'user')
+
+
+class ReelComment(models.Model):
+    reel = models.ForeignKey(Reel, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+    text = models.CharField(max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+
+class ReelReport(models.Model):
+    reel = models.ForeignKey(Reel, on_delete=models.CASCADE, related_name='reports')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+
+    class Meta:
+        unique_together = ('reel', 'user')

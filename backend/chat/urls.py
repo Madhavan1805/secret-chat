@@ -27,6 +27,8 @@ from .views import (
 )
 from .notes import notes_view, note_like_view
 from .music import music_search
+from .reels import (reels_view, reel_delete_view, reel_like_view, reel_view_view, reel_comments_view,
+                    reel_report_view, reels_explore_view)
 from .plus import (
     reminder_create_view, reminder_list_view, reminder_cancel_view, time_unlock_view, time_relock_view,
     expense_create_view, expense_settle_view, expense_balances_view, reaction_rain_view,
@@ -51,6 +53,13 @@ urlpatterns = [
     path('login/', login_view, name='login'),
     path('reports/', report_view),
     path('feedback/', feedback_view),
+    path('reels/', reels_view),
+    path('reels/explore/', reels_explore_view),
+    path('reels/<int:pk>/', reel_delete_view),
+    path('reels/<int:pk>/like/', reel_like_view),
+    path('reels/<int:pk>/view/', reel_view_view),
+    path('reels/<int:pk>/comments/', reel_comments_view),
+    path('reels/<int:pk>/report/', reel_report_view),
     path('birthdays/today/', birthdays_today_view),
     path('admin-api/feedback/', admin_feedback_view),
     path('admin-api/feedback/update/', admin_feedback_update_view),
