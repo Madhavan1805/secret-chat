@@ -8,12 +8,12 @@ import Reels from './Reels';
 import ChatView from './ChatView';
 import CallManager from './CallManager';
 import GlobalEvents from './GlobalEvents';
+import UpdateGate from './UpdateGate';
 import { getToken } from './config';
 import LockGate from './LockGate';
 import { DownloadPage } from './GetApp';
 import Splash from './Splash';
 import OfflineScreen from './OfflineScreen';
-import UpdateGate from './UpdateGate';
 import MaintenanceGate from './MaintenanceGate';
 
 // pages that need a logged-in user: no token -> back to the login page

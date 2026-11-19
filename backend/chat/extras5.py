@@ -245,13 +245,29 @@ def broadcast_delete_view(request):
 
 
 @api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 @permission_classes([IsAuthenticated])
 def broadcast_send_view(request):
+    """Text, or a photo / video / document / voice note (with an optional caption)."""
+    import os
+    from .views import BLOCKED_EXT, MAX_UPLOAD
     user = request.user
     b = _own_list(request)
     content = str(request.data.get('content') or '').strip()[:4000]
-    if not content:
-        raise ValidationError({"error": "Type a message."})
+    upload = request.FILES.get('file')
+    extra = {}
+    if upload:
+        if upload.size > MAX_UPLOAD:
+            raise ValidationError({"error": "File too large (max 25 MB)"})
+        if os.path.splitext(upload.name)[1].lower() in BLOCKED_EXT:
+            raise ValidationError({"error": "This file type is not allowed"})
+        ct = upload.content_type or ''
+        extra = {"file_name": upload.name[:255], "file_size": upload.size,
+                 "message_type": ('image' if ct.startswith('image') else 'video' if ct.startswith('video')
+                                  else 'audio' if ct.startswith('audio') else 'document')}
+    elif not content:
+        raise ValidationError({"error": "Type a message or pick a photo / video."})
+    stored_name = None                                       # the file is saved once and every message points to it
     sent = skipped = 0
     friends = friend_ids_of(user)
     for r in b.recipients.filter(is_active=True):
@@ -264,8 +280,18 @@ def broadcast_send_view(request):
         except ChatLocked:
             skipped += 1
             continue
-        msg = Message.objects.create(chat=chat, sender=user, receiver=r, message_type='text', content=content,
-                                     status='delivered' if r.is_online else 'sent')
+        fields = dict(chat=chat, sender=user, receiver=r, content=content, status='delivered' if r.is_online else 'sent')
+        if upload and stored_name:
+            msg = Message.objects.create(message_type=extra['message_type'], file_name=extra['file_name'],
+                                         file_size=extra['file_size'], file_url=stored_name, **fields)
+        elif upload:
+            upload.seek(0)
+            msg = Message(message_type=extra['message_type'], file_name=extra['file_name'],
+                          file_size=extra['file_size'], **fields)
+            msg.file_url.save(upload.name, upload, save=True)
+            stored_name = msg.file_url.name
+        else:
+            msg = Message.objects.create(message_type='text', **fields)
         notify_message(chat, msg, 'new')
         sent += 1
     return Response({"sent": sent, "skipped": skipped})
