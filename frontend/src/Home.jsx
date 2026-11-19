@@ -1,7 +1,7 @@
 import { t } from './i18n';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus, BiMessageSquareDetail } from 'react-icons/bi';
+import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus, BiMessageSquareDetail, BiMoviePlay } from 'react-icons/bi';
 import FeedbackSheet from './Feedback';
 import api from './api';
 import Avatar from './Avatar';
@@ -60,13 +60,13 @@ function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, m
 }
 
 // the floating bottom navigation
-function NavBar({ tab, setTab, badges }) {
-  const items = [['chats', t('Messages'), BiChat], ['groups', t('Groups'), BiGroup], ['status', t('Status'), BiAperture], ['calls', t('Calls'), BiPhoneCall], ['profile', t('You'), BiUser]];
+function NavBar({ tab, setTab, badges, onReels }) {
+  const items = [['chats', t('Messages'), BiChat], ['groups', t('Groups'), BiGroup], ['status', t('Status'), BiAperture], ['reels', 'Reels', BiMoviePlay], ['calls', t('Calls'), BiPhoneCall], ['profile', t('You'), BiUser]];
   return (
     <nav className="sc-nav" aria-label="Main">
       <div className="sc-nav-bar">
         {items.map(([key, label, Icon]) => (
-          <button key={key} type="button" className="sc-nav-item" aria-current={tab === key ? 'page' : undefined} aria-label={label} onClick={() => setTab(key)}>
+          <button key={key} type="button" className="sc-nav-item" aria-current={tab === key ? 'page' : undefined} aria-label={label} onClick={() => (key === 'reels' ? onReels() : setTab(key))}>
             <Icon /><span className="lbl">{label}</span>
             {badges[key] && <span className="sc-dot" />}
           </button>
@@ -672,7 +672,7 @@ function Home() {
           )}
         </div>
 
-        <NavBar tab={activeTab} setTab={(t) => { setRowMenu(null); setActiveTab(t); }} badges={badges} />
+        <NavBar tab={activeTab} setTab={(t) => { setRowMenu(null); setActiveTab(t); }} badges={badges} onReels={() => navigate('/reels')} />
       </div>
 
       {showRequests && (
