@@ -571,7 +571,7 @@ class ChatViewSet(viewsets.ModelViewSet):
             "tone": s.tone,
             "call_tone": s.call_tone,
             "pinned_message": pinned_payload(chat),
-            "participants": [{"id": p.id, "username": p.username,
+            "participants": [{"id": p.id, "username": p.username, "is_verified": p.is_verified,
                               # members' photos follow each person's "profile photo" privacy setting
                               "profile_picture": (request.build_absolute_uri(p.profile_picture.url)
                                                   if p.profile_picture and visible(p.privacy_photo, user.id, p.id, _friends)
@@ -906,6 +906,12 @@ class MessageViewSet(viewsets.ModelViewSet):
         chat_id = to_int(self.request.data.get('chat'))
         receiver_id = to_int(self.request.data.get('receiver'))
         extra = self._file_extras()
+        from .admin2 import find_banned_word                   # words the admin has blocked
+        from .admin_api import is_admin as _is_admin
+        content_in = self.request.data.get('content')
+        if isinstance(content_in, str) and self.request.data.get('message_type') in (None, '', 'text') and not _is_admin(user):
+            if find_banned_word(content_in):
+                raise ValidationError({"error": "This message has a word that is not allowed on Chatzy."})
         from .plus import parse_unlock_at                      # time capsule (optional)
         unlock_at = parse_unlock_at(self.request.data.get('unlock_at'))
         if unlock_at:

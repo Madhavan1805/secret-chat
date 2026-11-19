@@ -13,6 +13,7 @@ import { DownloadPage } from './GetApp';
 import Splash from './Splash';
 import OfflineScreen from './OfflineScreen';
 import UpdateGate from './UpdateGate';
+import MaintenanceGate from './MaintenanceGate';
 
 // pages that need a logged-in user: no token -> back to the login page
 function RequireAuth({ children }) {
@@ -31,6 +32,7 @@ export default function App() {
       {splash && <Splash onDone={doneSplash} />}
       <OfflineScreen />
       <UpdateGate />
+      <MaintenanceGate />
       <LockGate>
       <CallManager />
       <GlobalEvents />

@@ -10,7 +10,7 @@ import { useModal } from './PromptModal';
 import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
 import { getMe, getToken, clearMe, errMsg, formatListTime, formatDuration, startCall, asList } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage } from './theme';
-import { Logo, Sheet } from './ui';
+import { Logo, Sheet, Tick } from './ui';
 import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
 import { GlobalSearch } from './PlusUI2';
@@ -479,7 +479,7 @@ function Home() {
       <ChatRow
         key={friend.id}
         avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />}
-        title={<>{shownName(friend.username)}{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
+        title={<>{shownName(friend.username)}<Tick on={friend.is_verified} />{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
         subtitle={ov?.is_locked ? 'Locked chat' : (getDraft(friend.username) ? <><span style={{ color: '#ff3b30' }}>Draft: </span>{getDraft(friend.username)}</> : typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
         time={formatListTime(ov?.last_message?.created_at)}

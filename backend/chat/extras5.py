@@ -280,6 +280,8 @@ def announce_view(request):
     if not text:
         raise ValidationError({"error": "Write the announcement."})
     a = Announcement.objects.create(title=title, text=text, created_by=request.user)
+    from .admin_api import log_action
+    log_action(request.user, 'announcement', None, (title + ': ' if title else '') + text[:200])
     ids = list(CustomUser.objects.filter(is_active=True).values_list('id', flat=True))
     notify_users(ids, 'announcement', id=a.id, title=a.title, text=a.text)
     try:

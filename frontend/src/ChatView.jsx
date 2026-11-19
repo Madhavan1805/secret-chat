@@ -12,7 +12,7 @@ import { useModal } from './PromptModal';
 import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, shortFile } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
-import { Seal, SealButton, Logo } from './ui';
+import { Seal, SealButton, Logo, Tick } from './ui';
 import { EventSheet } from './PlusUI2';
 import Doodle from './Doodle';
 import { startSharing } from './liveShare';
@@ -1261,7 +1261,7 @@ function ChatView() {
               : <Avatar src={receiver?.profile_picture} name={contactName} size={42} online={online} T={T} />}
             <div style={{ minWidth: 0 }}>
               <h2 className="sc-chat-name">
-                <span className="t">{shownName(contactName)}{nickTick ? '' : ''}</span>
+                <span className="t">{shownName(contactName)}{nickTick ? '' : ''}</span>{!isGroupChat && <Tick on={receiver?.is_verified || (meta?.participants || []).some((p) => p.is_verified && p.username === contactName)} />}
                 {meta?.is_muted && <BiVolumeMute style={{ color: 'var(--sub)', fontSize: 16 }} aria-label="Muted" />}
                 {meta?.is_locked && <BiLock style={{ color: 'var(--accent)', fontSize: 15 }} aria-label="Locked" />}
                 {dTime > 0 && <span className="sc-badge" style={{ height: 18, minWidth: 0, fontSize: 10, gap: 3, display: 'inline-flex', alignItems: 'center' }}><BiTimer />{humanDuration(dTime)}</span>}

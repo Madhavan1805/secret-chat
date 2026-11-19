@@ -37,6 +37,8 @@ class CustomUser(AbstractUser):
     read_receipts = models.BooleanField(default=True)                                                  # blue ticks
     totp_secret = models.CharField(max_length=40, blank=True, default='')       # 2-step verification (authenticator app)
     totp_enabled = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)                 # blue tick given by an admin
+    banned_until = models.DateTimeField(null=True, blank=True)       # temporary ban: lifted automatically after this time
 
     def __str__(self):
         return self.username
@@ -585,3 +587,32 @@ class QuickReply(models.Model):
     class Meta:
         unique_together = ('user', 'shortcut')
         ordering = ['shortcut']
+
+
+# ------------------------------------- everything an admin does is written here (who, what, to whom)
+class AdminLog(models.Model):
+    admin = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    admin_name = models.CharField(max_length=150)
+    action = models.CharField(max_length=40)
+    target_id = models.IntegerField(null=True, blank=True)
+    target_name = models.CharField(max_length=150, blank=True, default='')
+    detail = models.CharField(max_length=300, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+# ------------------------------------- words that cannot be sent in messages
+class BannedWord(models.Model):
+    word = models.CharField(max_length=40, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['word']
+
+
+# ------------------------------------- small key/value switches (maintenance mode)
+class AppSetting(models.Model):
+    key = models.CharField(max_length=40, unique=True)
+    value = models.TextField(blank=True, default='')
