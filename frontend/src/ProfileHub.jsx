@@ -1,7 +1,7 @@
 import { t, getLang } from './i18n';
 import { TwoFactorSheet, BroadcastSheet, StorageSheet, QuickRepliesSheet, LanguageSheet } from './Extras5UI';
 import React, { useState } from 'react';
-import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle, BiExpand } from 'react-icons/bi';
+import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle, BiExpand, BiGift } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
 import { Sheet, Toggle, SettingRow, Choice } from './ui';
@@ -20,6 +20,7 @@ import { listAccounts } from './accounts';
 import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
 import { burstAt } from './fx';
 import { UI_SCALES, getUiScale, setUiScale } from './uiScale';
+import { CHANGELOG, hasUnseenUpdate, markUpdateSeen } from './changelog';
 import PhotoCropper from './PhotoCropper';
 import { soundsEnabled, setSoundsEnabled } from './sounds';
 import { getMe, errMsg, shortFile, getPicUrl } from './config';
@@ -54,6 +55,27 @@ function ThemeSheet({ T, onClose, appTheme, onPick }) {
           );
         })}
       </div>
+    </Sheet>
+  );
+}
+
+// What's new: the details of every update (the update pop-up itself only says that an update is ready)
+function WhatsNewSheet({ T, onClose }) {
+  useEffect(() => { markUpdateSeen(); }, []);
+  return (
+    <Sheet T={T} title="What's new" onClose={onClose}>
+      {CHANGELOG.map((c, i) => (
+        <div key={c.id} style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 18, background: 'var(--raised)', border: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <b style={{ fontSize: 15 }}>{c.title}</b>
+            {i === 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'var(--accent)', color: '#161616' }}>Latest</span>}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--sub)', margin: '2px 0 8px' }}>{c.date}</div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6, fontSize: 14, lineHeight: 1.45 }}>
+            {c.items.map((it) => <li key={it}>{it}</li>)}
+          </ul>
+        </div>
+      ))}
     </Sheet>
   );
 }
@@ -193,6 +215,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       <div className="sc-set-group">
         <SettingRow icon={<span style={{ fontSize: 20 }}>🌐</span>} title={t('Language')} sub={getLang() === 'ta' ? 'தமிழ்' : 'English'} onClick={() => setSheet('lang')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>💾</span>} title={t('Storage')} sub="Media size, clear cache" onClick={() => setSheet('storage')} right={chev} />
+        <SettingRow icon={<BiGift />} title="What's new" sub={hasUnseenUpdate() ? 'New: see what changed' : 'Details of every update'} onClick={() => setSheet('news')} right={chev} />
         <SettingRow icon={<BiExpand />} title={t('Display size')} sub={getUiScale() === 1 ? 'Default' : `${Math.round(getUiScale() * 100)}%`} onClick={() => setSheet('size')} right={chev} />
         <SettingRow icon={<BiPalette />} title={t('Appearance')} sub={(CHAT_THEMES[appTheme] || CHAT_THEMES.default).label} onClick={() => setSheet('theme')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>🌙</span>} title={t('Quiet hours')} sub={getQuiet().on ? `${getQuiet().from} – ${getQuiet().to}` : 'Off'} onClick={() => setSheet('quiet')} right={chev} />
@@ -230,6 +253,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       {sheet === 'lock' && <LockSheet T={T} onClose={() => { close(); }} ask={ask} />}
       {sheet === 'starred' && <StarredSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'blocked' && <BlockedSheet T={T} onClose={close} users={blockedUsers} onUnblock={doUnblock} />}
+      {sheet === 'news' && <WhatsNewSheet T={T} onClose={close} />}
       {sheet === 'size' && <DisplaySizeSheet T={T} onClose={close} />}
       {sheet === 'theme' && <ThemeSheet T={T} onClose={close} appTheme={appTheme} onPick={changeAppTheme} />}
       {sheet === 'qr' && <QrSheet T={T} me={me} onClose={close} onAddUser={(u) => { close(); onAddUser(u); }} />}
