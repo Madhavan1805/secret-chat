@@ -62,6 +62,7 @@ export function SealButton({ onClick, disabled, label = 'Send', stampKey, childr
   }, [stampKey]);
   return (
     <button type="button" className={`sc-seal-btn${stamp ? ' stamp' : ''}`} style={{ width: size, height: size }}
+      onMouseDown={(e) => e.preventDefault()}                       // tapping Send must not steal focus: the keyboard stays open
       onClick={onClick} disabled={disabled} aria-label={label}>
       <Seal size={size} seed={5}>{children}</Seal>
     </button>
