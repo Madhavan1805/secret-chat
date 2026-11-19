@@ -71,6 +71,7 @@ export function BroadcastSheet({ T, onClose, ask }) {
   const [name, setName] = useState('');
   const [picked, setPicked] = useState({});
   const [text, setText] = useState('');
+  const [file, setFile] = useState(null);                     // optional photo / video / document
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => api.get('broadcasts/').then((r) => setLists(r.data.lists)).catch(() => setLists([])), []);
@@ -103,8 +104,13 @@ export function BroadcastSheet({ T, onClose, ask }) {
   const send = async () => {
     setBusy(true);
     try {
-      const r = await api.post('broadcasts/send/', { id: view.list.id, content: text });
+      const fd = new FormData();
+      fd.append('id', view.list.id);
+      fd.append('content', text);
+      if (file) fd.append('file', file);
+      const r = await api.post('broadcasts/send/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setText('');
+      setFile(null);
       setView({ mode: 'list' });
       ask({ type: 'alert', title: `Sent to ${r.data.sent} friend${r.data.sent === 1 ? '' : 's'}`, message: r.data.skipped ? `${r.data.skipped} skipped (blocked or locked chat).` : 'Each one got it as a normal chat message.' });
     } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Could not send') }); }
@@ -148,8 +154,20 @@ export function BroadcastSheet({ T, onClose, ask }) {
       {view.mode === 'send' && (
         <>
           <p style={{ color: 'var(--sub)' }}>To: {view.list.recipients.map((r) => r.username).join(', ') || 'nobody'}</p>
-          <textarea className="sc-field" rows={5} style={{ height: 'auto', padding: 12 }} placeholder="Type your message" maxLength={4000} value={text} onChange={(e) => setText(e.target.value)} />
-          <button type="button" className="sc-btn" style={{ marginTop: 10 }} disabled={busy || !text.trim()} onClick={send}>{t('Send')}</button>
+          <textarea className="sc-field" rows={5} style={{ height: 'auto', padding: 12 }} placeholder={file ? 'Caption (optional)' : 'Type your message'} maxLength={4000} value={text} onChange={(e) => setText(e.target.value)} />
+          {file ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '8px 12px', borderRadius: 14, background: 'var(--raised, rgba(127,127,127,.15))' }}>
+              {file.type.startsWith('image') ? <img src={URL.createObjectURL(file)} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: 26 }}>{file.type.startsWith('video') ? '🎞️' : '📄'}</span>}
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}<br /><small style={{ color: 'var(--sub)' }}>{formatSize(file.size)}</small></span>
+              <button type="button" className="sc-btn ghost" style={{ height: 32, padding: '0 12px', fontSize: 13 }} onClick={() => setFile(null)}>Remove</button>
+            </div>
+          ) : (
+            <label className="sc-btn ghost" style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}>
+              📎 Add photo, video or file
+              <input type="file" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" hidden onChange={(e) => { setFile(e.target.files[0] || null); e.target.value = ''; }} />
+            </label>
+          )}
+          <button type="button" className="sc-btn" style={{ marginTop: 10 }} disabled={busy || (!text.trim() && !file)} onClick={send}>{busy ? 'Sending…' : t('Send')}</button>
         </>
       )}
     </Sheet>

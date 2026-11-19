@@ -7,6 +7,7 @@ import Home from './Home';
 import ChatView from './ChatView';
 import CallManager from './CallManager';
 import GlobalEvents from './GlobalEvents';
+import UpdateGate from './UpdateGate';
 import { getToken } from './config';
 import LockGate from './LockGate';
 import { DownloadPage } from './GetApp';
@@ -32,6 +33,7 @@ export default function App() {
       <LockGate>
       <CallManager />
       <GlobalEvents />
+      <UpdateGate />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
