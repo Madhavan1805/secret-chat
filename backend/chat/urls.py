@@ -4,11 +4,15 @@ from .extras5 import (pin_message_view, twofa_status_view, twofa_setup_view, two
                       stickers_view, sticker_delete_view, broadcasts_view, broadcast_update_view,
                       broadcast_delete_view, broadcast_send_view, announce_view, announcement_latest_view,
                       quick_replies_view, quick_reply_delete_view, tones_view, storage_view)
+from .admin2 import (analytics_view, make_admin_view, verify_view, warn_view, export_users_view, group_detail_view,
+                     group_rename_view, group_remove_member_view, report_context_view, admin_delete_message_view,
+                     words_view, word_delete_view, log_view, maintenance_view, app_status_view)
 from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admin_unban_view,
                         admin_reports_view, admin_resolve_view, report_view,
                         admin_user_detail_view, admin_logout_view, admin_password_view, admin_photo_view,
-                        admin_clear_view, admin_delete_user_view, admin_groups_view, admin_delete_group_view)
-from .extras2 import album_create_view, album_add_view, mood_view, away_view
+                        admin_clear_view, admin_delete_user_view, admin_groups_view, admin_delete_group_view,
+                        feedback_view, admin_feedback_view, admin_feedback_update_view)
+from .extras2 import album_create_view, album_add_view, mood_view, away_view, birthdays_today_view
 from .extras3 import (live_start_view, live_update_view, game_create_view, game_move_view,
                       ask_send_view, ask_inbox_view, ask_answer_view, ask_public_view,
                       checklist_create_view, checklist_toggle_view, checklist_add_view,
@@ -23,6 +27,8 @@ from .views import (
 )
 from .notes import notes_view, note_like_view
 from .music import music_search
+from .reels import (reels_view, reel_delete_view, reel_like_view, reel_view_view, reel_comments_view,
+                    reel_report_view, reels_explore_view)
 from .plus import (
     reminder_create_view, reminder_list_view, reminder_cancel_view, time_unlock_view, time_relock_view,
     expense_create_view, expense_settle_view, expense_balances_view, reaction_rain_view,
@@ -46,6 +52,17 @@ router.register(r'calls', CallViewSet, basename='call')
 urlpatterns = [
     path('login/', login_view, name='login'),
     path('reports/', report_view),
+    path('feedback/', feedback_view),
+    path('reels/', reels_view),
+    path('reels/explore/', reels_explore_view),
+    path('reels/<int:pk>/', reel_delete_view),
+    path('reels/<int:pk>/like/', reel_like_view),
+    path('reels/<int:pk>/view/', reel_view_view),
+    path('reels/<int:pk>/comments/', reel_comments_view),
+    path('reels/<int:pk>/report/', reel_report_view),
+    path('birthdays/today/', birthdays_today_view),
+    path('admin-api/feedback/', admin_feedback_view),
+    path('admin-api/feedback/update/', admin_feedback_update_view),
     path('albums/create/', album_create_view),
     path('albums/add/', album_add_view),
     path('users/mood/', mood_view),
@@ -97,6 +114,21 @@ urlpatterns = [
     path('admin-api/users/clear/', admin_clear_view),
     path('admin-api/users/delete/', admin_delete_user_view),
     path('admin-api/users/<int:user_id>/', admin_user_detail_view),
+    path('admin-api/analytics/', analytics_view),
+    path('admin-api/users/admin/', make_admin_view),
+    path('admin-api/users/verify/', verify_view),
+    path('admin-api/users/warn/', warn_view),
+    path('admin-api/users/export/', export_users_view),
+    path('admin-api/groups/<int:chat_id>/', group_detail_view),
+    path('admin-api/groups/rename/', group_rename_view),
+    path('admin-api/groups/remove-member/', group_remove_member_view),
+    path('admin-api/reports/<int:report_id>/context/', report_context_view),
+    path('admin-api/messages/delete/', admin_delete_message_view),
+    path('admin-api/words/', words_view),
+    path('admin-api/words/delete/', word_delete_view),
+    path('admin-api/log/', log_view),
+    path('admin-api/maintenance/', maintenance_view),
+    path('app/status/', app_status_view),
     path('admin-api/groups/', admin_groups_view),
     path('admin-api/groups/delete/', admin_delete_group_view),
     path('admin-api/users/unban/', admin_unban_view),

@@ -175,25 +175,36 @@ def away_view(request):
 IST = timedelta(hours=5, minutes=30)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def birthdays_today_view(request):
+    """Friends whose birthday is today (India time) + whether it is my own birthday. The app shows these as a pop-up."""
+    from .models import CustomUser
+    from .views import friend_ids_of
+    today = (timezone.now() + IST).date()
+    me = request.user
+    mine = bool(me.birthday_month == today.month and me.birthday_day == today.day)
+    friends = CustomUser.objects.filter(id__in=friend_ids_of(me), is_active=True,
+                                        birthday_month=today.month, birthday_day=today.day)
+    return Response({"date": today.isoformat(), "mine": mine, "me": me.username,
+                     "friends": [{"id": f.id, "username": f.username} for f in friends[:10]]})
+
+
 def fire_birthdays():
     """Once per birthday: a line in each friend's chat + a push. Runs from the background loop."""
     from .models import CustomUser
     from .push import send_push
     from .realtime import notify_users
-    from .views import friend_ids_of, get_or_create_direct_chat
+    from .views import friend_ids_of
     today = (timezone.now() + IST).date()
     for u in list(CustomUser.objects.filter(is_active=True, birthday_month=today.month, birthday_day=today.day)
                   .exclude(birthday_wished_on=today)[:20]):
         if CustomUser.objects.filter(pk=u.pk).exclude(birthday_wished_on=today).update(birthday_wished_on=today) != 1:
             continue
         try:
+            # no line in the chat any more: friends get a pop-up (live event now, or on their next app open) + a push
             friends = list(CustomUser.objects.filter(id__in=friend_ids_of(u), is_active=True))
-            for f in friends:
-                chat = get_or_create_direct_chat(u, f)
-                m = Message.objects.create(chat=chat, sender=u, receiver=f, message_type='system',
-                                           content=f"🎂 It's {u.username}'s birthday today! Wish them 🎉")
-                notify_message(chat, m, 'new')
             send_push([f.id for f in friends], 'Chatzy', f"🎂 It's {u.username}'s birthday today!", {})
-            notify_users([f.id for f in friends], 'friends_changed')
+            notify_users([f.id for f in friends], 'birthday', user_id=u.id, username=u.username)
         except Exception:
             pass

@@ -12,7 +12,7 @@ import { useModal } from './PromptModal';
 import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, shortFile } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
-import { Seal, SealButton, Logo } from './ui';
+import { Seal, SealButton, Logo, Tick } from './ui';
 import { EventSheet } from './PlusUI2';
 import Doodle from './Doodle';
 import { startSharing } from './liveShare';
@@ -531,6 +531,9 @@ function ChatView() {
 
     // every picked file goes out as its own message; the typed text / reply rides on the first one
     const jobs = selectedFiles.length ? selectedFiles : [null];
+    const keepKeyboard = !!inputRef.current && document.activeElement === inputRef.current;   // keyboard was open
+    const typed = customContent == null ? newMessage : null;
+    if (typed !== null) { setNewMessage(''); clearTimeout(typingTimerRef.current); }          // empty the box at once, not after the network
     setSending(true);
     try {
       for (let i = 0; i < jobs.length; i += 1) {
@@ -572,9 +575,13 @@ function ChatView() {
       sendTyping(false);
       isUserScrolling.current = false;
       setTimeout(() => scrollToBottom(true), 100);
-    } catch (error) { await handleSendError(error, 'Failed to send message!'); }
+    } catch (error) {
+      if (typed !== null) setNewMessage((cur) => cur || typed);                                // failed: give the text back
+      await handleSendError(error, 'Failed to send message!');
+    }
     setSendProg('');
     setSending(false);
+    if (keepKeyboard) setTimeout(() => inputRef.current && inputRef.current.focus(), 0);       // keep the keyboard up for the next message
   };
 
   // pick several files at once (photos, videos, audio, documents); they are added to what is already waiting
@@ -1254,7 +1261,7 @@ function ChatView() {
               : <Avatar src={receiver?.profile_picture} name={contactName} size={42} online={online} T={T} />}
             <div style={{ minWidth: 0 }}>
               <h2 className="sc-chat-name">
-                <span className="t">{shownName(contactName)}{nickTick ? '' : ''}</span>
+                <span className="t">{shownName(contactName)}{nickTick ? '' : ''}</span>{!isGroupChat && <Tick on={receiver?.is_verified || (meta?.participants || []).some((p) => p.is_verified && p.username === contactName)} />}
                 {meta?.is_muted && <BiVolumeMute style={{ color: 'var(--sub)', fontSize: 16 }} aria-label="Muted" />}
                 {meta?.is_locked && <BiLock style={{ color: 'var(--accent)', fontSize: 15 }} aria-label="Locked" />}
                 {dTime > 0 && <span className="sc-badge" style={{ height: 18, minWidth: 0, fontSize: 10, gap: 3, display: 'inline-flex', alignItems: 'center' }}><BiTimer />{humanDuration(dTime)}</span>}

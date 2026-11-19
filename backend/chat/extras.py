@@ -96,9 +96,17 @@ _lock = threading.Lock()
 
 
 def _loop():
+    last_ban_check = 0.0
     while True:
         try:
             send_due_scheduled()
+        except Exception:
+            pass
+        try:
+            if time.time() - last_ban_check > 60:             # temporary bans end by themselves
+                last_ban_check = time.time()
+                from .admin_api import lift_expired_bans
+                lift_expired_bans()
         except Exception:
             pass
         try:

@@ -37,6 +37,8 @@ class CustomUser(AbstractUser):
     read_receipts = models.BooleanField(default=True)                                                  # blue ticks
     totp_secret = models.CharField(max_length=40, blank=True, default='')       # 2-step verification (authenticator app)
     totp_enabled = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)                 # blue tick given by an admin
+    banned_until = models.DateTimeField(null=True, blank=True)       # temporary ban: lifted automatically after this time
 
     def __str__(self):
         return self.username
@@ -56,6 +58,23 @@ class Report(models.Model):
 
     def __str__(self):
         return f"{self.reporter.username} reported {self.reported.username}"
+
+
+# ---------------------------------------- feedback box: users write, the admin reads and answers
+class Feedback(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='feedbacks')
+    kind = models.CharField(max_length=12, default='idea')           # idea | bug | other
+    text = models.CharField(max_length=1000)
+    status = models.CharField(max_length=12, default='new')          # new | seen | done
+    reply = models.CharField(max_length=500, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    replied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username}: {self.text[:30]}"
 
 
 # ---------------------------------------- one row per logged-in device (so a device can be signed out)
@@ -568,3 +587,79 @@ class QuickReply(models.Model):
     class Meta:
         unique_together = ('user', 'shortcut')
         ordering = ['shortcut']
+
+
+# ------------------------------------- everything an admin does is written here (who, what, to whom)
+class AdminLog(models.Model):
+    admin = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    admin_name = models.CharField(max_length=150)
+    action = models.CharField(max_length=40)
+    target_id = models.IntegerField(null=True, blank=True)
+    target_name = models.CharField(max_length=150, blank=True, default='')
+    detail = models.CharField(max_length=300, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+# ------------------------------------- words that cannot be sent in messages
+class BannedWord(models.Model):
+    word = models.CharField(max_length=40, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['word']
+
+
+# ------------------------------------- small key/value switches (maintenance mode)
+class AppSetting(models.Model):
+    key = models.CharField(max_length=40, unique=True)
+    value = models.TextField(blank=True, default='')
+
+
+# ---------------------------------------- Reels: short vertical videos (friends only, or everyone)
+def reel_upload_to(instance, filename):
+    import uuid
+    ext = (filename.rsplit('.', 1)[-1] if '.' in filename else 'mp4').lower()[:5]
+    return f"reels/{uuid.uuid4().hex}.{ext}"
+
+
+class Reel(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='reels')
+    video = models.FileField(upload_to=reel_upload_to, max_length=255)
+    caption = models.CharField(max_length=200, blank=True, default='')
+    audience = models.CharField(max_length=8, default='friends')      # friends | all
+    duration = models.FloatField(default=0)
+    views = models.PositiveIntegerField(default=0)
+    hidden = models.BooleanField(default=False)                       # hidden after 3 different people reported it
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-id']
+
+
+class ReelLike(models.Model):
+    reel = models.ForeignKey(Reel, on_delete=models.CASCADE, related_name='likes')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+
+    class Meta:
+        unique_together = ('reel', 'user')
+
+
+class ReelComment(models.Model):
+    reel = models.ForeignKey(Reel, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+    text = models.CharField(max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+
+class ReelReport(models.Model):
+    reel = models.ForeignKey(Reel, on_delete=models.CASCADE, related_name='reports')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='+')
+
+    class Meta:
+        unique_together = ('reel', 'user')

@@ -35,8 +35,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'password', 'phone_number', 'profile_picture',
-                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key', 'is_admin', 'mood', 'birthday', 'away']
-        read_only_fields = ['is_online', 'last_seen', 'typing_with', 'is_admin', 'mood', 'birthday', 'away']
+                  'bio', 'is_online', 'last_seen', 'typing_with', 'public_key', 'is_admin', 'mood', 'birthday', 'away', 'is_verified']
+        read_only_fields = ['is_online', 'last_seen', 'typing_with', 'is_admin', 'mood', 'birthday', 'away', 'is_verified']
         extra_kwargs = {
             'password': {'write_only': True},
             'phone_number': {'required': False, 'allow_blank': True, 'allow_null': True},

@@ -4,6 +4,7 @@ import Login from './Login';
 import Register from './Register';
 import ForgotPassword from './ForgotPassword';
 import Home from './Home';
+import Reels from './Reels';
 import ChatView from './ChatView';
 import CallManager from './CallManager';
 import GlobalEvents from './GlobalEvents';
@@ -13,6 +14,7 @@ import LockGate from './LockGate';
 import { DownloadPage } from './GetApp';
 import Splash from './Splash';
 import OfflineScreen from './OfflineScreen';
+import MaintenanceGate from './MaintenanceGate';
 
 // pages that need a logged-in user: no token -> back to the login page
 function RequireAuth({ children }) {
@@ -30,16 +32,18 @@ export default function App() {
     <Shell>
       {splash && <Splash onDone={doneSplash} />}
       <OfflineScreen />
+      <UpdateGate />
+      <MaintenanceGate />
       <LockGate>
       <CallManager />
       <GlobalEvents />
-      <UpdateGate />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/download" element={<DownloadPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
+        <Route path="/reels" element={<RequireAuth><Reels /></RequireAuth>} />
         <Route path="/chat/:contactName" element={<RequireAuth><ChatView /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

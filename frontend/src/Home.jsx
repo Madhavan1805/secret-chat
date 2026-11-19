@@ -1,7 +1,8 @@
 import { t } from './i18n';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus } from 'react-icons/bi';
+import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus, BiMessageSquareDetail, BiMoviePlay } from 'react-icons/bi';
+import FeedbackSheet from './Feedback';
 import api from './api';
 import Avatar from './Avatar';
 import StatusTab from './StatusTab';
@@ -9,7 +10,7 @@ import { useModal } from './PromptModal';
 import { useRealtime, disconnectSocket, isSocketOpen } from './socket';
 import { getMe, getToken, clearMe, errMsg, formatListTime, formatDuration, startCall, asList } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, setAppTheme, themeVars, paintPage } from './theme';
-import { Logo, Sheet } from './ui';
+import { Logo, Sheet, Tick } from './ui';
 import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
 import { GlobalSearch } from './PlusUI2';
@@ -59,13 +60,13 @@ function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, m
 }
 
 // the floating bottom navigation
-function NavBar({ tab, setTab, badges }) {
-  const items = [['chats', t('Messages'), BiChat], ['groups', t('Groups'), BiGroup], ['status', t('Status'), BiAperture], ['calls', t('Calls'), BiPhoneCall], ['profile', t('You'), BiUser]];
+function NavBar({ tab, setTab, badges, onReels }) {
+  const items = [['chats', t('Messages'), BiChat], ['groups', t('Groups'), BiGroup], ['status', t('Status'), BiAperture], ['reels', 'Reels', BiMoviePlay], ['calls', t('Calls'), BiPhoneCall], ['profile', t('You'), BiUser]];
   return (
     <nav className="sc-nav" aria-label="Main">
       <div className="sc-nav-bar">
         {items.map(([key, label, Icon]) => (
-          <button key={key} type="button" className="sc-nav-item" aria-current={tab === key ? 'page' : undefined} aria-label={label} onClick={() => setTab(key)}>
+          <button key={key} type="button" className="sc-nav-item" aria-current={tab === key ? 'page' : undefined} aria-label={label} onClick={() => (key === 'reels' ? onReels() : setTab(key))}>
             <Icon /><span className="lbl">{label}</span>
             {badges[key] && <span className="sc-dot" />}
           </button>
@@ -91,6 +92,7 @@ function Home() {
   const [activity, setActivity] = useState([]);
   const [asks, setAsks] = useState([]);                       // unanswered anonymous questions
   const [showFind, setShowFind] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [muteFor, setMuteFor] = useState(null);
@@ -477,7 +479,7 @@ function Home() {
       <ChatRow
         key={friend.id}
         avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />}
-        title={<>{shownName(friend.username)}{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
+        title={<>{shownName(friend.username)}<Tick on={friend.is_verified} />{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
         subtitle={ov?.is_locked ? 'Locked chat' : (getDraft(friend.username) ? <><span style={{ color: '#ff3b30' }}>Draft: </span>{getDraft(friend.username)}</> : typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
         time={formatListTime(ov?.last_message?.created_at)}
@@ -554,6 +556,7 @@ function Home() {
             <button type="button" className="sc-iconbtn" aria-label="Find people" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /></button>
           </div>
         </header>
+        <button type="button" className="sc-feedback-fab" aria-label="Send feedback" onClick={() => setShowFeedback(true)}><BiMessageSquareDetail /></button>
 
         <h1 className="sc-title">{tabTitle}<small>{tabSub}</small></h1>
 
@@ -669,7 +672,7 @@ function Home() {
           )}
         </div>
 
-        <NavBar tab={activeTab} setTab={(t) => { setRowMenu(null); setActiveTab(t); }} badges={badges} />
+        <NavBar tab={activeTab} setTab={(t) => { setRowMenu(null); setActiveTab(t); }} badges={badges} onReels={() => navigate('/reels')} />
       </div>
 
       {showRequests && (
@@ -680,6 +683,7 @@ function Home() {
           onAccept={(r) => handleRequestAction(r.id, 'accepted')} onDecline={(r) => handleRequestAction(r.id, 'declined')} onCancel={cancelRequest} />
       )}
       {showAsk && <AskInbox T={T} onClose={() => { setShowAsk(false); fetchAsks(); }} ask={ask} />}
+      {showFeedback && <FeedbackSheet T={T} onClose={() => setShowFeedback(false)} ask={ask} />}
       {showFind && (
         <FindPeopleSheet T={T} me={me} friends={friends} pending={pendingRequests} sent={sentRequests} initialQuery={findQuery}
           onAdd={(u) => sendRequest(u.id)} onCancel={cancelRequest} onAccept={(r) => handleRequestAction(r.id, 'accepted')}

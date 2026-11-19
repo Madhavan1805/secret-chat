@@ -6,6 +6,7 @@ import api from './api';
 import Avatar from './Avatar';
 import { Sheet, Toggle, SettingRow, Choice } from './ui';
 import AvatarPicker from './AvatarPicker';
+import MediaViewer from './MediaViewer';
 import { onlineAlertsEnabled, setOnlineAlertsEnabled } from './onlineAlerts';
 import { PrivacySheet, DevicesSheet, LockSheet, QrSheet, StarredSheet, BlockedSheet } from './Sheets';
 import { APP_MODES, CHAT_THEMES, TEXT_SIZES, FONT_STYLES, getTextScale, setTextScale, getFontStyle, setFontStyle } from './theme';
@@ -21,7 +22,7 @@ import { burstAt } from './fx';
 import { UI_SCALES, getUiScale, setUiScale } from './uiScale';
 import PhotoCropper from './PhotoCropper';
 import { soundsEnabled, setSoundsEnabled } from './sounds';
-import { getMe, errMsg, shortFile } from './config';
+import { getMe, errMsg, shortFile, getPicUrl } from './config';
 
 const chev = <BiChevronRight style={{ fontSize: 20, color: 'var(--sub)' }} />;
 
@@ -96,6 +97,7 @@ function QuickReactionSheet({ T, onClose }) {
 
 export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTheme, changeAppTheme, notifPerm, enableNotifications, blockedUsers, doUnblock, deleteAccount, doLogout, onAddUser, openQrFirst }) {
   const [sheet, setSheet] = useState(openQrFirst ? 'qr' : null);
+  const [viewPhoto, setViewPhoto] = useState(false);           // my own photo, full size
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
@@ -135,7 +137,9 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
         <div style={{ height: 84, background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 35%, var(--panel)))', opacity: 0.9 }} />
         <div style={{ padding: '0 18px 18px', marginTop: -48, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ position: 'relative', borderRadius: '50%', border: '4px solid var(--panel)', lineHeight: 0 }}>
-            <Avatar src={me?.profile_picture} name={currentUsername} size={92} T={T} />
+            <button type="button" aria-label="View my photo" disabled={!me?.profile_picture} onClick={() => setViewPhoto(true)} style={{ border: 0, padding: 0, background: 'none', borderRadius: '50%', lineHeight: 0, cursor: me?.profile_picture ? 'zoom-in' : 'default' }}>
+              <Avatar src={me?.profile_picture} name={currentUsername} size={92} T={T} />
+            </button>
             <input type="file" id="dp-upload" className="d-none" accept="image/*" onChange={pickPhoto} />
             <label htmlFor="dp-upload" aria-label="Change photo" style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', color: '#161616', display: 'grid', placeItems: 'center', cursor: 'pointer', border: '3px solid var(--panel)', fontSize: 16, margin: 0 }}><BiCamera /></label>
           </div>
@@ -182,7 +186,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
         <SettingRow icon={<BiShield />} title={t('2-step verification')} sub="Authenticator code when you log in" onClick={() => setSheet('twofa')} right={chev} />
         <SettingRow icon={<BiLock />} title={t('App lock')} sub={lockEnabled() ? 'PIN is on' : 'Off'} onClick={() => setSheet('lock')} right={chev} />
         <SettingRow icon={<BiDevices />} title={t('Logged-in devices')} onClick={() => setSheet('devices')} right={chev} />
-        {me?.is_admin && <SettingRow icon={<BiShield />} title={t('Admin panel')} sub="Users, reports and bans" onClick={() => setSheet('admin')} right={chev} />}
+        {me?.is_admin && <SettingRow icon={<BiShield />} title={t('Admin panel')} sub="Users, reports, groups and tools" onClick={() => setSheet('admin')} right={chev} />}
         <SettingRow icon={<BiBlock />} title={t('Blocked users')} sub={blockedUsers.length ? `${blockedUsers.length} blocked` : 'Nobody'} onClick={() => setSheet('blocked')} right={chev} />
       </div>
 
@@ -219,6 +223,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       {sheet === 'lang' && <LanguageSheet T={T} onClose={close} />}
       {sheet === 'admin' && <AdminPanel T={T} onClose={close} ask={ask} />}
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
+      {viewPhoto && me?.profile_picture && <MediaViewer src={getPicUrl(me.profile_picture)} type="image" name={`${currentUsername}.jpg`} onClose={() => setViewPhoto(false)} />}
       {sheet === 'avatar' && <AvatarPicker T={T} ask={ask} onClose={close} onDone={() => { close(); refresh(); }} />}
       {sheet === 'privacy' && <PrivacySheet T={T} onClose={close} ask={ask} />}
       {sheet === 'devices' && <DevicesSheet T={T} onClose={close} ask={ask} />}

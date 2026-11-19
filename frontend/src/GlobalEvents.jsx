@@ -26,6 +26,41 @@ export default function GlobalEvents() {
       if (a && a.id > seenAnnounce()) setAnnounce(a);
     }).catch(() => {});
   }, []);                                                     // eslint-disable-line react-hooks/exhaustive-deps
+  // Birthdays: a small pop-up at the top (not a line in the chat). Shown once per person per day.
+  const [bdays, setBdays] = useState([]);                      // [{ key, id, name, mine }]
+  const [bdSent, setBdSent] = useState(false);
+  const bdKey = (date, id) => `bday_seen_${date}_${id}`;
+  const addBday = (date, id, name, mine) => {
+    const key = bdKey(date, id);
+    try { if (localStorage.getItem(key)) return; } catch (e) { /* ignore */ }
+    setBdays((q) => (q.some((b) => b.key === key) ? q : [...q, { key, id, name, mine }]));
+  };
+  const closeBday = () => {
+    const b = bdays[0];
+    if (b) { try { localStorage.setItem(b.key, '1'); } catch (e) { /* ignore */ } }
+    setBdSent(false);
+    setBdays((q) => q.slice(1));
+  };
+  const wishBday = async () => {
+    const b = bdays[0];
+    if (!b || b.mine) return;
+    try {
+      const fd = new FormData();
+      fd.append('receiver', b.id);
+      fd.append('content', '🎂 Happy birthday! 🎉');
+      await api.post('messages/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setBdSent(true);
+      setTimeout(closeBday, 1100);
+    } catch (e) { /* leave it open so they can try again */ }
+  };
+  useEffect(() => {
+    if (!hasToken()) return;
+    api.get('birthdays/today/').then((r) => {
+      const d = r.data || {};
+      if (d.mine) addBday(d.date, 'me', d.me, true);
+      (d.friends || []).forEach((f) => addBday(d.date, f.id, f.username, false));
+    }).catch(() => {});
+  }, []);                                                     // eslint-disable-line react-hooks/exhaustive-deps
   const timer = useRef(null);
   const [online, setOnline] = useState(null);
   const onlineTimer = useRef(null);
@@ -92,6 +127,15 @@ export default function GlobalEvents() {
         }
         break;
 
+      case 'birthday':
+        if (evt.user_id && evt.username) addBday(new Date(Date.now() + 19800000).toISOString().slice(0, 10), evt.user_id, evt.username, false);
+        break;
+
+      case 'feedback_reply':
+        playSound('receive');
+        popup({ title: 'Reply to your feedback', body: 'The Chatzy team answered. Open Feedback to read it.' });
+        break;
+
       case 'announcement':
         if (evt.id > seenAnnounce()) setAnnounce({ id: evt.id, title: evt.title, text: evt.text });
         playSound('receive');
@@ -122,6 +166,20 @@ export default function GlobalEvents() {
       {!sentOk && <button type="button" className="gm-read" onClick={markRead}>{msgPop.is_group ? 'Dismiss' : 'Mark as read'}</button>}
     </div>
   );
+  const bd = bdays[0];
+  const bdayCard = bd && (
+    <div className="gm-pop bd-pop" role="alert" style={{ top: 'calc(var(--safe-top, 0px) + 10px)' }}>
+      <div className="bd-row">
+        <span className="bd-cake" aria-hidden="true">🎂</span>
+        <div className="bd-text">
+          {bd.mine ? <><b>Happy birthday, {bd.name}!</b><span>Hope your day is full of joy 🎉</span></>
+            : <><b>{bd.name}</b><span>has a birthday today 🎉</span></>}
+        </div>
+        <button type="button" className="gm-x" onClick={closeBday} aria-label="Dismiss">✕</button>
+      </div>
+      {!bd.mine && (bdSent ? <div className="gm-sent">✓ Wish sent</div> : <button type="button" className="bd-wish" onClick={wishBday}>Wish {bd.name} 🎉</button>)}
+    </div>
+  );
   const onlinePop = online && (
     <div key={`${online.id}-${online.name}`} className="sc-online-pop" role="status" aria-live="polite"
          style={{ top: toast ? 'calc(var(--safe-top, 0px) + 74px)' : 'calc(var(--safe-top, 0px) + 12px)' }}>
@@ -141,10 +199,11 @@ export default function GlobalEvents() {
       </div>
     </div>
   );
-  if (!toast) return (<>{onlinePop}{msgCard}{announceCard}</>);
+  if (!toast) return (<>{onlinePop}{bdayCard}{msgCard}{announceCard}</>);
   return (
     <>
     {onlinePop}
+    {bdayCard}
     {msgCard}
     {announceCard}
     <div

@@ -25,11 +25,20 @@
           "value": "no-store, max-age=0"
         }
       ]
+    },
+    {
+      "source": "/((?!assets/|chatzy\\.apk|version\\.json).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
     }
   ],
   "rewrites": [
     {
-      "source": "/((?!chatzy\\.apk|version\\.json).*)",
+      "source": "/((?!chatzy\\.apk).*)",
       "destination": "/index.html"
     }
   ]
