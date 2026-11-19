@@ -16,7 +16,7 @@ const hardReload = async () => {
 };
 
 export default function UpdateGate() {
-  const [news, setNews] = useState(null);                         // { notes } when an update is waiting
+  const [news, setNews] = useState(false);                        // true when an update is waiting
   const [busy, setBusy] = useState(false);
   const found = useRef(false);
 
@@ -33,7 +33,7 @@ export default function UpdateGate() {
         const r = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
         if (!r.ok) return;
         const j = await r.json();
-        if (j && j.v && j.v !== __BUILD_ID__) { found.current = true; setNews({ notes: Array.isArray(j.notes) ? j.notes.slice(0, 12) : [] }); }
+        if (j && j.v && j.v !== __BUILD_ID__) { found.current = true; setNews(true); }
       } catch (e) { /* offline: try again later */ }
     };
     check();
@@ -50,11 +50,8 @@ export default function UpdateGate() {
     <div className="ug-wrap" role="alertdialog" aria-modal="true" aria-label="Update available">
       <div className="ug-card">
         <div className="ug-ico"><BiRefresh /></div>
-        <h2 className="ug-title">New update is ready</h2>
-        <p className="ug-sub">Update Chatzy to keep using it and get the newest features.</p>
-        {news.notes.length > 0 && (
-          <ul className="ug-notes">{news.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-        )}
+        <h2 className="ug-title">New update</h2>
+        <p className="ug-sub">A new version of Chatzy is ready. Update now to keep using the app.</p>
         <button type="button" className="ug-btn" disabled={busy} onClick={() => { setBusy(true); hardReload(); }}>{busy ? 'Updating…' : 'Update now'}</button>
       </div>
     </div>
