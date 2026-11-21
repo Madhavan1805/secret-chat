@@ -925,3 +925,48 @@ html, body { background: var(--page-bg, #0F0B14); }
 .rl-ytframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
 .rl-yt-shield { position: absolute; inset: 0; }
 a.rl-act { text-decoration: none; }
+
+/* song picker: quick Tamil chips */
+.sp-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.sp-chips button { border: 0; border-radius: 999px; padding: 8px 14px; font-size: 13.5px; font-weight: 600; background: var(--surface, rgba(255,255,255,.08)); color: var(--text); cursor: pointer; }
+.sp-chips button:active { background: var(--accent); color: #fff; }
+
+/* in-app camera */
+.cam-root { position: fixed; inset: 0; z-index: 9800; background: #000; color: #fff; display: flex; flex-direction: column; }
+.cam-view { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; }
+.cam-view video { width: 100%; height: 100%; object-fit: cover; }
+.cam-view video.mirror { transform: scaleX(-1); }
+.cam-view.note { background: #000; }
+.cam-view.note video { width: min(78vw, 340px); height: min(78vw, 340px); border-radius: 50%; border: 3px solid rgba(255,255,255,.85); }
+.cam-x { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 12px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45); color: #fff; font-size: 26px; display: grid; place-items: center; }
+.cam-time { position: absolute; top: calc(env(safe-area-inset-top) + 20px); left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: rgba(0,0,0,.55); font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 8px; }
+.cam-time i { width: 9px; height: 9px; border-radius: 50%; background: #ff3b3b; animation: blink 1s infinite; }
+.cam-err { position: absolute; top: 40%; left: 0; right: 0; text-align: center; padding: 0 24px; }
+.cam-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 16px calc(env(safe-area-inset-bottom) + 16px); background: linear-gradient(transparent, rgba(0,0,0,.65)); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.cam-row { width: 100%; max-width: 360px; display: flex; align-items: center; justify-content: space-between; }
+.cam-side { width: 48px; height: 48px; border-radius: 50%; border: 0; background: rgba(255,255,255,.18); color: #fff; font-size: 26px; display: grid; place-items: center; }
+span.cam-side { background: transparent; }
+.cam-shot { width: 74px; height: 74px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 0; display: grid; place-items: center; }
+.cam-shot i { width: 52px; height: 52px; border-radius: 50%; background: #ff3b3b; transition: all .15s; }
+.cam-shot.photo i { background: #fff; }
+.cam-shot.rec i { width: 28px; height: 28px; border-radius: 7px; }
+.cam-modes { display: flex; gap: 6px; }
+.cam-modes button { border: 0; background: transparent; color: rgba(255,255,255,.75); font-weight: 700; font-size: 14px; padding: 6px 14px; border-radius: 999px; }
+.cam-modes button.on { background: rgba(255,255,255,.22); color: #fff; }
+.cam-hint { color: rgba(255,255,255,.7); font-size: 12px; display: flex; align-items: center; gap: 4px; }
+
+/* WhatsApp-style attach sheet: round solid icons */
+.as-panel { border-radius: 22px 22px 0 0; }
+.as-h { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; margin: 12px 4px 4px; }
+.as-grid { grid-template-columns: repeat(4, 1fr); gap: 14px 4px; }
+.as-ic { width: 56px; height: 56px; border-radius: 50%; font-size: 26px; color: #fff; background: hsl(var(--h) 62% 48%); box-shadow: none; }
+.as-tile.on .as-ic { background: var(--accent); }
+.as-l { font-size: 12px; color: var(--sub); }
+
+/* WhatsApp-style status privacy sheet */
+.st-sheet { border-radius: 22px 22px 0 0; }
+.st-aud-row { flex-direction: row-reverse; border-radius: 0; }
+.st-aud-row.on { background: transparent; }
+.st-aud-row .main { flex-direction: row-reverse; justify-content: space-between; }
+.st-aud-row .txt { flex: 1; }
+.st-aud-row .radio { border-radius: 50%; }
