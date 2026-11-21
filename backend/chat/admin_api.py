@@ -36,10 +36,19 @@ from .realtime import notify_users
 REASONS = ('spam', 'harassment', 'fake', 'inappropriate', 'other')
 
 
+AUTO_BAN_REPORTS = 3                    # this many different people reporting an account ...
+AUTO_BAN_HOURS = 24                     # ... bans it for this long, until an admin reviews (and can cancel) it
+AUTO_BAN_TAG = 'Auto-ban'
+
+
+def is_auto_ban(user):
+    return (not user.is_active) and (user.ban_reason or '').startswith(AUTO_BAN_TAG)
+
+
 def log_action(admin, action, target=None, detail=''):
-    """Every admin action is written to the audit log (Admin > Tools > Activity log)."""
+    """Every admin action is written to the audit log (Admin > Tools > Activity log).  admin=None means the system."""
     try:
-        AdminLog.objects.create(admin=admin, admin_name=admin.username, action=action,
+        AdminLog.objects.create(admin=admin, admin_name=admin.username if admin else 'System', action=action,
                                 target_id=getattr(target, 'id', None), target_name=getattr(target, 'username', '') or '',
                                 detail=str(detail or '')[:300])
     except Exception:
@@ -87,7 +96,7 @@ def _row(u, request):
             "profile_picture": pic, "date_joined": u.date_joined, "last_login": u.last_login,
             "last_seen": u.last_seen, "is_online": u.is_online, "is_banned": not u.is_active,
             "banned_at": u.banned_at, "banned_until": u.banned_until, "ban_reason": u.ban_reason, "is_admin": is_admin(u),
-            "is_verified": u.is_verified,
+            "is_verified": u.is_verified, "auto_ban": is_auto_ban(u),
             "report_count": getattr(u, 'open_reports', 0), "devices": getattr(u, 'device_count', 0)}
 
 
@@ -98,6 +107,7 @@ def admin_stats_view(request):
     return Response({
         "total": CustomUser.objects.count(),
         "banned": CustomUser.objects.filter(is_active=False).count(),
+        "auto_banned": CustomUser.objects.filter(is_active=False, ban_reason__startswith=AUTO_BAN_TAG).count(),
         "online": CustomUser.objects.filter(is_online=True, is_active=True).count(),
         "new_today": CustomUser.objects.filter(date_joined__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)).count(),
         "open_reports": Report.objects.filter(resolved=False).count(),
@@ -160,12 +170,15 @@ def admin_ban_view(request):
 @permission_classes([IsChatzyAdmin])
 def admin_unban_view(request):
     user = _target(request)
+    was_auto = is_auto_ban(user)
     user.is_active = True
     user.banned_at = None
     user.banned_until = None
     user.ban_reason = ''
     user.save(update_fields=['is_active', 'banned_at', 'banned_until', 'ban_reason'])
-    log_action(request.user, 'unban', user)
+    if was_auto:                                                     # the admin looked at it and decided: those reports are done
+        Report.objects.filter(reported=user, resolved=False).update(resolved=True)
+    log_action(request.user, 'cancel auto-ban' if was_auto else 'unban', user)
     return Response({"ok": True})
 
 
@@ -178,7 +191,7 @@ def admin_reports_view(request):
     return Response({"reports": [{
         "id": r.id, "reason": r.reason, "details": r.details, "created_at": r.created_at, "resolved": r.resolved,
         "reporter": r.reporter.username, "reported_id": r.reported_id, "reported": r.reported.username,
-        "reported_banned": not r.reported.is_active,
+        "reported_banned": not r.reported.is_active, "reported_auto_ban": is_auto_ban(r.reported),
     } for r in qs[:200]]})
 
 
@@ -203,7 +216,39 @@ def report_view(request):
         return Response({"ok": True})                                # already reported, no duplicates
     Report.objects.create(reporter=request.user, reported=target, reason=reason,
                           details=clean_text(request.data.get('details'), 500))
+    maybe_auto_ban(target)
     return Response({"ok": True})
+
+
+def maybe_auto_ban(target):
+    """3 different people have an open report against the account -> banned for 24 hours.  An admin can cancel it."""
+    if not target.is_active or is_admin(target):
+        return False
+    people = Report.objects.filter(reported=target, resolved=False).values('reporter').distinct().count()
+    if people != AUTO_BAN_REPORTS:                                   # exactly on the 3rd, so it does not repeat
+        return False
+    target.is_active = False
+    target.is_online = False
+    target.banned_at = timezone.now()
+    target.banned_until = timezone.now() + timedelta(hours=AUTO_BAN_HOURS)
+    target.ban_reason = f"{AUTO_BAN_TAG}: {AUTO_BAN_REPORTS} people reported this account. It is being reviewed."
+    target.save(update_fields=['is_active', 'is_online', 'banned_at', 'banned_until', 'ban_reason'])
+    notify_users([target.id], 'banned')
+    DeviceSession.objects.filter(user=target).delete()
+    log_action(None, 'auto-ban', target, f"{AUTO_BAN_REPORTS} reports -> {AUTO_BAN_HOURS}h ban (reports stay open for review)")
+    try:                                                              # tell the admins
+        from django.db.models import Q
+        from .push import send_push
+        q = Q(is_staff=True) | Q(is_superuser=True)
+        for n in admin_names():
+            q |= Q(username__iexact=n)
+        admin_ids = list(CustomUser.objects.filter(is_active=True).filter(q).values_list('id', flat=True))
+        send_push(admin_ids, 'Auto-ban', f"{target.username} was banned for 24h after {AUTO_BAN_REPORTS} reports. Review it in Admin.", {})
+    except Exception:
+        pass
+    return True
+
+
 
 
 KINDS = ('idea', 'bug', 'other')

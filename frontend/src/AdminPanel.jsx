@@ -57,10 +57,11 @@ function Overview({ stats, go }) {
   const typeTotal = types.reduce((n, [, c]) => n + c, 0) || 1;
   return (
     <>
-      {(stats?.open_reports > 0 || stats?.open_feedback > 0) && (
+      {(stats?.open_reports > 0 || stats?.open_feedback > 0 || stats?.auto_banned > 0) && (
         <>
           <p className="adm-h" style={{ marginTop: 0 }}>Needs attention</p>
           {stats.open_reports > 0 && <button type="button" className="adm-alert" onClick={() => go('reports')}><span className="ic">🚩</span><span><b>{stats.open_reports} open report{stats.open_reports > 1 ? 's' : ''}</b><span>People reported accounts</span></span><span className="go">›</span></button>}
+          {stats.auto_banned > 0 && <button type="button" className="adm-alert" onClick={() => go('users')}><span className="ic">⏳</span><span><b>{stats.auto_banned} auto-banned for 24h</b><span>3 reports each. Review and cancel if it is a mistake</span></span><span className="go">›</span></button>}
           {stats.open_feedback > 0 && <button type="button" className="adm-alert" onClick={() => go('feedback')}><span className="ic">💡</span><span><b>{stats.open_feedback} feedback waiting</b><span>Ideas and problems from users</span></span><span className="go">›</span></button>}
         </>
       )}
@@ -116,6 +117,10 @@ function ReportsTab({ ask, onChanged, goUser }) {
     const text = await ask({ type: 'prompt', title: `Warn ${r.reported}`, message: 'Sent from the official ChatzyTeam account.', initial: '', maxLength: 500, okText: 'Send warning' });
     if (!cancelled(text) && String(text).trim()) post('admin-api/users/warn/', { user_id: r.reported_id, text }, () => ask({ type: 'alert', title: 'Warning sent' }));
   };
+  const unbanAuto = async (r) => {
+    const ok = await ask({ type: 'confirm', title: `Cancel the auto-ban for ${r.reported}?`, message: 'They can log in again and the open reports against them are marked as reviewed.', okText: 'Cancel ban' });
+    if (ok) post('admin-api/users/unban/', { user_id: r.reported_id }, load);
+  };
   const ban = async (r) => {
     const len = await ask({ type: 'choice', title: `Ban ${r.reported}`, message: 'For how long?', choices: [{ label: '⏱ 1 day', value: '1' }, { label: '📅 7 days', value: '7' }, { label: '🗓 30 days', value: '30' }, { label: '🚫 Permanent', value: '0' }] });
     if (cancelled(len)) return;
@@ -138,6 +143,7 @@ function ReportsTab({ ask, onChanged, goUser }) {
           <div className="adm-row">
             <button type="button" className="adm-btn ghost" onClick={() => viewChat(r)}>{ctx[r.id] ? 'Hide chat' : '👁 View chat'}</button>
             {!r.resolved && !r.reported_banned && <button type="button" className="adm-btn ghost" disabled={busy} onClick={() => warn(r)}>⚠️ Warn</button>}
+            {r.reported_auto_ban && <button type="button" className="adm-btn" disabled={busy} onClick={() => unbanAuto(r)}>✅ Cancel auto-ban</button>}
             {!r.reported_banned && <button type="button" className="adm-btn danger" disabled={busy} onClick={() => ban(r)}>Ban</button>}
             {!r.resolved && <button type="button" className="adm-btn ghost" disabled={busy} onClick={() => post('admin-api/reports/resolve/', { id: r.id }, load)}>Dismiss</button>}
           </div>

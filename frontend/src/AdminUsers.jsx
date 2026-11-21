@@ -101,8 +101,9 @@ function UserDetail({ id, ask, onBack, onChanged }) {
 
       {d.is_banned && (
         <div className="adm-card" style={{ border: '1px solid #e5484d' }}>
-          <p><b>🚫 Banned</b> {d.banned_until ? `until ${dt(d.banned_until)}` : 'permanently'}</p>
-          <p className="adm-sub">{d.ban_reason ? `Reason: ${d.ban_reason}` : 'No reason given'}</p>
+          <p><b>{d.auto_ban ? '⏳ Auto-banned' : '🚫 Banned'}</b> {d.banned_until ? `until ${dt(d.banned_until)}` : 'permanently'}</p>
+          <p className="adm-sub">{d.auto_ban ? '3 different people reported this account, so it was banned for 24 hours until you review it. Check the reports, then cancel the ban or make it longer.' : (d.ban_reason ? `Reason: ${d.ban_reason}` : 'No reason given')}</p>
+          {d.auto_ban && <div className="adm-row"><button type="button" className="adm-btn" disabled={busy} onClick={() => confirmCall('admin-api/users/unban/', `Cancel the auto-ban for ${d.username}?`, 'They can log in again and the open reports against them are marked as reviewed.', 'Cancel ban')}>✅ Cancel auto-ban</button></div>}
         </div>
       )}
 
@@ -117,7 +118,7 @@ function UserDetail({ id, ask, onBack, onChanged }) {
         <A icon="🖼" label="Remove photo" onClick={() => confirmCall('admin-api/users/photo/', 'Remove profile photo?', '', 'Remove')} hide={d.is_admin || !d.profile_picture} />
         <A icon="🧹" label="Clear note + status" onClick={() => confirmCall('admin-api/users/clear/', 'Clear note, mood and statuses?', 'Their note, mood and all statuses are removed.', 'Clear')} hide={d.is_admin} />
         {d.is_banned
-          ? <A icon="♻️" label="Unban" onClick={() => confirmCall('admin-api/users/unban/', `Unban ${d.username}?`, '', 'Unban')} />
+          ? <A icon="♻️" label={d.auto_ban ? 'Cancel auto-ban' : 'Unban'} onClick={() => confirmCall('admin-api/users/unban/', `Unban ${d.username}?`, '', 'Unban')} />
           : <A icon="🚫" label="Ban" danger onClick={ban} hide={d.is_admin} />}
         <A icon="🗑" label="Delete account" danger onClick={remove} hide={d.is_admin} />
       </div>

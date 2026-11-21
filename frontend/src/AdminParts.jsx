@@ -17,7 +17,7 @@ export function Tags({ u }) {
     <>
       {u.is_verified && <span className="adm-tag blue">✓ Verified</span>}
       {u.is_admin && <span className="adm-tag amber">🛡 Admin</span>}
-      {u.is_banned && <span className="adm-tag red">{u.banned_until ? 'Temp ban' : 'Banned'}</span>}
+      {u.is_banned && <span className={`adm-tag ${u.auto_ban ? 'amber' : 'red'}`}>{u.auto_ban ? '⏳ Auto-ban 24h' : (u.banned_until ? 'Temp ban' : 'Banned')}</span>}
       {u.report_count > 0 && <span className="adm-tag red">{u.report_count} report{u.report_count > 1 ? 's' : ''}</span>}
     </>
   );
