@@ -1,7 +1,7 @@
 import { t } from './i18n';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus, BiMessageSquareDetail, BiMoviePlay } from 'react-icons/bi';
+import { BiSearch, BiCheck, BiX, BiBell, BiUserPlus, BiLock, BiDotsVerticalRounded, BiPhoneCall, BiPhoneIncoming, BiPhoneOutgoing, BiVideo, BiChat, BiGroup, BiAperture, BiUser, BiQrScan, BiArchive, BiChevronRight, BiVolumeMute, BiPlus, BiMessageSquareDetail, BiMoviePlay, BiTrash } from 'react-icons/bi';
 import FeedbackSheet from './Feedback';
 import api from './api';
 import Avatar from './Avatar';
@@ -26,9 +26,16 @@ import { forgetAccount, listAccounts, switchAccount, wipeSession } from './accou
 import { BsCheck, BsCheckAll } from 'react-icons/bs';
 
 // one row of the chats / groups list
-function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, muted, locked, onOpen, menu, menuOpen, setMenuOpen }) {
+function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, muted, locked, onOpen, menu, menuOpen, setMenuOpen, selecting, selected, onToggle }) {
+  const press = useRef(null);
+  const startPress = () => { clearTimeout(press.current); press.current = setTimeout(() => { press.current = 'fired'; onToggle(); }, 520); };
+  const endPress = () => { if (press.current && press.current !== 'fired') clearTimeout(press.current); };
+  const open = () => { if (press.current === 'fired') { press.current = null; return; } if (selecting) onToggle(); else onOpen(); };
   return (
-    <div className={`sc-row${pinned ? ' pinned' : ''}`} role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}>
+    <div className={`sc-row${pinned ? ' pinned' : ''}${selected ? ' picked' : ''}`} role="button" tabIndex={0} onClick={open} onKeyDown={(e) => { if (e.key === 'Enter') open(); }}
+      onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress} onTouchCancel={endPress}
+      onContextMenu={(e) => { e.preventDefault(); onToggle(); }}>
+      {selecting && <span className={`sel-box${selected ? ' on' : ''}`} aria-hidden>{selected && <BiCheck />}</span>}
       {avatar}
       <div className="sc-row-main">
         <h3 className="sc-row-name">
@@ -42,10 +49,12 @@ function ChatRow({ avatar, title, subtitle, subtitleHot, time, unread, pinned, m
         <span className={`sc-row-time${unread > 0 && !muted ? ' hot' : ''}`}>{time}</span>
         {unread > 0 && <span className={`sc-badge${muted ? ' muted' : ''}`}>{unread > 99 ? '99+' : unread}</span>}
       </div>
-      <button type="button" className="sc-dots" aria-label="Chat options" onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen ? null : true); }}>
-        <BiDotsVerticalRounded />
-      </button>
-      {menuOpen && (
+      {!selecting && (
+        <button type="button" className="sc-dots" aria-label="Chat options" onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen ? null : true); }}>
+          <BiDotsVerticalRounded />
+        </button>
+      )}
+      {menuOpen && !selecting && (
         <>
           <div onClick={(e) => { e.stopPropagation(); setMenuOpen(null); }} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
           <div className="sc-menu" onClick={(e) => e.stopPropagation()}>
@@ -105,6 +114,8 @@ function Home() {
   const [friends, setFriends] = useState([]);
   const [groups, setGroups] = useState([]);
   const [calls, setCalls] = useState([]);
+  const [sel, setSel] = useState([]);                 // selected chat rows: 'f<friendId>' / 'g<chatId>'
+  const [callSel, setCallSel] = useState(null);       // null = not selecting, else the selected call ids
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [notes, setNotes] = useState({ mine: null, friends: [] });
@@ -467,8 +478,67 @@ function Home() {
       o.is_muted ? ['Unmute', () => chatSetting({ ...payload, mute_hours: 0 })] : ['Mute…', () => setMuteFor(key), false, true],
       [o.is_archived ? 'Unarchive' : 'Archive', () => chatSetting({ ...payload, is_archived: !o.is_archived })],
       ['Folder…', () => pickFolder(key)],
+      ['Select', () => setSel([key])],
       ...extra,
     ];
+  };
+
+  // ring around a friend's photo when they have a status: coloured = new, grey = all seen, green = close friends
+  const statusRing = {};
+  (statuses || []).forEach((st) => {
+    if (!st || st.user === me?.id) return;
+    const cur = statusRing[st.user];
+    if (!st.viewed_by_me) statusRing[st.user] = (st.privacy === 'close' && cur !== 'new') ? 'close' : 'new';
+    else if (!cur) statusRing[st.user] = 'seen';
+  });
+
+  const toggleSel = (key) => setSel((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  const visibleKeys = () => [
+    ...liveFriends.filter((f) => byQuery(f.username) && inFolder(`f${f.id}`)).map((f) => `f${f.id}`),
+    ...((ql || folderId || activeTab === 'groups') ? liveGroups.filter((g) => byQuery(g.group_name) && inFolder(`g${g.chat_id}`)).map((g) => `g${g.chat_id}`) : []),
+  ];
+  const selRows = () => sel.map((k) => (k[0] === 'f'
+    ? { key: k, friend: friends.find((f) => `f${f.id}` === k) }
+    : { key: k, group: groups.find((g) => `g${g.chat_id}` === k) })).filter((r) => r.friend || r.group);
+  const bulkArchive = async () => {
+    const rows = selRows();
+    try {
+      await Promise.all(rows.map((r) => api.post('chats/settings/', r.friend ? { friend_id: r.friend.id, is_archived: true } : { chat_id: r.group.chat_id, is_archived: true })));
+    } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+    setSel([]); refresh();
+  };
+  const bulkDelete = async () => {
+    const rows = selRows();
+    if (!rows.length) return;
+    const hasFriend = rows.some((r) => r.friend);
+    const v = await ask({ type: 'choice', title: `${rows.length} chat${rows.length > 1 ? 's' : ''} selected`, choices: [
+      { label: '🗑️ Delete messages (clear for me)', value: 'clear' },
+      ...(hasFriend ? [{ label: '🚫 Unfriend selected friends', value: 'unfriend' }] : []),
+    ] });
+    if (!v) return;
+    if (v === 'clear') {
+      const ok = await ask({ type: 'confirm', title: `Delete messages in ${rows.length} chat${rows.length > 1 ? 's' : ''}?`, message: 'Cleared only for you. The other people still have their copy.', danger: true, okText: 'Delete' });
+      if (!ok) return;
+      await Promise.all(rows.map((r) => {
+        const id = r.friend ? r.friend.ov?.chat_id : r.group.chat_id;
+        return id ? api.post(`chats/${id}/clear_chat/`, {}).catch(() => {}) : null;
+      }));
+    } else {
+      const fr = rows.filter((r) => r.friend);
+      const ok = await ask({ type: 'confirm', title: `Unfriend ${fr.length} friend${fr.length > 1 ? 's' : ''}?`, message: 'Their chats will be hidden. You can send a request again later.', danger: true, okText: 'Unfriend' });
+      if (!ok) return;
+      await Promise.all(fr.map((r) => api.post('users/unfriend/', { user_id: r.friend.id }).catch(() => {})));
+    }
+    setSel([]); refresh();
+  };
+
+  const callDelete = async (all) => {
+    const ids = callSel || [];
+    if (!all && !ids.length) return;
+    const ok = await ask({ type: 'confirm', title: all ? 'Clear all call history?' : `Delete ${ids.length} call${ids.length > 1 ? 's' : ''}?`, message: 'Removed only from your list.', danger: true, okText: all ? 'Clear all' : 'Delete' });
+    if (!ok) return;
+    try { await api.post('calls/delete_history/', all ? { all: true } : { ids }); } catch (e) { ask({ type: 'alert', title: errMsg(e, 'Failed') }); }
+    setCallSel(null); fetchCalls();
   };
 
   const friendRow = (friend) => {
@@ -478,7 +548,7 @@ function Home() {
     return (
       <ChatRow
         key={friend.id}
-        avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} />}
+        avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} ring={statusRing[friend.id]} />}
         title={<>{shownName(friend.username)}<Tick on={friend.is_verified} />{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
         subtitle={ov?.is_locked ? 'Locked chat' : (getDraft(friend.username) ? <><span style={{ color: '#ff3b30' }}>Draft: </span>{getDraft(friend.username)}</> : typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
@@ -488,6 +558,7 @@ function Home() {
         muted={ov?.is_muted}
         locked={ov?.is_locked}
         onOpen={() => openFriend(friend)}
+        selecting={sel.length > 0} selected={sel.includes(key)} onToggle={() => toggleSel(key)}
         menuOpen={rowMenu === key}
         setMenuOpen={(v) => { setMuteFor(null); setRowMenu(v ? key : null); }}
         menu={buildMenu(key, { friend_id: friend.id }, { is_pinned: ov?.is_pinned, is_muted: ov?.is_muted, is_archived: ov?.is_archived }, [
@@ -514,6 +585,7 @@ function Home() {
         muted={group.is_muted}
         locked={group.is_locked}
         onOpen={() => openGroup(group)}
+        selecting={sel.length > 0} selected={sel.includes(key)} onToggle={() => toggleSel(key)}
         menuOpen={rowMenu === key}
         setMenuOpen={(v) => { setMuteFor(null); setRowMenu(v ? key : null); }}
         menu={buildMenu(key, { chat_id: group.chat_id }, group)}
@@ -546,6 +618,15 @@ function Home() {
       {modal}
 
       <div className="sc-card">
+        {sel.length > 0 && (activeTab === 'chats' || activeTab === 'groups') ? (
+          <header className="sc-top sel-top">
+            <button type="button" className="sc-iconbtn" aria-label="Cancel selection" onClick={() => setSel([])}><BiX /></button>
+            <b style={{ flex: 1, fontSize: 17 }}>{sel.length} selected</b>
+            <button type="button" className="sel-act" onClick={() => setSel(sel.length >= visibleKeys().length ? [] : visibleKeys())}>{sel.length >= visibleKeys().length ? 'None' : 'All'}</button>
+            <button type="button" className="sel-act" onClick={bulkArchive}><BiArchive /></button>
+            <button type="button" className="sel-act danger" onClick={bulkDelete}><BiTrash /></button>
+          </header>
+        ) : (
         <header className="sc-top">
           <span className="sc-wordmark" aria-label="Chatzy"><span className="w1">Chatzy</span></span>
           <div className="sc-top-actions">
@@ -556,6 +637,7 @@ function Home() {
             <button type="button" className="sc-iconbtn" aria-label="Find people" onClick={() => { setFindQuery(''); setShowFind(true); }}><BiUserPlus /></button>
           </div>
         </header>
+        )}
         <button type="button" className="sc-feedback-fab" aria-label="Send feedback" onClick={() => setShowFeedback(true)}><BiMessageSquareDetail /></button>
 
         <h1 className="sc-title">{tabTitle}<small>{tabSub}</small></h1>
@@ -635,6 +717,23 @@ function Home() {
           {/* ------------------------------------------------ CALLS */}
           {activeTab === 'calls' && (
             <>
+              {calls.length > 0 && (
+                <div className="sel-strip">
+                  {callSel === null ? (
+                    <>
+                      <button type="button" onClick={() => setCallSel([])}>Select</button>
+                      <button type="button" className="danger" onClick={() => callDelete(true)}>Clear all</button>
+                    </>
+                  ) : (
+                    <>
+                      <b>{callSel.length} selected</b>
+                      <button type="button" onClick={() => setCallSel(callSel.length === calls.length ? [] : calls.map((c) => c.id))}>{callSel.length === calls.length ? 'None' : 'All'}</button>
+                      <button type="button" className="danger" disabled={!callSel.length} onClick={() => callDelete(false)}>Delete</button>
+                      <button type="button" onClick={() => setCallSel(null)}>Cancel</button>
+                    </>
+                  )}
+                </div>
+              )}
               {calls.length === 0 ? (
                 <div className="sc-empty"><BiPhoneCall style={{ fontSize: 40, color: 'var(--accent)' }} /><b>No calls yet</b>Open a chat and tap the phone icon.</div>
               ) : calls.map((c) => {
@@ -644,7 +743,10 @@ function Home() {
                   : c.status === 'ringing' ? 'Ringing…' : c.status === 'ongoing' ? 'Ongoing' : (c.status === 'declined' ? 'Declined' : 'Missed');
                 const bad = missed && !outgoingCall;
                 return (
-                  <div key={c.id} className="sc-row" style={{ cursor: 'default' }}>
+                  <div key={c.id} className={`sc-row${callSel && callSel.includes(c.id) ? ' picked' : ''}`} style={{ cursor: callSel ? 'pointer' : 'default' }}
+                    onClick={() => { if (callSel) setCallSel((cur) => (cur.includes(c.id) ? cur.filter((x) => x !== c.id) : [...cur, c.id])); }}
+                    onContextMenu={(e) => { e.preventDefault(); if (!callSel) setCallSel([c.id]); }}>
+                    {callSel && <span className={`sel-box${callSel.includes(c.id) ? ' on' : ''}`} aria-hidden>{callSel.includes(c.id) && <BiCheck />}</span>}
                     <Avatar name={c.peer_name} size={48} T={T} />
                     <div className="sc-row-main">
                       <h3 className="sc-row-name" style={bad ? { color: '#ff7d8c' } : undefined}><span className="t">{c.peer_name}</span></h3>
@@ -652,8 +754,8 @@ function Home() {
                         {outgoingCall ? <BiPhoneOutgoing /> : <BiPhoneIncoming />}{c.call_type === 'video' ? 'Video' : 'Voice'} · {label} · {formatListTime(c.started_at)}
                       </span>
                     </div>
-                    <button type="button" className="sc-iconbtn" aria-label="Voice call" onClick={() => startCall({ friendId: c.peer_id, name: c.peer_name, callType: 'audio' })}><BiPhoneCall /></button>
-                    <button type="button" className="sc-iconbtn" aria-label="Video call" onClick={() => startCall({ friendId: c.peer_id, name: c.peer_name, callType: 'video' })}><BiVideo /></button>
+                    {!callSel && <button type="button" className="sc-iconbtn" aria-label="Voice call" onClick={() => startCall({ friendId: c.peer_id, name: c.peer_name, callType: 'audio' })}><BiPhoneCall /></button>}
+                    {!callSel && <button type="button" className="sc-iconbtn" aria-label="Video call" onClick={() => startCall({ friendId: c.peer_id, name: c.peer_name, callType: 'video' })}><BiVideo /></button>}
                   </div>
                 );
               })}

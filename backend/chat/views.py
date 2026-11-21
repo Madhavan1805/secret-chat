@@ -1364,7 +1364,22 @@ class CallViewSet(viewsets.GenericViewSet):
 
     def list(self, request):
         expire_stale_calls()
-        return Response(self.get_serializer(self.get_queryset().order_by('-started_at')[:100], many=True).data)
+        u = request.user
+        qs = self.get_queryset().exclude(Q(caller=u, caller_hidden=True) | Q(receiver=u, receiver_hidden=True))
+        return Response(self.get_serializer(qs.order_by('-started_at')[:100], many=True).data)
+
+    @action(detail=False, methods=['post'])
+    def delete_history(self, request):
+        """Remove calls from MY history only. {ids: [..]} or {all: true}. The other person still sees theirs."""
+        u = request.user
+        qs = self.get_queryset().exclude(status__in=('ringing', 'ongoing'))
+        if not to_bool(request.data.get('all')):
+            raw = request.data.get('ids')
+            ids = [int(i) for i in raw if str(i).isdigit()] if isinstance(raw, (list, tuple)) else []
+            qs = qs.filter(id__in=ids)
+        n = qs.filter(caller=u).update(caller_hidden=True) + qs.filter(receiver=u).update(receiver_hidden=True)
+        CallHistory.objects.filter(caller_hidden=True, receiver_hidden=True).delete()
+        return Response({"deleted": n})
 
     @action(detail=False, methods=['post'])
     def start(self, request):

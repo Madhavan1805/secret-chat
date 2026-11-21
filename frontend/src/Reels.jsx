@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BiArrowBack, BiPlus, BiLinkExternal, BiCommentDetail, BiVolumeFull, BiVolumeMute, BiDotsVerticalRounded, BiVideoPlus, BiPlay } from 'react-icons/bi';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { BiArrowBack, BiPlus, BiLinkExternal, BiCommentDetail, BiVolumeFull, BiVolumeMute, BiDotsVerticalRounded, BiVideoPlus, BiPlay, BiSend, BiSearch, BiCheck } from 'react-icons/bi';
 import { BsHeart, BsHeartFill } from 'react-icons/bs';
 import api from './api';
 import { Sheet } from './ui';
@@ -44,8 +44,9 @@ function YtSlide({ item, active, muted, setMuted }) {
 }
 
 // one reel: plays while it is the one on screen
-function Slide({ T, reel, active, near, muted, setMuted, onLike, onComments, onMore }) {
+function Slide({ T, reel, active, near, muted, setMuted, onLike, onComments, onMore, onShare }) {
   const vid = useRef(null);
+  const bar = useRef(null);
   const tapTimer = useRef(null);
   const viewed = useRef(false);
   const [paused, setPaused] = useState(false);
@@ -80,24 +81,30 @@ function Slide({ T, reel, active, near, muted, setMuted, onLike, onComments, onM
 
   return (
     <section className="rl-slide" data-id={keyOf(reel)}>
-      <video ref={vid} src={near ? reel.video_url : undefined} className="rl-video" playsInline loop muted={muted} preload={near ? 'auto' : 'none'} onClick={tap} />
+      <video ref={vid} src={near ? reel.video_url : undefined} className="rl-video" playsInline loop muted={muted} preload={near ? 'auto' : 'none'} onClick={tap}
+        onTimeUpdate={(e) => { const v = e.currentTarget; if (bar.current && v.duration) bar.current.style.width = `${(v.currentTime / v.duration) * 100}%`; }} />
+      <div className="rl-shade" />
       {paused && <div className="rl-pause"><BiPlay /></div>}
       {blocked && <div className="rl-unmute">Tap to turn sound on</div>}
 
       <div className="rl-rail">
+        <div className="rl-av"><Avatar src={reel.user.profile_picture} name={reel.user.username} size={44} T={T} /></div>
         <button type="button" className={`rl-act ${reel.liked ? 'on' : ''}`} onClick={() => onLike(reel)} aria-label={reel.liked ? 'Unlike' : 'Like'}>
-          {reel.liked ? <BsHeartFill /> : <BsHeart />}<span>{reel.likes}</span>
+          <i>{reel.liked ? <BsHeartFill /> : <BsHeart />}</i><span>{reel.likes}</span>
         </button>
-        <button type="button" className="rl-act" onClick={() => onComments(reel)} aria-label="Comments"><BiCommentDetail /><span>{reel.comments}</span></button>
-        <button type="button" className="rl-act" onClick={() => setMuted(!muted)} aria-label={muted ? 'Sound on' : 'Sound off'}>{muted ? <BiVolumeMute /> : <BiVolumeFull />}</button>
-        <button type="button" className="rl-act" onClick={() => onMore(reel)} aria-label="More"><BiDotsVerticalRounded /></button>
+        <button type="button" className="rl-act" onClick={() => onComments(reel)} aria-label="Comments"><i><BiCommentDetail /></i><span>{reel.comments}</span></button>
+        <button type="button" className="rl-act" onClick={() => onShare(reel)} aria-label="Send to friends"><i><BiSend /></i><span>Share</span></button>
+        <button type="button" className="rl-act" onClick={() => setMuted(!muted)} aria-label={muted ? 'Sound on' : 'Sound off'}><i>{muted ? <BiVolumeMute /> : <BiVolumeFull />}</i></button>
+        <button type="button" className="rl-act" onClick={() => onMore(reel)} aria-label="More"><i><BiDotsVerticalRounded /></i></button>
       </div>
 
       <div className="rl-info">
-        <div className="rl-user"><Avatar src={reel.user.profile_picture} name={reel.user.username} size={34} T={T} /><b>{reel.user.username}</b>
+        <div className="rl-user"><b>@{reel.user.username}</b>
           <span className="rl-tag">{reel.audience === 'all' ? 'Everyone' : 'Friends'}</span></div>
         {reel.caption && <p className="rl-cap">{reel.caption}</p>}
+        <small className="rl-meta">{reel.views} views · {formatListTime(reel.created_at)}</small>
       </div>
+      <div className="rl-prog"><div ref={bar} /></div>
     </section>
   );
 }
@@ -128,6 +135,48 @@ function Comments({ T, reel, onClose, onCount }) {
         <input className="form-control" maxLength={300} placeholder="Add a comment…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} aria-label="Comment" />
         <button type="button" className="sc-btn" disabled={busy || !text.trim()} onClick={send}>Post</button>
       </div>
+    </Sheet>
+  );
+}
+
+function ShareSheet({ T, reel, onClose }) {
+  const [friends, setFriends] = useState(null);
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { api.get('users/').then((r) => setFriends(Array.isArray(r.data) ? r.data : [])).catch(() => setFriends([])); }, []);
+  const list = (friends || []).filter((f) => !q.trim() || f.username.toLowerCase().includes(q.trim().toLowerCase()));
+  const toggle = (id) => setPicked((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  const send = async () => {
+    if (!picked.length || busy) return;
+    setBusy(true); setMsg('');
+    try {
+      const r = await api.post(`reels/${reel.id}/share/`, { friend_ids: picked });
+      setMsg(`Sent to ${r.data.sent} friend${r.data.sent === 1 ? '' : 's'}`);
+      setTimeout(onClose, 900);
+    } catch (e) { setMsg(errMsg(e, 'Could not send')); setBusy(false); }
+  };
+  return (
+    <Sheet T={T} title="Send to friends" onClose={onClose}>
+      <label className="sc-search" style={{ margin: '0 0 10px' }}>
+        <BiSearch style={{ fontSize: 20 }} />
+        <input type="text" placeholder="Search friends" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search friends" />
+      </label>
+      {friends === null && <p style={{ color: 'var(--sub)', textAlign: 'center' }}>Loading…</p>}
+      {friends && friends.length === 0 && <p style={{ color: 'var(--sub)', textAlign: 'center' }}>Add a friend first.</p>}
+      {friends && friends.length > 0 && list.length === 0 && <p style={{ color: 'var(--sub)', textAlign: 'center' }}>No friend found</p>}
+      <div className="rl-share-list">
+        {list.map((f) => (
+          <button key={f.id} type="button" className="rl-share-row" onClick={() => toggle(f.id)} aria-pressed={picked.includes(f.id)}>
+            <Avatar src={f.profile_picture} name={f.username} size={42} T={T} />
+            <b>{f.username}</b>
+            <span className={`sel-box${picked.includes(f.id) ? ' on' : ''}`}>{picked.includes(f.id) && <BiCheck />}</span>
+          </button>
+        ))}
+      </div>
+      {msg && <p style={{ textAlign: 'center', margin: '8px 0', fontSize: 14 }}>{msg}</p>}
+      <button type="button" className="sc-btn" style={{ width: '100%', marginTop: 10 }} disabled={!picked.length || busy} onClick={send}><BiSend /> {busy ? 'Sending…' : `Send${picked.length ? ` (${picked.length})` : ''}`}</button>
     </Sheet>
   );
 }
@@ -189,6 +238,7 @@ function Create({ T, onClose, onDone }) {
 
 export default function Reels() {
   const navigate = useNavigate();
+  const location = useLocation();
   const T = resolveTheme(getAppTheme());
   const [tab, setTab] = useState('friends');
   const [items, setItems] = useState([]);
@@ -202,6 +252,8 @@ export default function Reels() {
   const [commentsFor, setCommentsFor] = useState(null);
   const [menuFor, setMenuFor] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [shareFor, setShareFor] = useState(null);
+  const [linked, setLinked] = useState(null);                // a reel opened from a shared link
   const feed = useRef(null);
   const loadingMore = useRef(false);
 
@@ -232,13 +284,21 @@ export default function Reels() {
     if (tab === 'discover') loadExt(true);
   }, [tab, load, loadExt]);
 
+  // opened from a shared link: /reels?r=<id> shows that reel first
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('r');
+    if (!id) return;
+    api.get(`reels/${id}/`).then((r) => { setLinked(r.data); setActiveId(String(r.data.id)); }).catch(() => {});
+  }, [location.search]);
+
   // people's reels, with a Short after every two of them (all Shorts when there are few reels)
   const display = useMemo(() => {
-    if (tab !== 'discover') return items;
+    const base = linked ? [linked, ...items.filter((x) => x.id !== linked.id)] : items;
+    if (tab !== 'discover') return base;
     const out = []; let e = 0;
-    items.forEach((u, i) => { out.push(u); if (i % 2 === 1 && e < ext.length) out.push(ext[e++]); });
+    base.forEach((u, i) => { out.push(u); if (i % 2 === 1 && e < ext.length) out.push(ext[e++]); });
     return out.concat(ext.slice(e));
-  }, [tab, items, ext]);
+  }, [tab, items, ext, linked]);
 
   // whichever reel fills the screen is the active one
   useEffect(() => {
@@ -260,16 +320,16 @@ export default function Reels() {
     else if (tab === 'discover' && !next && display.length) loadExt(false);
   }, [idx, display.length, next, tab, load, loadExt]);
 
-  const patch = (id, fn) => setItems((cur) => cur.map((r) => (r.id === id ? fn(r) : r)));
+  const patch = (id, fn) => { setItems((cur) => cur.map((r) => (r.id === id ? fn(r) : r))); setLinked((cur) => (cur && cur.id === id ? fn(cur) : cur)); };
   const like = async (reel) => {
     patch(reel.id, (r) => ({ ...r, liked: !r.liked, likes: r.likes + (r.liked ? -1 : 1) }));           // instant, then the server's answer
     try { const res = await api.post(`reels/${reel.id}/like/`); patch(reel.id, (r) => ({ ...r, liked: res.data.liked, likes: res.data.likes })); } catch (e) { patch(reel.id, () => reel); }
   };
   const remove = async (reel) => {
-    try { await api.delete(`reels/${reel.id}/`); setItems((cur) => cur.filter((r) => r.id !== reel.id)); setMenuFor(null); } catch (e) { setErr(errMsg(e, 'Could not delete')); }
+    try { await api.delete(`reels/${reel.id}/`); setItems((cur) => cur.filter((r) => r.id !== reel.id)); setLinked((c) => (c && c.id === reel.id ? null : c)); setMenuFor(null); } catch (e) { setErr(errMsg(e, 'Could not delete')); }
   };
   const report = async (reel) => {
-    try { await api.post(`reels/${reel.id}/report/`); setItems((cur) => cur.filter((r) => r.id !== reel.id)); } catch (e) { /* ignore */ }
+    try { await api.post(`reels/${reel.id}/report/`); setItems((cur) => cur.filter((r) => r.id !== reel.id)); setLinked((c) => (c && c.id === reel.id ? null : c)); } catch (e) { /* ignore */ }
     setMenuFor(null);
   };
 
@@ -289,7 +349,7 @@ export default function Reels() {
         {display.map((r, i) => (r.yt
           ? <YtSlide key={keyOf(r)} item={r} active={keyOf(r) === activeId} muted={muted} setMuted={setMuted} />
           : <Slide key={keyOf(r)} T={T} reel={r} active={keyOf(r) === activeId} near={Math.abs(i - (idx < 0 ? 0 : idx)) <= 1}
-            muted={muted} setMuted={setMuted} onLike={like} onComments={setCommentsFor} onMore={setMenuFor} />
+            muted={muted} setMuted={setMuted} onLike={like} onComments={setCommentsFor} onMore={setMenuFor} onShare={setShareFor} />
         ))}
         {!display.length && (
           <div className="rl-empty">
@@ -302,6 +362,7 @@ export default function Reels() {
         )}
       </div>
 
+      {shareFor && <ShareSheet T={T} reel={shareFor} onClose={() => setShareFor(null)} />}
       {commentsFor && <Comments T={T} reel={commentsFor} onClose={() => setCommentsFor(null)} onCount={(n) => patch(commentsFor.id, (r) => ({ ...r, comments: n }))} />}
       {creating && <Create T={T} onClose={() => setCreating(false)} onDone={(r) => { setCreating(false); if (tab === 'friends' || r.audience === 'all') setItems((cur) => [r, ...cur]); setActiveId(String(r.id)); if (feed.current) feed.current.scrollTop = 0; }} />}
       {menuFor && (

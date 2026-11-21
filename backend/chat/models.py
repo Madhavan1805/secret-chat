@@ -334,6 +334,8 @@ class CallHistory(models.Model):
     answered_at = models.DateTimeField(null=True, blank=True)              # NEW
     ended_at = models.DateTimeField(null=True, blank=True)                 # NEW
     duration = models.IntegerField(default=0)
+    caller_hidden = models.BooleanField(default=False)      # deleted from the caller's call history
+    receiver_hidden = models.BooleanField(default=False)    # deleted from the receiver's call history
 
     def __str__(self):
         return f"{self.caller.username} -> {self.receiver.username} ({self.status})"

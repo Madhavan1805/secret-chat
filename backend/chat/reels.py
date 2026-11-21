@@ -2,7 +2,9 @@
 
 GET    reels/?tab=friends|discover&before=<id>   one page of reels (newest first)
 POST   reels/            multipart {video, caption, audience: friends|all, duration}
+GET    reels/<id>/       one reel (for a shared link)
 DELETE reels/<id>/       the owner or an admin
+POST   reels/<id>/share/ {friend_ids: [..]} send the reel to friends as a chat message
 POST   reels/<id>/like/  toggle
 POST   reels/<id>/view/  count a view
 GET/POST reels/<id>/comments/
@@ -147,9 +149,14 @@ def reels_view(request):
     return Response({"reels": _rows(request, page), "next": page[-1].id if len(page) == PAGE else None})
 
 
-@api_view(['DELETE'])
+@api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def reel_delete_view(request, pk):
+    if request.method == 'GET':                              # one reel (opened from a shared link)
+        r = _get(request, pk)
+        r.like_count = r.likes.count()
+        r.comment_count = r.comments.count()
+        return Response(_rows(request, [r])[0])
     from .admin_api import is_admin
     try:
         r = Reel.objects.get(pk=int(pk))
@@ -258,3 +265,41 @@ def reels_explore_view(request):
     pool = list(_youtube_pool())
     random.shuffle(pool)
     return Response({"items": pool[:40]})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reel_share_view(request, pk):
+    """Send a link to this reel to friends, as a normal chat message."""
+    from .models import Message
+    from .views import notify_message
+    from .views import (ChatLocked, blocked_between, ensure_unlocked, friend_ids_of, get_or_create_direct_chat)
+    from .models import CustomUser
+    user = request.user
+    r = _get(request, pk)
+    raw = request.data.get('friend_ids') or []
+    ids = {int(i) for i in raw if str(i).isdigit()} if isinstance(raw, (list, tuple)) else set()
+    if not ids:
+        raise ValidationError({"error": "Pick at least one friend."})
+    if len(ids) > 30:
+        raise ValidationError({"error": "Pick up to 30 friends at a time."})
+    base = os.environ.get('FRONTEND_URL', 'https://chatzy.site').rstrip('/')
+    cap = (r.caption or '').strip()
+    text = f"🎬 Reel by {r.user.username}" + (f": {cap[:80]}" if cap else "") + f"\n{base}/reels?r={r.id}"
+    friends = friend_ids_of(user)
+    sent = skipped = 0
+    for f in CustomUser.objects.filter(id__in=ids, is_active=True):
+        if f.id not in friends or blocked_between(user.id, f.id):
+            skipped += 1
+            continue
+        chat = get_or_create_direct_chat(user, f)
+        try:
+            ensure_unlocked(user, chat)
+        except ChatLocked:
+            skipped += 1
+            continue
+        msg = Message.objects.create(chat=chat, sender=user, receiver=f, content=text, message_type='text',
+                                     status='delivered' if f.is_online else 'sent')
+        notify_message(chat, msg, 'new')
+        sent += 1
+    return Response({"sent": sent, "skipped": skipped})
