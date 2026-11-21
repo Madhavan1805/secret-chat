@@ -1357,7 +1357,8 @@ class CallViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         u = self.request.user
-        return CallHistory.objects.filter(Q(caller=u) | Q(receiver=u)).select_related('caller', 'receiver')
+        return (CallHistory.objects.filter(Q(caller=u, hidden_for_caller=False) | Q(receiver=u, hidden_for_receiver=False))
+                .select_related('caller', 'receiver'))
 
     def _data(self, call):
         return CallHistorySerializer(call, context={'request': self.request}).data
@@ -1365,6 +1366,24 @@ class CallViewSet(viewsets.GenericViewSet):
     def list(self, request):
         expire_stale_calls()
         return Response(self.get_serializer(self.get_queryset().order_by('-started_at')[:100], many=True).data)
+
+    def _hide(self, request, qs):
+        u = request.user
+        qs = qs.exclude(status__in=('ringing', 'ongoing'))
+        n = qs.filter(caller=u).update(hidden_for_caller=True) + qs.filter(receiver=u).update(hidden_for_receiver=True)
+        return Response({"deleted": n})
+
+    @action(detail=False, methods=['post'], url_path='delete')
+    def delete_log(self, request):
+        """Delete some call-log rows for ME only: {ids: [..]}"""
+        raw = request.data.get('ids')
+        ids = [int(i) for i in raw if str(i).isdigit()][:200] if isinstance(raw, (list, tuple)) else []
+        return self._hide(request, self.get_queryset().filter(id__in=ids))
+
+    @action(detail=False, methods=['post'])
+    def clear(self, request):
+        """Delete my whole call history (for me only)."""
+        return self._hide(request, self.get_queryset())
 
     @action(detail=False, methods=['post'])
     def start(self, request):

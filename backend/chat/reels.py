@@ -68,6 +68,7 @@ def _cleanup():
 
 
 def _rows(request, qs):
+    qs = list(qs)
     liked = set(ReelLike.objects.filter(reel__in=qs, user=request.user).values_list('reel_id', flat=True))
     out = []
     for r in qs:
@@ -147,10 +148,13 @@ def reels_view(request):
     return Response({"reels": _rows(request, page), "next": page[-1].id if len(page) == PAGE else None})
 
 
-@api_view(['DELETE'])
+@api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def reel_delete_view(request, pk):
     from .admin_api import is_admin
+    if request.method == 'GET':                      # one reel (opened from a link a friend shared)
+        r = _get(request, pk)
+        return Response(_rows(request, [r])[0])
     try:
         r = Reel.objects.get(pk=int(pk))
     except (ValueError, Reel.DoesNotExist):
