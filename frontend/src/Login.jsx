@@ -4,7 +4,7 @@ import { BiUser, BiLock } from 'react-icons/bi';
 import api from './api';
 import AuthLayout, { Field, PasswordField, Alert, SubmitButton } from './AuthLayout';
 import { GetAppCard } from './GetApp';
-import { saveSession, dropSession, hasToken, apiErrors, sessionIsValid } from './auth';
+import { saveSession, dropSession, hasToken, apiErrors, sessionIsValid, isNewVisitor, markAuthSeen } from './auth';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,6 +18,10 @@ export default function Login() {
   const [code, setCode] = useState('');
   const notice = (location.state && location.state.notice) || '';
   const addMode = !!(location.state && location.state.addAccount);       // adding a second account from "Switch account"
+
+  // first-ever visit on this device (never logged in or signed up here): go straight to Create account
+  const firstTime = !addMode && !location.state && !hasToken() && isNewVisitor();
+  useEffect(() => { if (firstTime) navigate('/register', { replace: true }); else markAuthSeen(); }, [firstTime, navigate]);
 
   // already logged in? skip this page. A token that the server no longer accepts is thrown away.
   useEffect(() => {
@@ -53,6 +57,7 @@ export default function Login() {
     }
   };
 
+  if (firstTime) return null;
   return (
     <AuthLayout title={addMode ? 'Add account' : 'Welcome back'} subtitle={addMode ? 'Log in to another Chatzy ID. Your current account stays saved on this phone.' : 'Log in with your user ID, email or mobile number.'}>
       <form onSubmit={onSubmit} noValidate>

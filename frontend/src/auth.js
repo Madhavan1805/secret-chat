@@ -11,6 +11,7 @@ export function saveSession({ token, username, id }) {
     localStorage.setItem('username', username);
     if (id != null) localStorage.setItem('user_id', String(id));
   } catch (e) { /* storage blocked */ }
+  markAuthSeen();
   rememberAccount({ token, username, id });      // so this phone can switch between accounts
   clearMe();
 }
@@ -115,3 +116,8 @@ export function apiErrors(e, fallback = 'Something went wrong. Try again.') {
   if (!general && !Object.keys(fields).length) general = fallback;
   return { fields, general };
 }
+
+// "has this device ever used Chatzy?" - new visitors land on Create account instead of Log in
+const SEEN_AUTH = 'chatzy_auth_seen';
+export const isNewVisitor = () => { try { return !localStorage.getItem(SEEN_AUTH) && !localStorage.getItem('username') && !localStorage.getItem('token'); } catch (e) { return false; } };
+export const markAuthSeen = () => { try { localStorage.setItem(SEEN_AUTH, '1'); } catch (e) { /* ignore */ } };
