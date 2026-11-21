@@ -98,25 +98,43 @@ def merge_songs(*lists, cap=60):
     return out[:cap]
 
 
+def _append_unique(base, more, cap):
+    seen = {(x['title'].lower(), x['artist'].lower()) for x in base}
+    out = list(base)
+    for song in more:
+        k = (song['title'].lower(), song['artist'].lower())
+        if k not in seen:
+            seen.add(k)
+            out.append(song)
+    return out[:cap]
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def music_search(request):
     q = clean_text(request.query_params.get('q'), 80)
     if len(q) < 2:
         return Response([])
-    key = f"music2:{COUNTRY}:{q.lower()}"
+    key = f"music3:{COUNTRY}:{q.lower()}"
     out = cache.get(key)
     if out is None:
-        results, failed = [], 0
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(_from_itunes, q), pool.submit(_from_deezer, q)]
-            for f in futures:
+        # the typed query, plus a "<q> tamil" variant so Tamil songs show up far more
+        queries = [q]
+        if 'tamil' not in q.lower() and not any('\u0b80' <= ch <= '\u0bff' for ch in q):
+            queries.append(f"{q} tamil")
+        primary, extra, failed, total = [], [], 0, 0
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            jobs = [(i, pool.submit(fn, qq)) for i, qq in enumerate(queries) for fn in (_from_itunes, _from_deezer)]
+            for i, f in jobs:
+                total += 1
                 try:
-                    results.append(f.result())
+                    (primary if i == 0 else extra).append(f.result())
                 except Exception:
                     failed += 1
-        if failed == len(futures):
+        if failed == total:
             raise ValidationError({"error": "Song search is not available right now. Try again in a moment."})
-        out = merge_songs(*results)
+        out = merge_songs(*primary, cap=120)
+        if extra:
+            out = _append_unique(out, merge_songs(*extra, cap=120), 120)
         cache.set(key, out, 60 * 60 if out else 60)
     return Response(out)

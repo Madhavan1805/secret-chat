@@ -13,6 +13,8 @@ export function parseSongFile(file) {
   return { artist: '', title: base.slice(0, 80) || 'Song' };
 }
 
+const TAMIL_CHIPS = ['Anirudh', 'A. R. Rahman', 'Ilaiyaraaja', 'Yuvan Shankar Raja', 'Harris Jayaraj', 'Sid Sriram', 'Vijay songs', 'Ajith songs', 'Tamil love songs', 'Tamil melody', 'Tamil kuthu', 'Tamil sad songs', 'Tamil 90s hits', 'Santhosh Narayanan', 'D. Imman', 'GV Prakash'];
+
 // Search a song (30 second previews) or upload an audio file from the phone.
 // onPick({ url, title, artist, art })  or  onPick({ file, title, artist })
 export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
@@ -80,6 +82,11 @@ export default function SongPicker({ T, onPick, onClose, defaultLen = 30 }) {
       {busy && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5 }}>Searching…</p>}
       {err && <p className="text-danger small" style={{ textAlign: 'center' }}>{err}</p>}
       {!busy && !err && q.trim().length >= 2 && rows.length === 0 && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5 }}>No songs found</p>}
+      {!q.trim() && (
+        <div className="sp-chips">
+          {TAMIL_CHIPS.map((c) => <button key={c} type="button" onClick={() => setQ(c)}>{c}</button>)}
+        </div>
+      )}
       {!q.trim() && <p style={{ color: 'var(--sub)', textAlign: 'center', fontSize: 13.5, margin: '24px 0' }}><BiMusic style={{ fontSize: 28, display: 'block', margin: '0 auto 6px' }} />Search can only give 30 second previews. For a full song, use the button above and pick any part.</p>}
 
       <div className="sp-list">

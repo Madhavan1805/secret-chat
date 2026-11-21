@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { BsCheckAll } from 'react-icons/bs';
 import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPlus, BiSearch, BiLock, BiArrowBack, BiSend, BiCheck, BiSmile, BiVolumeMute, BiImages, BiCamera, BiMap, BiFile, BiBarChartAlt2, BiCalendarEvent, BiCheckSquare, BiPencil, BiWallet, BiAlarm, BiTime, BiJoystick, BiPhotoAlbum, BiShow } from 'react-icons/bi';
 import AttachSheet from './AttachSheet';
+import CameraCapture from './CameraCapture';
 import MediaPreview from './MediaPreview';
 import api from './api';
 import Avatar from './Avatar';
@@ -83,6 +84,7 @@ function ChatView() {
 
   const [showTopMenu, setShowTopMenu] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const [reactionsFor, setReactionsFor] = useState(null);
   const docInputRef = useRef(null);
   const camInputRef = useRef(null);
@@ -1415,7 +1417,7 @@ function ChatView() {
             {showAttach && (
               <AttachSheet T={T} onClose={() => setShowAttach(false)} items={[
                 { group: 'Share', label: 'Gallery', icon: <BiImages />, hue: 215, onClick: () => photoInputRef.current && photoInputRef.current.click() },
-                { group: 'Share', label: 'Camera', icon: <BiCamera />, hue: 340, onClick: () => camInputRef.current && camInputRef.current.click() },
+                { group: 'Share', label: 'Camera', icon: <BiCamera />, hue: 340, onClick: () => { setShowAttach(false); setShowCamera(true); } },
                 { group: 'Share', label: 'Location', icon: <BiMap />, hue: 160, onClick: () => { setShowAttach(false); pickLocation(); } },
                 { group: 'Share', label: 'Document', icon: <BiFile />, hue: 265, onClick: () => docInputRef.current && docInputRef.current.click() },
                 { group: 'Create', label: 'Poll', icon: <BiBarChartAlt2 />, hue: 40, onClick: () => { setShowAttach(false); setShowPoll(true); } },
@@ -1429,6 +1431,13 @@ function ChatView() {
                 { group: 'More', label: 'Send later', icon: <BiTime />, hue: 55, on: !!sendMode?.timelock, onClick: () => { setShowAttach(false); pickSendLater(); } },
                 ...(isGroupChat ? [{ group: 'More', label: 'Whisper', icon: <BiShow />, hue: 280, onClick: () => { setShowAttach(false); setShowWhisper(true); } }] : []),
               ]} />
+            )}
+            {showCamera && (
+              <CameraCapture
+                onClose={() => setShowCamera(false)}
+                onFallback={() => { setShowCamera(false); setTimeout(() => camInputRef.current && camInputRef.current.click(), 50); }}
+                onCapture={(f) => { setShowCamera(false); setSelectedFiles((prev) => [...prev, f].slice(0, 10)); }}
+              />
             )}
             <input ref={photoInputRef} type="file" multiple className="d-none" accept="image/*,video/*" onChange={(e) => addFiles(e)} />
             <input ref={docInputRef} type="file" multiple className="d-none" accept="*/*" onChange={(e) => addFiles(e)} />
@@ -1479,7 +1488,10 @@ function ChatView() {
                     {editing ? <BiCheck /> : <BiSend />}
                   </SealButton>
                 ) : (
+                  <>
+                  <button type="button" className="sc-iconbtn" style={{ width: 46, height: 46 }} onClick={() => setShowCamera(true)} aria-label="Camera"><BiCamera /></button>
                   <button type="button" className="sc-iconbtn" style={{ width: 46, height: 46, background: 'var(--mine)', color: 'var(--mine-text)' }} onClick={startRecording} aria-label="Record voice message"><BiMicrophone /></button>
+                  </>
                 )}
               </div>
             )}
