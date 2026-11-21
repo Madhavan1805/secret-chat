@@ -6,7 +6,6 @@ import { passwordStrength } from './auth';
    Self-contained styles (no Bootstrap needed). Same maroon + gold as Home and ChatView. */
 
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
 
 .au-root{
   --wine:#0F0B14; --wine-deep:#0A0710; --gold:#FF6477; --gold-d:#E8405A; --ivory:#F6F0FB;
@@ -26,7 +25,7 @@ const CSS = `
 .au-brand{grid-area:brand; text-align:center}
 .au-logo{display:flex; align-items:center; justify-content:center; gap:12px; line-height:1}
 .au-logo{align-items:baseline; gap:0}
-.au-logo-a{font-family:'Fredoka','Bricolage Grotesque',system-ui,sans-serif; font-weight:700; font-size:2.6rem; letter-spacing:-.01em; color:var(--gold); text-shadow:0 0 14px rgba(255,100,119,.45)}
+.au-logo-a{font-family:'Fredoka','Bricolage Grotesque',system-ui,sans-serif; font-weight:700; font-size:2.2rem; letter-spacing:-.01em; color:var(--gold); text-shadow:0 0 14px rgba(255,100,119,.45)}
 .au-logo-b{display:block; font-family:'Fredoka','Bricolage Grotesque',system-ui,sans-serif; font-weight:700; font-size:2.6rem; margin-left:0; color:var(--gold); text-shadow:0 0 14px rgba(255,100,119,.45)}
 .au-seal-intro{animation:au-stamp .6s .1s cubic-bezier(.2,.8,.2,1) both}
 @keyframes au-stamp{0%{transform:scale(1.5) rotate(14deg);opacity:0}60%{transform:scale(.92) rotate(-3deg);opacity:1}100%{transform:none}}
@@ -97,24 +96,13 @@ const CSS = `
 .au-alert.err{background:rgba(255,155,143,.1); border-color:rgba(255,155,143,.4); color:#ffd7d1}
 .au-alert.ok{background:rgba(110,231,160,.1); border-color:rgba(110,231,160,.4); color:#cdf8de}
 
-/* ---- the maker's mark ---- */
-.au-sign{grid-area:sign; display:flex; align-items:center; justify-content:center; gap:14px}
+/* ---- the maker's mark: small, quiet one-liner ---- */
+.au-sign{grid-area:sign; display:flex; align-items:center; justify-content:center; gap:10px; color:var(--mute); font-size:.82rem}
 .au-seal{
-  flex:none; width:46px; height:46px; display:grid; place-items:center; border-radius:50%;
-  font-family:'Bricolage Grotesque','Noto Sans Tamil',system-ui,sans-serif; font-weight:700; font-size:1.3rem; color:#fff;
-  background:radial-gradient(circle at 32% 26%, #FF8795 0%, #E03A50 52%, #8E1230 100%);
-  box-shadow:0 0 0 3px rgba(15,11,20,.95), 0 0 0 4.5px rgba(255,100,119,.5), 0 8px 20px rgba(0,0,0,.45);
+  flex:none; width:26px; height:26px; display:grid; place-items:center; border-radius:50%;
+  font-weight:700; font-size:.8rem; color:#fff; background:linear-gradient(150deg,#E8405A,#A3153A);
 }
-.au-sign-by{font-size:.8rem; color:var(--mute)}
-.au-sign-name{
-  display:inline-block; padding:0 .25em .08em 0; line-height:1.15; font-size:2.7rem;
-  font-family:'Great Vibes','Apple Chancery','URW Chancery L','Z003',cursive;
-  color:var(--gold); text-shadow:0 0 16px rgba(255,100,119,.4);
-  transform:rotate(-2deg); transform-origin:left center;
-  clip-path:inset(-15% 100% -15% 0); animation:au-write 1.5s .35s cubic-bezier(.4,.1,.2,1) forwards;
-}
-@keyframes au-write{to{clip-path:inset(-15% -5% -15% 0)}}
-@media (prefers-reduced-motion:reduce){ .au-sign-name{animation:none; clip-path:none} }
+.au-sign-name{color:var(--ivory); font-weight:600}
 
 /* ---- desktop: brand + maker's mark on the left, form on the right ---- */
 @media (min-width:900px){
@@ -125,12 +113,10 @@ const CSS = `
   }
   .au-brand{text-align:left; align-self:start; padding-top:12px}
   .au-logo{justify-content:flex-start}
-  .au-logo-a{font-size:5rem}
+  .au-logo-a{font-size:3.4rem}
   .au-tag{display:block}
   .au-card{align-self:center}
-  .au-sign{justify-content:flex-start; gap:18px; align-self:end}
-  .au-seal{width:58px; height:58px; font-size:1.65rem}
-  .au-sign-name{font-size:3.8rem}
+  .au-sign{justify-content:flex-start; align-self:end}
 }
 `;
 
@@ -138,10 +124,7 @@ export function Signature() {
   return (
     <div className="au-sign" aria-label="Designed and built by Madhavan">
       <span className="au-seal" aria-hidden="true">M</span>
-      <div>
-        <div className="au-sign-by">Designed and built by</div>
-        <span className="au-sign-name" aria-hidden="true">Madhavan</span>
-      </div>
+      <span>Designed and built by <span className="au-sign-name">Madhavan</span></span>
     </div>
   );
 }
@@ -153,7 +136,7 @@ export default function AuthLayout({ title, subtitle, children }) {
       <style>{CSS}</style>
       <div className="au-wrap">
         <header className="au-brand">
-          <img src="/logo.png" alt="" width="72" height="72" draggable="false" style={{ borderRadius: 18, margin: '0 0 12px', boxShadow: '0 8px 26px rgba(255,105,150,.28)' }} />
+          <img src="/logo.png" alt="" width="56" height="56" draggable="false" style={{ borderRadius: 14, margin: '0 0 10px', boxShadow: '0 6px 18px rgba(255,105,150,.22)' }} />
           <div className="au-logo">
             <span className="au-logo-a">Chatzy</span>
           </div>
