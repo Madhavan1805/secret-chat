@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BiUser, BiLock, BiEnvelope, BiPhone } from 'react-icons/bi';
 import api from './api';
+import AccountCreated from './AccountCreated';
+import { markAuthSeen } from './auth';
 import AuthLayout, { Field, PasswordField, StrengthMeter, Alert, SubmitButton } from './AuthLayout';
 import {
   validateUsername, validateEmail, validatePhone, validatePassword,
@@ -21,6 +23,7 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
   const [general, setGeneral] = useState('');
   const [serverErr, setServerErr] = useState({});
+  const [created, setCreated] = useState(null);                // username, once the account exists (shows the celebration)
   const [avail, setAvail] = useState('idle');                  // idle | checking | free | taken
 
   const shown = (k) => touched[k] || submitted;
@@ -101,7 +104,8 @@ export default function Register() {
       if (contactType === 'email') body.email = contact.trim();
       else body.phone_number = normalizePhone(contact);
       await api.post('auth/register/', body);
-      navigate('/', { replace: true, state: { notice: 'Account created. Log in to continue.', identifier: username.trim() } });
+      markAuthSeen();
+      setCreated(username.trim());
     } catch (err) {
       const { fields, general: g } = apiErrors(err);
       setServerErr(fields);
@@ -116,6 +120,7 @@ export default function Register() {
       title="Create your account"
       subtitle="Choose a user ID and add an Email, so you can get back in if you forget your password."
     >
+      {created && <AccountCreated username={created} onContinue={() => navigate('/', { replace: true, state: { login: true, notice: 'Account created. Log in to continue.', identifier: created } })} />}
       <form onSubmit={onSubmit} noValidate>
         {general && <Alert tone="err">{general}</Alert>}
 
@@ -208,7 +213,7 @@ export default function Register() {
       </form>
 
       <p className="au-alt">
-        Already have an account? <Link className="au-link" to="/">Log in</Link>
+        Already have an account? <Link className="au-link" to="/" state={{ login: true }}>Log in</Link>
       </p>
     </AuthLayout>
   );

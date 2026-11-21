@@ -99,7 +99,7 @@ export default function ForgotPassword() {
           <SubmitButton busy={busy}>Send code</SubmitButton>
         </form>
         <p className="au-alt">
-          Remembered it? <Link className="au-link" to="/">Back to log in</Link>
+          Remembered it? <Link className="au-link" to="/" state={{ login: true }}>Back to log in</Link>
         </p>
       </AuthLayout>
     );
