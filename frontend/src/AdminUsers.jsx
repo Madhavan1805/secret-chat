@@ -67,6 +67,10 @@ function UserDetail({ id, ask, onBack, onChanged }) {
     const text = await ask({ type: 'prompt', title: `Warn ${d.username}`, message: 'They get this as a message from the official ChatzyTeam account and as a phone notification.', initial: '', maxLength: 500, okText: 'Send warning' });
     if (!cancelled(text) && String(text).trim()) call('admin-api/users/warn/', { text }, 'Warning sent');
   };
+  const sendMessage = async () => {
+    const text = await ask({ type: 'prompt', title: `Message ${d.username}`, message: 'Sent to their chat from your account. You do not need to be friends, and they can reply.', initial: '', maxLength: 500, okText: 'Send' });
+    if (!cancelled(text) && String(text).trim()) call('admin-api/users/message/', { content: String(text).trim() }, 'Message sent');
+  };
   const setPassword = async () => {
     const pw = await ask({ type: 'prompt', title: `New password for ${d.username}`, message: 'At least 6 characters. They are signed out everywhere and must log in with this. Tell it to them privately.', initial: '', maxLength: 40, okText: 'Set password' });
     if (!cancelled(pw) && String(pw).length) call('admin-api/users/password/', { password: pw }, 'Password changed');
@@ -107,6 +111,7 @@ function UserDetail({ id, ask, onBack, onChanged }) {
       )}
 
       <div className="adm-acts">
+        <A icon="💬" label="Message" onClick={sendMessage} hide={d.is_admin} />
         <A icon="⚠️" label="Warn" onClick={warn} hide={d.is_admin} />
         <A icon="✓" label={d.is_verified ? 'Remove tick' : 'Verify'} onClick={() => call('admin-api/users/verify/', { verified: !d.is_verified })} />
         <A icon="🛡" label={d.is_admin ? 'Remove admin' : 'Make admin'} onClick={() => confirmCall('admin-api/users/admin/',

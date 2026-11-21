@@ -9,7 +9,7 @@ from .admin2 import (analytics_view, make_admin_view, verify_view, warn_view, ex
                      words_view, word_delete_view, log_view, maintenance_view, app_status_view)
 from .admin_api import (admin_stats_view, admin_users_view, admin_ban_view, admin_unban_view,
                         admin_reports_view, admin_resolve_view, report_view,
-                        admin_user_detail_view, admin_logout_view, admin_password_view, admin_photo_view,
+                        admin_user_detail_view, admin_logout_view, admin_password_view, admin_message_view, admin_photo_view,
                         admin_clear_view, admin_delete_user_view, admin_groups_view, admin_delete_group_view,
                         feedback_view, admin_feedback_view, admin_feedback_update_view)
 from .extras2 import album_create_view, album_add_view, mood_view, away_view, birthdays_today_view
@@ -110,6 +110,7 @@ urlpatterns = [
     path('admin-api/users/ban/', admin_ban_view),
     path('admin-api/users/logout/', admin_logout_view),
     path('admin-api/users/password/', admin_password_view),
+    path('admin-api/users/message/', admin_message_view),
     path('admin-api/users/photo/', admin_photo_view),
     path('admin-api/users/clear/', admin_clear_view),
     path('admin-api/users/delete/', admin_delete_user_view),
