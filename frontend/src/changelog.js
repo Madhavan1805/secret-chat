@@ -2,6 +2,17 @@
 // Add a new entry on top (with a new id) for every release.
 export const CHANGELOG = [
   {
+    id: '2026-11-21', date: '21 Nov 2026', title: 'Cleaner chats, calls and Reels',
+    items: [
+      '🟢 A colour ring shows around a friend\'s photo when they have a new status',
+      '🗑️ Press and hold chats to select many, then clear them or unfriend',
+      '📞 Delete calls from your call history, one by one or clear all',
+      '🔎 Search friends right from the Messages page',
+      '🎬 New Reels look, and you can share a reel with your friends in chat',
+      '✨ New sign-up flow with a welcome pop-up, and a tidier login page',
+    ],
+  },
+  {
     id: '2026-11-19', date: '19 Nov 2026', title: 'Reels and broadcast media',
     items: [
       '🎬 Reels: swipe through short videos from your friends and Discover, post your own, like and comment',
