@@ -286,9 +286,16 @@ function Home() {
   // ---------------------------------------------------------------- actions
   const handleSearch = (e) => setSearchQuery(e.target.value);
 
-  const sendRequest = async (receiverId) => {
+  // a request can carry ONE short hello (like Instagram's message request); leave it empty to send just the request
+  const sendRequest = async (receiverId, name) => {
+    let message = '';
+    if (name) {
+      const text = await ask({ type: 'prompt', title: `Add ${name}`, message: 'Say hi with your request (optional, one message only). They see it before they accept.', initial: '', maxLength: 200, okText: 'Send request' });
+      if (text === null || text === undefined || text === false) return;
+      message = String(text).trim();
+    }
     try {
-      await api.post('requests/', { receiver: receiverId });
+      await api.post('requests/', { receiver: receiverId, ...(message ? { message } : {}) });
       await refresh();
     } catch (error) {
       ask({ type: 'alert', title: errMsg(error, 'Request failed!') });
@@ -775,7 +782,7 @@ function Home() {
       {showFeedback && <FeedbackSheet T={T} onClose={() => setShowFeedback(false)} ask={ask} />}
       {showFind && (
         <FindPeopleSheet T={T} me={me} friends={friends} pending={pendingRequests} sent={sentRequests} initialQuery={findQuery}
-          onAdd={(u) => sendRequest(u.id)} onCancel={cancelRequest} onAccept={(r) => handleRequestAction(r.id, 'accepted')}
+          onAdd={(u) => sendRequest(u.id, u.username)} onCancel={cancelRequest} onAccept={(r) => handleRequestAction(r.id, 'accepted')}
           onUnfriend={doUnfriend} onOpenQr={() => setShowQr(true)} onClose={() => setShowFind(false)} />
       )}
       {noteOpen && <NoteSheet T={T} current={notes.mine} onClose={() => setNoteOpen(false)} onSaved={fetchNotes} />}

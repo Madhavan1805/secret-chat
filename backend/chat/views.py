@@ -51,6 +51,19 @@ def to_bool(value):
     return str(value).lower() in ('1', 'true', 'yes', 'on')
 
 
+def admin_contact_ids(user):
+    """People this user shares a 1:1 chat with where one side is an admin. An admin can write to anyone
+    (no friend request needed); once that first message exists the two count as contacts, so the user can reply."""
+    from .admin_api import is_admin
+    me_admin = is_admin(user)
+    ids = set()
+    for chat in Chat.objects.filter(is_group=False, participants=user).prefetch_related('participants'):
+        for p in chat.participants.all():
+            if p.id != user.id and (me_admin or is_admin(p)):
+                ids.add(p.id)
+    return ids
+
+
 def friend_ids_of(user):
     pairs = (ChatRequest.objects.filter(status='accepted')
              .filter(Q(sender=user) | Q(receiver=user))
@@ -59,15 +72,17 @@ def friend_ids_of(user):
     for s, r in pairs:
         ids.update((s, r))
     ids.discard(user.id)
-    return ids
+    return ids | admin_contact_ids(user)
 
 
 def are_friends(user, other_id):
     other_id = to_int(other_id)
     if other_id is None:
         return False
-    return ChatRequest.objects.filter(status='accepted').filter(
-        Q(sender=user, receiver_id=other_id) | Q(sender_id=other_id, receiver=user)).exists()
+    if ChatRequest.objects.filter(status='accepted').filter(
+            Q(sender=user, receiver_id=other_id) | Q(sender_id=other_id, receiver=user)).exists():
+        return True
+    return other_id in admin_contact_ids(user)
 
 
 def blocked_between(a_id, b_id):
@@ -802,9 +817,10 @@ class ChatRequestViewSet(viewsets.ModelViewSet):
             return Response({"error": "Request already pending!"}, status=400)
         existing.filter(status='declined').delete()
 
-        chat_req = ChatRequest.objects.create(sender=sender, receiver_id=receiver_id, status='pending')
+        hello = str(request.data.get('message') or '').strip()[:200]        # one short hello that travels with the request
+        chat_req = ChatRequest.objects.create(sender=sender, receiver_id=receiver_id, status='pending', message=hello)
         notify_users([receiver_id], 'request', action='new', from_name=sender.username, from_id=sender.id)
-        send_push([receiver_id], sender.username, 'sent you a friend request', {'type': 'request'})
+        send_push([receiver_id], sender.username, hello or 'sent you a friend request', {'type': 'request'})
         return Response(self.get_serializer(chat_req).data, status=201)
 
     def destroy(self, request, *args, **kwargs):
@@ -929,7 +945,8 @@ class MessageViewSet(viewsets.ModelViewSet):
             msg = serializer.save(sender=user, chat=chat, **extra)
         elif receiver_id:
             receiver = get_object_or_404(CustomUser, id=receiver_id)
-            if not are_friends(user, receiver.id):
+            from .admin_api import is_admin
+            if not are_friends(user, receiver.id) and not is_admin(user):
                 raise PermissionDenied("You are not connected with this user.")
             if blocked_between(user.id, receiver.id):
                 raise PermissionDenied("You can't message this user.")

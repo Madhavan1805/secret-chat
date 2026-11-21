@@ -59,6 +59,7 @@ export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel,
               <Avatar src={r.sender_profile_picture} name={r.sender_name} size={52} T={T} />
               <div className="sc-row-main">
                 <h3 className="sc-row-name"><span className="t">{r.sender_name}</span></h3>
+                {r.message && <div style={{ marginTop: 4, padding: '6px 10px', borderRadius: 12, background: 'var(--raised)', fontSize: 14, lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>💬 {r.message}</div>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button type="button" className="sc-btn" disabled={busyId === r.id} style={{ height: 34, fontSize: 13, padding: '0 18px' }} onClick={() => confirm(r)}>Confirm</button>
                   <button type="button" className="sc-btn ghost" style={{ height: 34, fontSize: 13, padding: '0 18px' }} onClick={() => onDecline(r)}>Delete</button>
@@ -106,7 +107,7 @@ export function RequestsSheet({ T, pending, sent, onAccept, onDecline, onCancel,
           {sent.map((r) => (
             <div key={r.id} className="sc-row" style={{ cursor: 'default' }}>
               <Avatar name={r.receiver_name} size={46} T={T} />
-              <div className="sc-row-main"><h3 className="sc-row-name"><span className="t">{r.receiver_name}</span></h3><span className="sc-row-sub">Waiting for them to accept</span></div>
+              <div className="sc-row-main"><h3 className="sc-row-name"><span className="t">{r.receiver_name}</span></h3><span className="sc-row-sub">{r.message ? `Waiting · “${r.message}”` : 'Waiting for them to accept'}</span></div>
               <button type="button" className="sc-btn ghost" style={{ height: 34, fontSize: 13, padding: '0 16px' }} onClick={() => onCancel(r)}>Cancel</button>
             </div>
           ))}

@@ -243,8 +243,8 @@ class ChatRequestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ChatRequest
-        fields = ['id', 'sender', 'sender_name', 'receiver', 'receiver_name', 'status', 'created_at']
-        read_only_fields = ['sender', 'created_at']
+        fields = ['id', 'sender', 'sender_name', 'receiver', 'receiver_name', 'status', 'message', 'created_at']
+        read_only_fields = ['sender', 'message', 'created_at']
         extra_kwargs = {'receiver': {'required': True}}
 
 

@@ -325,6 +325,28 @@ def admin_logout_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsChatzyAdmin])
+def admin_message_view(request):
+    """Send one person a chat message without being their friend. They can reply in the same chat."""
+    from .views import get_or_create_direct_chat, notify_message, blocked_between
+    user = _target(request)
+    if user.id == request.user.id:
+        raise ValidationError({"error": "Pick someone else."})
+    text = str(request.data.get('content') or '').strip()[:2000]
+    if not text:
+        raise ValidationError({"error": "Type a message."})
+    if blocked_between(request.user.id, user.id):
+        raise ValidationError({"error": "This person has blocked you."})
+    chat = get_or_create_direct_chat(request.user, user)
+    msg = Message.objects.create(chat=chat, sender=request.user, receiver=user, content=text, message_type='text',
+                                 status='delivered' if user.is_online else 'sent')
+    notify_message(chat, msg, 'new')
+    notify_users([request.user.id, user.id], 'friends_changed')         # the chat shows up in both lists
+    log_action(request.user, 'sent a message', user)
+    return Response({"ok": True})
+
+
+@api_view(['POST'])
+@permission_classes([IsChatzyAdmin])
 def admin_password_view(request):
     user = _non_admin_target(request, 'change the password of')
     pw = str(request.data.get('password') or '')
