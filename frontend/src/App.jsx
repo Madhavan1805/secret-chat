@@ -4,7 +4,7 @@ import Login from './Login';
 import Register from './Register';
 import ForgotPassword from './ForgotPassword';
 import Home from './Home';
-import Reels from './Reels';
+const Reels = React.lazy(() => import('./Reels'));
 import ChatView from './ChatView';
 import CallManager from './CallManager';
 import GlobalEvents from './GlobalEvents';
@@ -43,7 +43,7 @@ export default function App() {
         <Route path="/download" element={<DownloadPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
-        <Route path="/reels" element={<RequireAuth><Reels /></RequireAuth>} />
+        <Route path="/reels" element={<RequireAuth><React.Suspense fallback={<div style={{ minHeight: '100vh', background: '#000' }} />}><Reels /></React.Suspense></RequireAuth>} />
         <Route path="/chat/:contactName" element={<RequireAuth><ChatView /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

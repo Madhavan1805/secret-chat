@@ -113,6 +113,9 @@ function Home() {
   const [sentRequests, setSentRequests] = useState([]);
   const [friends, setFriends] = useState([]);
   const [groups, setGroups] = useState([]);
+  const sigs = useRef({});
+  // set state only when the server data really changed, so the 3-second refresh does not redraw the whole list
+  const put = (k, v, set) => { const s = JSON.stringify(v); if (sigs.current[k] === s) return; sigs.current[k] = s; set(v); };
   const [calls, setCalls] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [statuses, setStatuses] = useState([]);
@@ -140,14 +143,14 @@ function Home() {
   const fetchStatuses = async () => {
     try {
       const res = await api.get('statuses/');
-      if (Array.isArray(res?.data)) setStatuses(res.data);
+      if (Array.isArray(res?.data)) put('statuses', res.data, setStatuses);
     } catch (e) { /* ignore */ }
   };
 
   const fetchCalls = async () => {
     try {
       const res = await api.get('calls/');
-      if (Array.isArray(res?.data)) setCalls(res.data);
+      if (Array.isArray(res?.data)) put('calls', res.data, setCalls);
     } catch (e) { /* ignore */ }
   };
 
@@ -169,16 +172,16 @@ function Home() {
       const requests = Array.isArray(reqRes.data) ? reqRes.data : [];
       const overview = ovRes.data || { direct: [], groups: [] };
       const mine = allUsers.find((u) => u.id === meData.id) || meData;
-      setMe(mine);
+      put('me', mine, setMe);
       pushLogin(meData.id);
       localStorage.setItem('username', mine.username);
 
-      setPendingRequests(
-        requests
+      put('pending', requests
           .filter((r) => r.status === 'pending' && r.receiver === mine.id)
           .map((r) => ({ ...r, sender_profile_picture: allUsers.find((u) => u.id === r.sender)?.profile_picture })),
+        setPendingRequests,
       );
-      setSentRequests(requests.filter((r) => r.status === 'pending' && r.sender === mine.id));
+      put('sent', requests.filter((r) => r.status === 'pending' && r.sender === mine.id), setSentRequests);
 
       const friendIds = [...new Set(
         requests.filter((r) => r.status === 'accepted').map((r) => (r.sender === mine.id ? r.receiver : r.sender)),
@@ -195,12 +198,12 @@ function Home() {
         });
       const stamp = (x) => (x.ov?.last_message ? new Date(x.ov.last_message.created_at).getTime() : 0);
       list.sort((a, b) => (Number(!!b.ov?.is_pinned) - Number(!!a.ov?.is_pinned)) || (stamp(b) - stamp(a)) || a.username.localeCompare(b.username));
-      setFriends(list);
+      put('friends', list, setFriends);
 
       const g = [...(overview.groups || [])];
       const gstamp = (x) => (x.last_message ? new Date(x.last_message.created_at).getTime() : 0);
       g.sort((a, b) => (Number(b.is_pinned) - Number(a.is_pinned)) || (gstamp(b) - gstamp(a)));
-      setGroups(g);
+      put('groups', g, setGroups);
     } catch (error) {
       console.error('Failed to load home data:', error);
     } finally {
@@ -219,7 +222,7 @@ function Home() {
   const fetchNotes = async () => {
     try {
       const res = await api.get('notes/');
-      if (res?.data) setNotes({ mine: res.data.mine || null, friends: res.data.friends || [] });
+      if (res?.data) put('notes', { mine: res.data.mine || null, friends: res.data.friends || [] }, setNotes);
     } catch (e) { /* ignore */ }
   };
 
