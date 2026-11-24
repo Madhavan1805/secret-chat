@@ -12,7 +12,7 @@ import { PrivacySheet, DevicesSheet, LockSheet, QrSheet, StarredSheet, BlockedSh
 import { APP_MODES, CHAT_THEMES, TEXT_SIZES, FONT_STYLES, getTextScale, setTextScale, getFontStyle, setFontStyle } from './theme';
 import { lockEnabled } from './appLock';
 import AccountsSheet from './Accounts';
-import AdminPanel from './AdminPanel';
+const AdminPanel = React.lazy(() => import('./AdminPanel'));
 import { getQuiet } from './quiet';
 import { AskInbox } from './PlusUI3';
 import { MoodSheet, BirthdaySheet, AwaySheet, QuietSheet } from './PlusUI2';
@@ -244,7 +244,7 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       {sheet === 'storage' && <StorageSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'qreplies' && <QuickRepliesSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'lang' && <LanguageSheet T={T} onClose={close} />}
-      {sheet === 'admin' && <AdminPanel T={T} onClose={close} ask={ask} />}
+      {sheet === 'admin' && <React.Suspense fallback={null}><AdminPanel T={T} onClose={close} ask={ask} /></React.Suspense>}
       {sheet === 'accounts' && <AccountsSheet T={T} onClose={close} ask={ask} />}
       {viewPhoto && me?.profile_picture && <MediaViewer src={getPicUrl(me.profile_picture)} type="image" name={`${currentUsername}.jpg`} onClose={() => setViewPhoto(false)} />}
       {sheet === 'avatar' && <AvatarPicker T={T} ask={ask} onClose={close} onDone={() => { close(); refresh(); }} />}

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { BsCheckAll } from 'react-icons/bs';
 import { BiTrash, BiTimer, BiMicrophone, BiX, BiPhoneCall, BiVideo, BiDotsVerticalRounded, BiPlus, BiSearch, BiLock, BiArrowBack, BiSend, BiCheck, BiSmile, BiVolumeMute, BiImages, BiCamera, BiMap, BiFile, BiBarChartAlt2, BiCalendarEvent, BiCheckSquare, BiPencil, BiWallet, BiAlarm, BiTime, BiJoystick, BiPhotoAlbum, BiShow } from 'react-icons/bi';
 import AttachSheet from './AttachSheet';
-import CameraCapture from './CameraCapture';
+const CameraCapture = React.lazy(() => import('./CameraCapture'));
 import MediaPreview from './MediaPreview';
 import api from './api';
 import Avatar from './Avatar';
@@ -126,6 +126,8 @@ function ChatView() {
   const [friendTyping, setFriendTyping] = useState(false);
   const [groupTyping, setGroupTyping] = useState({});
   const [tick, setTick] = useState(0);
+  const [showCount, setShowCount] = useState(60);        // only the newest messages are drawn, older ones load on demand
+  const msgSig = useRef('');
 
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
@@ -207,6 +209,9 @@ function ChatView() {
     try {
       const res = await api.get(g ? `messages/?chat=${g}` : `messages/?receiver=${f}`);
       if (Array.isArray(res.data)) {
+        const sig = JSON.stringify(res.data);
+        if (sig === msgSig.current) return;                // nothing changed: skip the re-render
+        msgSig.current = sig;
         setMessages(res.data);
         markRead(res.data);
         // double-tick / blue-tick sound when one of MY messages is delivered or read
@@ -237,6 +242,8 @@ function ChatView() {
     setBooting(true);
     setNotFound(false);
     setMessages([]);
+    msgSig.current = '';
+    setShowCount(60);
     setMeta(null);
     setReceiver(null);
     setFriendId(null);
@@ -438,7 +445,10 @@ function ChatView() {
 
   const jumpTo = (id) => {
     const el = document.getElementById(`msg-${id}`);
-    if (!el) { ask({ type: 'alert', title: 'Message not found in this chat' }); return; }
+    if (!el) {
+      if (showCount < 100000) { setShowCount(100000); setTimeout(() => jumpTo(id), 120); return; }   // it was an older message: draw everything, then jump
+      ask({ type: 'alert', title: 'Message not found in this chat' }); return;
+    }
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setHighlightId(id);
     setTimeout(() => setHighlightId(null), 2200);
@@ -1084,7 +1094,7 @@ function ChatView() {
   // ------------------------------------------------------------- derived view data
   const dStarted = meta?.disappearing_started_at ? new Date(meta.disappearing_started_at).getTime() : null;
   const nowMs = Date.now();
-  const visible = messages.filter((m) => {
+  const visibleAll = useMemo(() => messages.filter((m) => {
     if (!m) return false;
     if ((m.content || '').startsWith('[VIEW_ONCE]') && localStorage.getItem(`viewed_once_${m.id}`) === 'true') return false;
     if (dTime > 0 && dStarted && m.message_type !== 'system') {
@@ -1092,8 +1102,11 @@ function ChatView() {
       if (created >= dStarted && nowMs - created > dTime * 1000) return false;
     }
     return true;
-  });
+  }), [messages, dTime, dStarted, tick]);
   void tick;
+  const hiddenOlder = Math.max(0, visibleAll.length - showCount);
+  const visible = hiddenOlder ? visibleAll.slice(-showCount) : visibleAll;
+  const byId = useMemo(() => { const m = new Map(); messages.forEach((x) => { if (x) m.set(x.id, x); }); return m; }, [messages]);
 
   const typingNames = Object.keys(groupTyping).filter((n) => n !== me?.username);
   const subtitle = isGroupChat
@@ -1333,11 +1346,12 @@ function ChatView() {
 
           {isGroupChat && meta?.group_description && <div className="sc-note">{meta.group_description}</div>}
 
+          {hiddenOlder > 0 && <button type="button" className="sc-btn ghost" style={{ display: 'block', margin: '6px auto 10px' }} onClick={() => setShowCount((n) => n + 60)}>Load {Math.min(60, hiddenOlder)} older messages</button>}
           {visible.map((msg) => {
             const label = formatDateLabel(msg.created_at);
             const showDate = lastDisplayedDate !== label;
             lastDisplayedDate = label;
-            const replyMsg = msg.reply_to ? messages.find((m) => m.id === msg.reply_to) : null;
+            const replyMsg = msg.reply_to ? byId.get(msg.reply_to) || null : null;
             return (
               <React.Fragment key={msg.id}>
                 {showDate && <div className="sc-datechip">{label}</div>}
@@ -1433,11 +1447,11 @@ function ChatView() {
               ]} />
             )}
             {showCamera && (
-              <CameraCapture
+              <React.Suspense fallback={null}><CameraCapture
                 onClose={() => setShowCamera(false)}
                 onFallback={() => { setShowCamera(false); setTimeout(() => camInputRef.current && camInputRef.current.click(), 50); }}
                 onCapture={(f) => { setShowCamera(false); setSelectedFiles((prev) => [...prev, f].slice(0, 10)); }}
-              />
+              /></React.Suspense>
             )}
             <input ref={photoInputRef} type="file" multiple className="d-none" accept="image/*,video/*" onChange={(e) => addFiles(e)} />
             <input ref={docInputRef} type="file" multiple className="d-none" accept="*/*" onChange={(e) => addFiles(e)} />

@@ -129,7 +129,7 @@ function StatusPeek({ st, onClose }) {
   );
 }
 
-export default function MessageBubble({
+function MessageBubbleInner({
   msg, isMe, isGroup, T, replyMsg, highlighted, pinned,
   onReply, onDelete, onReact, onPin, onForward, onEdit, onCopy, onSeenBy, onOpenViewOnce,
   onStar, onInfo, onVote, mentionNames, meId, onRemind, onSettle, onAlbumChanged, onAsk, onBalances, onCapsuleOpened, onRain, onUnlockTime, onShowReactions,
@@ -430,3 +430,20 @@ export default function MessageBubble({
     </div>
   );
 }
+
+
+// Typing in the box re-renders the whole chat. A bubble only needs to redraw when its own data changes
+// (the handler functions are rebuilt every render, so they are not compared).
+const sigCache = new WeakMap();
+const sigOf = (o) => {
+  if (!o || typeof o !== 'object') return o;
+  let v = sigCache.get(o);
+  if (v === undefined) { v = JSON.stringify(o); sigCache.set(o, v); }
+  return v;
+};
+const DATA_PROPS = ['isMe', 'isGroup', 'highlighted', 'pinned', 'meId', 'T', 'mentionNames'];
+export default React.memo(MessageBubbleInner, (a, b) => {
+  if (a.msg !== b.msg && sigOf(a.msg) !== sigOf(b.msg)) return false;
+  if (a.replyMsg !== b.replyMsg && sigOf(a.replyMsg) !== sigOf(b.replyMsg)) return false;
+  return DATA_PROPS.every((k) => a[k] === b[k] || (typeof a[k] === 'object' && sigOf(a[k]) === sigOf(b[k])));
+});
