@@ -291,7 +291,7 @@ function MessageBubbleInner({
           <>
             {isImage && (
               <img
-                src={getPicUrl(msg.file_url)} alt="" onClick={() => setViewer(true)}
+                src={getPicUrl(msg.file_url)} alt="" loading="lazy" decoding="async" onClick={() => setViewer(true)}
                 style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 10, display: 'block', cursor: 'zoom-in' }}
               />
             )}
