@@ -16,6 +16,5 @@ const versionFile = () => ({
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), versionFile()],
-  build: { rollupOptions: { output: { manualChunks: { vendor: ['react', 'react-dom', 'react-router-dom', 'axios'] } } } },
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
 })
