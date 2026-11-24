@@ -6,7 +6,7 @@ export default function Avatar({ name, src, size = 40, T, online, emoji, ring })
   const pic = getPicUrl(src);
   const inner = ring ? size - 8 : size;
   const face = pic ? (
-    <img src={pic} alt="" style={{ width: inner, height: inner, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+    <img src={pic} alt="" loading="lazy" decoding="async" style={{ width: inner, height: inner, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
   ) : (
     <div
       className="d-flex align-items-center justify-content-center"
