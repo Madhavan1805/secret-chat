@@ -14,10 +14,8 @@ import { useRealtime, sendSocket, isSocketOpen } from './socket';
 import { getMe, getPicUrl, errMsg, humanDuration, startCall, formatListTime, shortFile } from './config';
 import { THEME_CSS, resolveTheme, getAppTheme, themeVars, paintPage } from './theme';
 import { Seal, SealButton, Logo, Tick } from './ui';
-import { EventSheet } from './PlusUI2';
 import Doodle from './Doodle';
 import { startSharing } from './liveShare';
-import { ChecklistSheet } from './PlusUI3';
 import { shownName, getNick, setNick, getDraft, setDraft } from './nick';
 import { QuickReplyList, ToneSheet } from './Extras5UI';
 import { t } from './i18n';
@@ -1224,9 +1222,7 @@ function ChatView() {
       )}
       {showGallery && <GallerySheet T={T} chatId={meta.chat_id} onClose={() => setShowGallery(false)} />}
       {showGroup && isGroupChat && <GroupSheet T={T} meta={meta} me={me} ask={ask} onClose={() => setShowGroup(false)} onChanged={fetchMeta} />}
-      {showChecklist && <ChecklistSheet T={T} onClose={() => setShowChecklist(false)} onCreate={createChecklist} />}
       {showDoodle && <Doodle T={T} onClose={() => setShowDoodle(false)} onDone={(f) => setSelectedFiles((prev) => [...prev, f].slice(0, MAX_FILES))} />}
-      {showEvent && <EventSheet T={T} onClose={() => setShowEvent(false)} onCreate={createPoll} />}
       {reactionsFor && (() => {
         const names = {};
         (meta?.participants || []).forEach((p) => { names[p.id] = p.username; });
@@ -1281,7 +1277,7 @@ function ChatView() {
                 {meta?.is_locked && <BiLock style={{ color: 'var(--accent)', fontSize: 15 }} aria-label="Locked" />}
                 {dTime > 0 && <span className="sc-badge" style={{ height: 18, minWidth: 0, fontSize: 10, gap: 3, display: 'inline-flex', alignItems: 'center' }}><BiTimer />{humanDuration(dTime)}</span>}
               </h2>
-              <span className={`sc-chat-sub${online ? ' on' : ''}`}>{subtitle}{!isGroupChat && receiver?.mood ? ` · ${receiver.mood.emoji} ${receiver.mood.text}`.trimEnd() : ''}{!isGroupChat && meta?.streak > 1 ? ` · 🔥 ${meta.streak}` : ''}</span>
+              <span className={`sc-chat-sub${online ? ' on' : ''}`}>{subtitle}</span>
             </div>
           </div>
           <button type="button" className="sc-iconbtn" aria-label="Voice call"
@@ -1435,12 +1431,9 @@ function ChatView() {
                 { group: 'Share', label: 'Location', icon: <BiMap />, hue: 160, onClick: () => { setShowAttach(false); pickLocation(); } },
                 { group: 'Share', label: 'Document', icon: <BiFile />, hue: 265, onClick: () => docInputRef.current && docInputRef.current.click() },
                 { group: 'Create', label: 'Poll', icon: <BiBarChartAlt2 />, hue: 40, onClick: () => { setShowAttach(false); setShowPoll(true); } },
-                { group: 'Create', label: 'Event', icon: <BiCalendarEvent />, hue: 335, onClick: () => { setShowAttach(false); setShowEvent(true); } },
-                { group: 'Create', label: 'Checklist', icon: <BiCheckSquare />, hue: 140, onClick: () => { setShowAttach(false); setShowChecklist(true); } },
                 { group: 'Create', label: 'Doodle', icon: <BiPencil />, hue: 20, onClick: () => { setShowAttach(false); setShowDoodle(true); } },
                 ...(isGroupChat ? [{ group: 'Create', label: 'Split expense', icon: <BiWallet />, hue: 100, onClick: () => { setShowAttach(false); setShowExpense(true); } }] : []),
                 { group: 'Create', label: 'Remind us', icon: <BiAlarm />, hue: 190, onClick: () => { setShowAttach(false); setRemindFor({}); } },
-                { group: 'Create', label: 'Photo album', icon: <BiPhotoAlbum />, hue: 300, onClick: () => { setShowAttach(false); createAlbum(); } },
                 { group: 'More', label: 'Play a game', icon: <BiJoystick />, hue: 250, onClick: startGame },
                 { group: 'More', label: 'Send later', icon: <BiTime />, hue: 55, on: !!sendMode?.timelock, onClick: () => { setShowAttach(false); pickSendLater(); } },
                 ...(isGroupChat ? [{ group: 'More', label: 'Whisper', icon: <BiShow />, hue: 280, onClick: () => { setShowAttach(false); setShowWhisper(true); } }] : []),

@@ -15,9 +15,7 @@ import { QrSheet } from './Sheets';
 import ProfileHub from './ProfileHub';
 import { GlobalSearch } from './PlusUI2';
 import { shownName, getDraft } from './nick';
-import { getFolders, addFolder, removeFolder, toggleInFolder } from './folders';
 import { RequestsSheet, FindPeopleSheet } from './People';
-import { AskInbox } from './PlusUI3';
 import { requestNotifyPermission, notifyPermission, setActiveChat } from './notify';
 import { pushLogin, pushLogout } from './push';
 import { useBackClose } from './backClose';
@@ -87,17 +85,13 @@ function Home() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [globalOpen, setGlobalOpen] = useState(false);
-  const [folders, setFolders] = useState(getFolders());
-  const [folderId, setFolderId] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
 
   const [activeTab, setActiveTab] = useState('chats');
   const [showArchived, setShowArchived] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
-  const [showAsk, setShowAsk] = useState(false);
   const [activity, setActivity] = useState([]);
-  const [asks, setAsks] = useState([]);                       // unanswered anonymous questions
   const [showFind, setShowFind] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [findQuery, setFindQuery] = useState('');
@@ -215,9 +209,6 @@ function Home() {
     try { const r = await api.get('activity/'); setActivity(asList(r.data)); } catch (e) { /* ignore */ }
   };
 
-  const fetchAsks = async () => {
-    try { const r = await api.get('ask/inbox/'); setAsks(asList(r.data).filter((q) => !q.answer)); } catch (e) { /* ignore */ }
-  };
 
   const fetchNotes = async () => {
     try {
@@ -237,7 +228,6 @@ function Home() {
     fetchStatuses();
     fetchCalls();
     fetchNotes();
-    fetchAsks();
     fetchActivity();
     const interval = setInterval(() => {
       tickRef.current += 1;
@@ -254,9 +244,6 @@ function Home() {
         break;
       case 'note':
         fetchNotes();
-        break;
-      case 'ask':
-        fetchAsks();
         break;
       case 'activity':
         fetchActivity();
@@ -447,30 +434,6 @@ function Home() {
   const archivedGroups = groups.filter((g) => g.is_archived);
   const archivedCount = archivedFriends.length + archivedGroups.length;
 
-  const newFolder = async () => {
-    const name = await ask({ type: 'prompt', title: 'New folder', message: 'Example: Family, College, Work', initial: '', maxLength: 20, okText: 'Create' });
-    if (!name || !String(name).trim()) return null;
-    const list = addFolder(String(name));
-    setFolders(list);
-    return list[list.length - 1];
-  };
-  const pickFolder = async (key) => {
-    setRowMenu(null);
-    const cur = getFolders();
-    const v = await ask({ type: 'choice', title: 'Add to folder', choices: [
-      ...cur.map((f) => ({ label: `${f.keys.includes(key) ? '✅ ' : ''}${f.name}`, value: f.id })),
-      { label: '➕ New folder', value: '__new' }] });
-    if (!v) return;
-    if (v === '__new') { const f = await newFolder(); if (f) setFolders(toggleInFolder(f.id, key)); return; }
-    setFolders(toggleInFolder(v, key));
-  };
-  const deleteFolder = async (f) => {
-    const ok = await ask({ type: 'confirm', title: `Delete folder "${f.name}"?`, message: 'Chats stay, only the folder goes.', danger: true, okText: 'Delete' });
-    if (!ok) return;
-    setFolders(removeFolder(f.id));
-    if (folderId === f.id) setFolderId(null);
-  };
-  const inFolder = (key) => { const f = folders.find((x) => x.id === folderId); return !f || f.keys.includes(key); };
 
   const buildMenu = (key, payload, o, extra = []) => {
     if (muteFor === key) {
@@ -485,7 +448,6 @@ function Home() {
       [o.is_pinned ? 'Unpin' : 'Pin to top', () => chatSetting({ ...payload, is_pinned: !o.is_pinned })],
       o.is_muted ? ['Unmute', () => chatSetting({ ...payload, mute_hours: 0 })] : ['Mute…', () => setMuteFor(key), false, true],
       [o.is_archived ? 'Unarchive' : 'Archive', () => chatSetting({ ...payload, is_archived: !o.is_archived })],
-      ['Folder…', () => pickFolder(key)],
       ...extra,
     ];
   };
@@ -507,8 +469,8 @@ function Home() {
     ...groups.filter((g) => (sel || []).includes(`g${g.chat_id}`)).map((g) => g.chat_id),
   ].filter(Boolean);
   const visibleKeys = () => [
-    ...liveFriends.filter((f) => byQuery(f.username) && inFolder(`f${f.id}`)).map((f) => `f${f.id}`),
-    ...liveGroups.filter((g) => (activeTab === 'groups' || ql || folderId) && byQuery(g.group_name) && inFolder(`g${g.chat_id}`)).map((g) => `g${g.chat_id}`),
+    ...liveFriends.filter((f) => byQuery(f.username)).map((f) => `f${f.id}`),
+    ...liveGroups.filter((g) => (activeTab === 'groups' || ql) && byQuery(g.group_name)).map((g) => `g${g.chat_id}`),
   ];
   const clearSelected = async () => {
     const ids = selChatIds();
@@ -552,7 +514,7 @@ function Home() {
       <ChatRow
         key={friend.id}
         avatar={<Avatar src={friend.profile_picture} name={friend.username} size={52} online={friend.is_online} T={T} ring={statusRing(friend.id)} />}
-        title={<>{shownName(friend.username)}<Tick on={friend.is_verified} />{friend.mood?.emoji ? ` ${friend.mood.emoji}` : ''}{ov?.streak > 1 ? <span title="Chat streak" style={{ marginLeft: 6, fontSize: 12 }}>🔥{ov.streak}</span> : null}</>}
+        title={<>{shownName(friend.username)}<Tick on={friend.is_verified} /></>}
         subtitle={ov?.is_locked ? 'Locked chat' : (getDraft(friend.username) ? <><span style={{ color: '#ff3b30' }}>Draft: </span>{getDraft(friend.username)}</> : typedText || (friend.is_online ? 'Online' : 'Say hi'))}
         subtitleHot={!typedText && friend.is_online}
         time={formatListTime(ov?.last_message?.created_at)}
@@ -605,7 +567,7 @@ function Home() {
     profile: 'Your profile and settings',
   }[activeTab];
   const unreadActivity = activity.filter((a) => !a.is_read).length;
-  const bellCount = pendingRequests.length + asks.length + unreadActivity;
+  const bellCount = pendingRequests.length + unreadActivity;
   const closeBell = () => {
     setShowRequests(false);
     if (unreadActivity) {
@@ -657,15 +619,6 @@ function Home() {
                   onChange={handleSearch} aria-label="Search chats" />
                 <button type="button" onClick={() => setGlobalOpen(true)} style={{ border: 0, background: 'transparent', color: 'var(--accent)', fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap' }}>In messages</button>
               </label>
-              <div className="fd-bar">
-                <button type="button" className={`px-chip${folderId === null ? ' on' : ''}`} onClick={() => setFolderId(null)}>All</button>
-                {folders.map((f) => (
-                  <button type="button" key={f.id} className={`px-chip${folderId === f.id ? ' on' : ''}`} onClick={() => setFolderId(f.id)}
-                    onContextMenu={(e) => { e.preventDefault(); deleteFolder(f); }}
-                    onTouchStart={(e) => { const t = setTimeout(() => deleteFolder(f), 650); e.currentTarget.ontouchend = () => clearTimeout(t); e.currentTarget.ontouchmove = () => clearTimeout(t); }}>{f.name}</button>
-                ))}
-                <button type="button" className="px-chip" onClick={newFolder} aria-label="New folder">＋</button>
-              </div>
               {globalOpen && <GlobalSearch T={T} onClose={() => setGlobalOpen(false)} onOpen={(r) => { setGlobalOpen(false); navigate(`/chat/${encodeURIComponent(r.name)}`, { state: r.is_group ? { chatId: r.chat_id } : {} }); }} />}
 
               {!ql && <NotesStrip T={T} me={me} notes={notes} friends={friends} onEditMine={() => setNoteOpen(true)} onLiked={fetchNotes} onError={(m) => ask({ type: 'alert', title: m })} />}
@@ -679,8 +632,8 @@ function Home() {
               )}
               {!ql && showArchived && (<>{archivedFriends.map(friendRow)}{archivedGroups.map(groupRow)}</>)}
 
-              {liveFriends.filter((f) => byQuery(f.username) && inFolder(`f${f.id}`)).map(friendRow)}
-              {(ql || folderId) && liveGroups.filter((g) => byQuery(g.group_name) && inFolder(`g${g.chat_id}`)).map(groupRow)}
+              {liveFriends.filter((f) => byQuery(f.username)).map(friendRow)}
+              {ql && liveGroups.filter((g) => byQuery(g.group_name)).map(groupRow)}
 
               {ql && liveFriends.filter((f) => byQuery(f.username)).length > 0 && (
                 <button type="button" className="sc-btn ghost" style={{ width: '100%', margin: '8px 0' }} onClick={() => { setFindQuery(searchQuery.trim()); setShowFind(true); }}><BiUserPlus /> Search "{searchQuery.trim()}" in all people</button>
@@ -776,12 +729,10 @@ function Home() {
 
       {showRequests && (
         <RequestsSheet T={T} pending={pendingRequests} sent={sentRequests} onClose={closeBell}
-          asks={asks} activity={activity}
-          onOpenAsks={() => { closeBell(); setShowAsk(true); }}
+          activity={activity}
           onMessage={(r) => { closeBell(); openFriend({ id: r.sender, username: r.sender_name }); }}
           onAccept={(r) => handleRequestAction(r.id, 'accepted')} onDecline={(r) => handleRequestAction(r.id, 'declined')} onCancel={cancelRequest} />
       )}
-      {showAsk && <AskInbox T={T} onClose={() => { setShowAsk(false); fetchAsks(); }} ask={ask} />}
       {showFeedback && <FeedbackSheet T={T} onClose={() => setShowFeedback(false)} ask={ask} />}
       {showFind && (
         <FindPeopleSheet T={T} me={me} friends={friends} pending={pendingRequests} sent={sentRequests} initialQuery={findQuery}

@@ -126,12 +126,6 @@ export function LockSheet({ T, onClose, ask }) {
         {on && <SettingRow title="Change PIN" onClick={() => setMode('verify-change')} />}
       </div>
       {on && (
-        <div className="sc-set-group" style={{ marginTop: 22 }}>
-          <SettingRow title="Decoy PIN" sub={decoy ? 'On. That PIN opens an empty looking app, and your real chats stay hidden.' : 'A second PIN that opens a fake, empty app if someone forces you to unlock.'}
-            right={<Toggle on={decoy} onChange={(v) => { if (v) { setDecoyMsg(''); setMode('decoy-new'); } else { removeDecoy(); setDecoy(false); } }} label="Decoy PIN" />} />
-        </div>
-      )}
-      {on && (
         <>
           <label className="sc-label">Lock after leaving the app for</label>
           <Choice value={delay} options={DELAYS} onChange={(v) => { setDelay(v); setLockDelaySeconds(v); }} />

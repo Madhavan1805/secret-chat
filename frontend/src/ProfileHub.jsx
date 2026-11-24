@@ -1,6 +1,6 @@
 import { t, getLang } from './i18n';
-import { TwoFactorSheet, BroadcastSheet, StorageSheet, QuickRepliesSheet, LanguageSheet } from './Extras5UI';
-import React, { useState } from 'react';
+import { TwoFactorSheet, BroadcastSheet, QuickRepliesSheet, LanguageSheet } from './Extras5UI';
+import React, { useState, useEffect } from 'react';
 import { BiSmile, BiStar, BiShield, BiLock, BiDevices, BiQrScan, BiPalette, BiBell, BiBlock, BiVolumeFull, BiLogOut, BiEdit, BiTrash, BiChevronRight, BiCamera, BiUserCircle, BiExpand, BiGift } from 'react-icons/bi';
 import api from './api';
 import Avatar from './Avatar';
@@ -14,8 +14,7 @@ import { lockEnabled } from './appLock';
 import AccountsSheet from './Accounts';
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
 import { getQuiet } from './quiet';
-import { AskInbox } from './PlusUI3';
-import { MoodSheet, BirthdaySheet, AwaySheet, QuietSheet } from './PlusUI2';
+import { BirthdaySheet, AwaySheet, QuietSheet } from './PlusUI2';
 import { listAccounts } from './accounts';
 import { DEFAULT_REACTIONS, getCustomReactions, getQuickReaction, setQuickReaction } from './reactions';
 import { burstAt } from './fx';
@@ -193,13 +192,11 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       <div className="sc-set-group">
         <SettingRow icon={<BiUserCircle />} title={t('Switch account')} sub={listAccounts().length > 1 ? `${listAccounts().length} accounts on this phone` : 'Add another account'} onClick={() => setSheet('accounts')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>🙈</span>} title={t('Ask me anything')} sub="Anonymous questions from friends" onClick={() => setSheet('ask')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>🎂</span>} title={t('My birthday')} sub={me?.birthday ? `${me.birthday.split('-')[1]}/${me.birthday.split('-')[0]}` : 'Friends get a note on the day'} onClick={() => setSheet('bday')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>🤖</span>} title={t('Away auto-reply')} sub={me?.away ? 'On' : 'Off'} onClick={() => setSheet('away')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>{me?.mood?.emoji || '🙂'}</span>} title={t('My mood')} sub={me?.mood ? `${me.mood.emoji} ${me.mood.text}`.trim() : 'Show friends how you feel for 24 hours'} onClick={() => setSheet('mood')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>{getQuickReaction()}</span>} title={t('Double-tap reaction')} sub="Sent when you double-tap a message" onClick={() => setSheet('quick')} right={chev} />
+        <SettingRow icon={<span style={{ fontSize: 20 }}>💬</span>} title="Chat settings" sub="Quick replies and language" onClick={() => setSheet('chatset')} right={chev} />
         <SettingRow icon={<BiStar />} title={t('Starred messages')} onClick={() => setSheet('starred')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>⚡</span>} title={t('Quick replies')} sub="Type / in a chat to use them" onClick={() => setSheet('qreplies')} right={chev} />
         <SettingRow icon={<span style={{ fontSize: 20 }}>📢</span>} title={t('Broadcast lists')} sub="One message to many friends" onClick={() => setSheet('broadcast')} right={chev} />
       </div>
 
@@ -213,8 +210,6 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
       </div>
 
       <div className="sc-set-group">
-        <SettingRow icon={<span style={{ fontSize: 20 }}>🌐</span>} title={t('Language')} sub={getLang() === 'ta' ? 'தமிழ்' : 'English'} onClick={() => setSheet('lang')} right={chev} />
-        <SettingRow icon={<span style={{ fontSize: 20 }}>💾</span>} title={t('Storage')} sub="Media size, clear cache" onClick={() => setSheet('storage')} right={chev} />
         <SettingRow icon={<BiGift />} title="What's new" sub={hasUnseenUpdate() ? 'New: see what changed' : 'Details of every update'} onClick={() => setSheet('news')} right={chev} />
         <SettingRow icon={<BiExpand />} title={t('Display size')} sub={getUiScale() === 1 ? 'Default' : `${Math.round(getUiScale() * 100)}%`} onClick={() => setSheet('size')} right={chev} />
         <SettingRow icon={<BiPalette />} title={t('Appearance')} sub={(CHAT_THEMES[appTheme] || CHAT_THEMES.default).label} onClick={() => setSheet('theme')} right={chev} />
@@ -234,14 +229,19 @@ export default function ProfileHub({ T, me, currentUsername, ask, refresh, appTh
 
       {cropFile && <PhotoCropper T={T} file={cropFile} onCancel={() => setCropFile(null)} onDone={upload} />}
       {sheet === 'quick' && <QuickReactionSheet T={T} onClose={close} />}
-      {sheet === 'ask' && <AskInbox T={T} onClose={close} ask={ask} />}
       {sheet === 'quiet' && <QuietSheet T={T} onClose={close} />}
       {sheet === 'bday' && <BirthdaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'away' && <AwaySheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
-      {sheet === 'mood' && <MoodSheet T={T} me={me} onClose={close} ask={ask} onDone={() => refresh && refresh()} />}
       {sheet === 'twofa' && <TwoFactorSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'broadcast' && <BroadcastSheet T={T} onClose={close} ask={ask} />}
-      {sheet === 'storage' && <StorageSheet T={T} onClose={close} ask={ask} />}
+      {sheet === 'chatset' && (
+        <Sheet T={T} title="Chat settings" onClose={close}>
+          <div className="sc-set-group">
+            <SettingRow icon={<span style={{ fontSize: 20 }}>⚡</span>} title={t('Quick replies')} sub="Type / in a chat to use them" onClick={() => setSheet('qreplies')} right={chev} />
+            <SettingRow icon={<span style={{ fontSize: 20 }}>🌐</span>} title={t('Language')} sub={getLang() === 'ta' ? 'தமிழ்' : 'English'} onClick={() => setSheet('lang')} right={chev} />
+          </div>
+        </Sheet>
+      )}
       {sheet === 'qreplies' && <QuickRepliesSheet T={T} onClose={close} ask={ask} />}
       {sheet === 'lang' && <LanguageSheet T={T} onClose={close} />}
       {sheet === 'admin' && <React.Suspense fallback={null}><AdminPanel T={T} onClose={close} ask={ask} /></React.Suspense>}

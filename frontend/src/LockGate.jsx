@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Logo } from './ui';
 import { resolveTheme, getAppTheme, themeVars } from './theme';
-import { lockEnabled, shieldEnabled, lockDelaySeconds, checkPin, checkDecoy, decoyEnabled, LOCK_EVENT } from './appLock';
-import DecoyApp from './DecoyApp';
+import { lockEnabled, shieldEnabled, lockDelaySeconds, checkPin, LOCK_EVENT } from './appLock';
 
 // Keypad used for unlocking and for choosing a new PIN.
 export function PinPad({ title, hint, onComplete, error, resetKey }) {
@@ -54,7 +53,6 @@ export default function LockGate({ children }) {
   const [locked, setLocked] = useState(() => lockEnabled());
   const [shielded, setShielded] = useState(false);
   const [err, setErr] = useState(0);
-  const [decoy, setDecoy] = useState(false);          // the decoy PIN was used: show the empty fake app
   const hiddenAt = useRef(0);
   const T = resolveTheme(getAppTheme());
 
@@ -88,14 +86,13 @@ export default function LockGate({ children }) {
   }, []);
 
   const tryPin = async (pin) => {
-    if (await checkPin(pin)) { setDecoy(false); setLocked(false); setErr(0); return; }
-    if (decoyEnabled() && await checkDecoy(pin)) { setDecoy(true); setLocked(false); setErr(0); return; }
+    if (await checkPin(pin)) { setLocked(false); setErr(0); return; }
     setErr((n) => n + 1);
   };
 
   return (
     <>
-      {decoy && !locked ? <DecoyApp T={T} /> : children}
+      {children}
       {shielded && !locked && <div className="sc-shield" style={themeVars(T)}><Logo size={96} /></div>}
       {locked && (
         <div className="sc-lock" style={themeVars(T)} role="dialog" aria-label="App locked">
