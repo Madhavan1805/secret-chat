@@ -1005,3 +1005,7 @@ span.cam-side { background: transparent; }
 @media (pointer: coarse) {
   * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 }
+
+/* reels: heart pop on double-tap */
+.rl-pop { position: absolute; inset: 0; display: grid; place-items: center; z-index: 6; pointer-events: none; font-size: 120px; color: #ff3b5c; animation: rl-pop .8s ease-out forwards; filter: drop-shadow(0 4px 18px rgba(0,0,0,.45)); }
+@keyframes rl-pop { 0% { transform: scale(.3); opacity: 0; } 25% { transform: scale(1.15); opacity: 1; } 60% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1); opacity: 0; } }
