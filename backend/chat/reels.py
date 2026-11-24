@@ -223,7 +223,9 @@ def reel_report_view(request, pk):
     return Response({"ok": True})
 
 
-DEFAULT_QUERIES = 'tamil shorts,funny shorts,trending shorts,comedy shorts,music shorts,cricket shorts,food shorts,travel shorts'
+DEFAULT_QUERIES = ('tamil shorts,tamil comedy shorts,tamil trending shorts,tamil songs shorts,tamil whatsapp status shorts,tamil movie scenes shorts,'
+                   'tamil dialogue shorts,tamil memes shorts,tamil dance shorts,tamil kuthu shorts,tamil love status shorts,chennai vlog shorts,'
+                   'tamil cricket shorts,tamil food shorts')
 
 
 def _youtube_pool():
@@ -231,15 +233,17 @@ def _youtube_pool():
     key = os.environ.get('YOUTUBE_API_KEY', '').strip()
     if not key:
         return []
-    pool = cache.get('reels:yt-pool')
+    pool = cache.get('reels:yt-pool3')
     if pool is not None:
         return pool
-    queries = [q.strip() for q in os.environ.get('REELS_QUERIES', DEFAULT_QUERIES).split(',') if q.strip()][:10]
+    queries = [q.strip() for q in os.environ.get('REELS_QUERIES', DEFAULT_QUERIES).split(',') if q.strip()][:16]
     seen, pool = set(), []
+    since = (timezone.now() - timedelta(days=60)).strftime('%Y-%m-%dT%H:%M:%SZ')
     for q in queries:
         params = urllib.parse.urlencode({
-            'part': 'snippet', 'type': 'video', 'videoEmbeddable': 'true', 'videoDuration': 'short', 'maxResults': 15,
-            'q': q, 'regionCode': 'IN', 'relevanceLanguage': 'ta' if 'tamil' in q.lower() else 'en', 'safeSearch': 'strict', 'key': key})
+            'part': 'snippet', 'type': 'video', 'videoEmbeddable': 'true', 'videoDuration': 'short', 'maxResults': 25,
+            'q': q, 'regionCode': 'IN', 'relevanceLanguage': 'ta', 'safeSearch': 'strict', 'publishedAfter': since,
+            'order': 'viewCount', 'key': key})
         try:
             req = urllib.request.Request(f"https://www.googleapis.com/youtube/v3/search?{params}", headers={'User-Agent': 'Chatzy'})
             with urllib.request.urlopen(req, timeout=6) as r:
@@ -252,7 +256,7 @@ def _youtube_pool():
             if vid and vid not in seen:
                 seen.add(vid)
                 pool.append({"yt": vid, "title": clean_text(sn.get('title'), 120), "channel": clean_text(sn.get('channelTitle'), 60)})
-    cache.set('reels:yt-pool', pool, 6 * 3600 if pool else 300)
+    cache.set('reels:yt-pool3', pool, 6 * 3600 if pool else 300)
     return pool
 
 
@@ -261,4 +265,4 @@ def _youtube_pool():
 def reels_explore_view(request):
     pool = list(_youtube_pool())
     random.shuffle(pool)
-    return Response({"items": pool[:40]})
+    return Response({"items": pool[:60]})
