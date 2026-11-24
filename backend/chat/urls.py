@@ -28,7 +28,7 @@ from .views import (
 from .notes import notes_view, note_like_view
 from .music import music_search
 from .reels import (reels_view, reel_delete_view, reel_like_view, reel_view_view, reel_comments_view,
-                    reel_report_view, reels_explore_view, reel_share_view)
+                    reel_report_view, reels_explore_view, reel_share_view, reel_yt_share_view)
 from .plus import (
     reminder_create_view, reminder_list_view, reminder_cancel_view, time_unlock_view, time_relock_view,
     expense_create_view, expense_settle_view, expense_balances_view, reaction_rain_view,
@@ -58,6 +58,7 @@ urlpatterns = [
     path('reels/<int:pk>/', reel_delete_view),
     path('reels/<int:pk>/like/', reel_like_view),
     path('reels/<int:pk>/share/', reel_share_view),
+    path('reels/yt/share/', reel_yt_share_view),
     path('reels/<int:pk>/view/', reel_view_view),
     path('reels/<int:pk>/comments/', reel_comments_view),
     path('reels/<int:pk>/report/', reel_report_view),

@@ -15,11 +15,31 @@ const SEEN_KEY = 'yt_seen';
 const getSeen = () => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'); } catch (e) { return []; } };
 const markSeen = (id) => { try { const l = getSeen().filter((x) => x !== id); l.push(id); localStorage.setItem(SEEN_KEY, JSON.stringify(l.slice(-400))); } catch (e) { /* ignore */ } };
 
+const LIKED_KEY = 'yt_liked';
+const getLiked = () => { try { return JSON.parse(localStorage.getItem(LIKED_KEY) || '[]'); } catch (e) { return []; } };
+const setLiked = (id, on) => { try { const l = getLiked().filter((x) => x !== id); if (on) l.push(id); localStorage.setItem(LIKED_KEY, JSON.stringify(l.slice(-500))); } catch (e) { /* ignore */ } };
+
 // a YouTube Short, shown with YouTube's own embedded player (only the one on screen is loaded)
-function YtSlide({ item, active, muted, setMuted }) {
+function YtSlide({ item, active, muted, setMuted, onShare }) {
   const frame = useRef(null);
+  const tapTimer = useRef(null);
+  const [liked, setLikedState] = useState(() => getLiked().includes(item.yt));
+  const [pop, setPop] = useState(null);
+  const [more, setMore] = useState(false);
   const send = (func) => { try { frame.current && frame.current.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: [] }), '*'); } catch (e) { /* ignore */ } };
   useEffect(() => { send(muted ? 'mute' : 'unMute'); }, [muted]);                    // eslint-disable-line react-hooks/exhaustive-deps
+  const like = (on) => { setLikedState(on); setLiked(item.yt, on); };
+  const tap = (e) => {
+    const x = e.clientX; const y = e.clientY;
+    if (tapTimer.current) {                                // second tap = like
+      clearTimeout(tapTimer.current); tapTimer.current = null;
+      if (!liked) like(true);
+      burstAt('❤️', x, y, 8);
+      setPop(Date.now()); setTimeout(() => setPop(null), 800);
+      return;
+    }
+    tapTimer.current = setTimeout(() => { tapTimer.current = null; setMuted(!muted); }, 240);
+  };
   return (
     <section className="rl-slide" data-id={keyOf(item)}>
       <div className="rl-yt" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${item.yt}/hqdefault.jpg)` }}>
@@ -28,16 +48,21 @@ function YtSlide({ item, active, muted, setMuted }) {
             src={`https://www.youtube.com/embed/${item.yt}?autoplay=1&mute=1&loop=1&playlist=${item.yt}&controls=0&playsinline=1&modestbranding=1&rel=0&enablejsapi=1&fs=0&iv_load_policy=3`}
             allow="autoplay; encrypted-media" referrerPolicy="strict-origin-when-cross-origin" />
         )}
-        <div className="rl-yt-shield" onClick={() => setMuted(!muted)} />
+        <div className="rl-yt-shield" onClick={tap} />
       </div>
+      <div className="rl-shade" />
+      {pop && <div className="rl-pop"><BsHeartFill /></div>}
       {muted && active && <div className="rl-unmute">Tap to turn sound on</div>}
       <div className="rl-rail">
-        <button type="button" className="rl-act" onClick={() => setMuted(!muted)} aria-label={muted ? 'Sound on' : 'Sound off'}>{muted ? <BiVolumeMute /> : <BiVolumeFull />}</button>
-        <a className="rl-act" href={`https://www.youtube.com/watch?v=${item.yt}`} target="_blank" rel="noopener noreferrer" aria-label="Open in YouTube"><BiLinkExternal /><span>YouTube</span></a>
+        <button type="button" className={`rl-act ${liked ? 'on' : ''}`} onClick={() => like(!liked)} aria-label={liked ? 'Unlike' : 'Like'}><i>{liked ? <BsHeartFill /> : <BsHeart />}</i><span>{liked ? 'Liked' : 'Like'}</span></button>
+        <button type="button" className="rl-act" onClick={() => onShare(item)} aria-label="Send to friends"><i><BiSend /></i><span>Share</span></button>
+        <button type="button" className="rl-act" onClick={() => setMuted(!muted)} aria-label={muted ? 'Sound on' : 'Sound off'}><i>{muted ? <BiVolumeMute /> : <BiVolumeFull />}</i></button>
+        <a className="rl-act" href={`https://www.youtube.com/watch?v=${item.yt}`} target="_blank" rel="noopener noreferrer" aria-label="Open in YouTube"><i><BiLinkExternal /></i></a>
       </div>
       <div className="rl-info">
-        <div className="rl-user"><b>{item.channel || 'YouTube'}</b><span className="rl-tag">YouTube Shorts</span></div>
-        {item.title && <p className="rl-cap">{item.title}</p>}
+        <div className="rl-user"><b>@{item.channel || 'YouTube'}</b><span className="rl-tag">Suggested</span></div>
+        {item.title && <p className={`rl-cap${more ? ' open' : ''}`} onClick={() => setMore(!more)}>{item.title}</p>}
+        <small className="rl-meta">♪ Original audio · YouTube Shorts</small>
       </div>
     </section>
   );
@@ -50,7 +75,9 @@ function Slide({ T, reel, active, near, muted, setMuted, onLike, onComments, onM
   const tapTimer = useRef(null);
   const viewed = useRef(false);
   const [paused, setPaused] = useState(false);
-  const [blocked, setBlocked] = useState(false);          // the phone refused to play with sound until a tap
+  const [blocked, setBlocked] = useState(false);
+  const [more, setMore] = useState(false);
+  const [pop, setPop] = useState(null);          // the phone refused to play with sound until a tap
 
   useEffect(() => {
     const v = vid.current;
@@ -70,6 +97,7 @@ function Slide({ T, reel, active, near, muted, setMuted, onLike, onComments, onM
       clearTimeout(tapTimer.current); tapTimer.current = null;
       if (!reel.liked) onLike(reel);
       burstAt('❤️', x, y, 8);
+      setPop(Date.now()); setTimeout(() => setPop(null), 800);
       return;
     }
     tapTimer.current = setTimeout(() => {
@@ -84,6 +112,7 @@ function Slide({ T, reel, active, near, muted, setMuted, onLike, onComments, onM
       <video ref={vid} src={near ? reel.video_url : undefined} className="rl-video" playsInline loop muted={muted} preload={near ? 'auto' : 'none'} onClick={tap}
         onTimeUpdate={(e) => { const v = e.currentTarget; if (bar.current && v.duration) bar.current.style.width = `${(v.currentTime / v.duration) * 100}%`; }} />
       <div className="rl-shade" />
+      {pop && <div className="rl-pop"><BsHeartFill /></div>}
       {paused && <div className="rl-pause"><BiPlay /></div>}
       {blocked && <div className="rl-unmute">Tap to turn sound on</div>}
 
@@ -101,7 +130,7 @@ function Slide({ T, reel, active, near, muted, setMuted, onLike, onComments, onM
       <div className="rl-info">
         <div className="rl-user"><b>@{reel.user.username}</b>
           <span className="rl-tag">{reel.audience === 'all' ? 'Everyone' : 'Friends'}</span></div>
-        {reel.caption && <p className="rl-cap">{reel.caption}</p>}
+        {reel.caption && <p className={`rl-cap${more ? ' open' : ''}`} onClick={() => setMore(!more)}>{reel.caption}</p>}
         <small className="rl-meta">{reel.views} views · {formatListTime(reel.created_at)}</small>
       </div>
       <div className="rl-prog"><div ref={bar} /></div>
@@ -152,7 +181,7 @@ function ShareSheet({ T, reel, onClose }) {
     if (!picked.length || busy) return;
     setBusy(true); setMsg('');
     try {
-      const r = await api.post(`reels/${reel.id}/share/`, { friend_ids: picked });
+      const r = reel.yt ? await api.post('reels/yt/share/', { yt: reel.yt, title: reel.title || '', friend_ids: picked }) : await api.post(`reels/${reel.id}/share/`, { friend_ids: picked });
       setMsg(`Sent to ${r.data.sent} friend${r.data.sent === 1 ? '' : 's'}`);
       setTimeout(onClose, 900);
     } catch (e) { setMsg(errMsg(e, 'Could not send')); setBusy(false); }
@@ -240,7 +269,7 @@ export default function Reels() {
   const navigate = useNavigate();
   const location = useLocation();
   const T = resolveTheme(getAppTheme());
-  const [tab, setTab] = useState('friends');
+  const [tab, setTab] = useState('discover');
   const [items, setItems] = useState([]);
   const [next, setNext] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -296,7 +325,7 @@ export default function Reels() {
     const base = linked ? [linked, ...items.filter((x) => x.id !== linked.id)] : items;
     if (tab !== 'discover') return base;
     const out = []; let e = 0;
-    base.forEach((u, i) => { out.push(u); if (i % 2 === 1 && e < ext.length) out.push(ext[e++]); });
+    base.forEach((u) => { out.push(u); if (e < ext.length) out.push(ext[e++]); });
     return out.concat(ext.slice(e));
   }, [tab, items, ext, linked]);
 
@@ -338,7 +367,7 @@ export default function Reels() {
       <div className="rl-top">
         <button type="button" className="rl-round" onClick={() => navigate('/home')} aria-label="Back"><BiArrowBack /></button>
         <div className="rl-tabs" role="tablist">
-          {[['friends', 'Friends'], ['discover', 'Discover']].map(([k, label]) => (
+          {[['discover', 'For you'], ['friends', 'Friends']].map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
           ))}
         </div>
@@ -347,7 +376,7 @@ export default function Reels() {
 
       <div className="rl-feed" ref={feed}>
         {display.map((r, i) => (r.yt
-          ? <YtSlide key={keyOf(r)} item={r} active={keyOf(r) === activeId} muted={muted} setMuted={setMuted} />
+          ? <YtSlide key={keyOf(r)} item={r} active={keyOf(r) === activeId} muted={muted} setMuted={setMuted} onShare={setShareFor} />
           : <Slide key={keyOf(r)} T={T} reel={r} active={keyOf(r) === activeId} near={Math.abs(i - (idx < 0 ? 0 : idx)) <= 1}
             muted={muted} setMuted={setMuted} onLike={like} onComments={setCommentsFor} onMore={setMenuFor} onShare={setShareFor} />
         ))}

@@ -226,7 +226,9 @@ def reel_report_view(request, pk):
     return Response({"ok": True})
 
 
-DEFAULT_QUERIES = 'tamil shorts,funny shorts,trending shorts,comedy shorts,music shorts,cricket shorts,food shorts,travel shorts'
+DEFAULT_QUERIES = ('tamil shorts,tamil comedy shorts,tamil trending shorts,tamil songs shorts,tamil whatsapp status shorts,tamil movie scenes shorts,'
+                   'tamil dialogue shorts,tamil memes shorts,tamil dance shorts,tamil kuthu shorts,tamil love status shorts,chennai vlog shorts,'
+                   'tamil cricket shorts,tamil food shorts')
 
 
 def _youtube_pool():
@@ -234,15 +236,17 @@ def _youtube_pool():
     key = os.environ.get('YOUTUBE_API_KEY', '').strip()
     if not key:
         return []
-    pool = cache.get('reels:yt-pool')
+    pool = cache.get('reels:yt-pool3')
     if pool is not None:
         return pool
-    queries = [q.strip() for q in os.environ.get('REELS_QUERIES', DEFAULT_QUERIES).split(',') if q.strip()][:10]
+    queries = [q.strip() for q in os.environ.get('REELS_QUERIES', DEFAULT_QUERIES).split(',') if q.strip()][:16]
     seen, pool = set(), []
+    since = (timezone.now() - timedelta(days=60)).strftime('%Y-%m-%dT%H:%M:%SZ')
     for q in queries:
         params = urllib.parse.urlencode({
-            'part': 'snippet', 'type': 'video', 'videoEmbeddable': 'true', 'videoDuration': 'short', 'maxResults': 15,
-            'q': q, 'regionCode': 'IN', 'relevanceLanguage': 'ta' if 'tamil' in q.lower() else 'en', 'safeSearch': 'strict', 'key': key})
+            'part': 'snippet', 'type': 'video', 'videoEmbeddable': 'true', 'videoDuration': 'short', 'maxResults': 25,
+            'q': q, 'regionCode': 'IN', 'relevanceLanguage': 'ta', 'safeSearch': 'strict', 'publishedAfter': since,
+            'order': 'viewCount', 'key': key})
         try:
             req = urllib.request.Request(f"https://www.googleapis.com/youtube/v3/search?{params}", headers={'User-Agent': 'Chatzy'})
             with urllib.request.urlopen(req, timeout=6) as r:
@@ -255,7 +259,7 @@ def _youtube_pool():
             if vid and vid not in seen:
                 seen.add(vid)
                 pool.append({"yt": vid, "title": clean_text(sn.get('title'), 120), "channel": clean_text(sn.get('channelTitle'), 60)})
-    cache.set('reels:yt-pool', pool, 6 * 3600 if pool else 300)
+    cache.set('reels:yt-pool3', pool, 6 * 3600 if pool else 300)
     return pool
 
 
@@ -264,7 +268,7 @@ def _youtube_pool():
 def reels_explore_view(request):
     pool = list(_youtube_pool())
     random.shuffle(pool)
-    return Response({"items": pool[:40]})
+    return Response({"items": pool[:60]})
 
 
 @api_view(['POST'])
@@ -286,6 +290,42 @@ def reel_share_view(request, pk):
     base = os.environ.get('FRONTEND_URL', 'https://chatzy.site').rstrip('/')
     cap = (r.caption or '').strip()
     text = f"🎬 Reel by {r.user.username}" + (f": {cap[:80]}" if cap else "") + f"\n{base}/reels?r={r.id}"
+    friends = friend_ids_of(user)
+    sent = skipped = 0
+    for f in CustomUser.objects.filter(id__in=ids, is_active=True):
+        if f.id not in friends or blocked_between(user.id, f.id):
+            skipped += 1
+            continue
+        chat = get_or_create_direct_chat(user, f)
+        try:
+            ensure_unlocked(user, chat)
+        except ChatLocked:
+            skipped += 1
+            continue
+        msg = Message.objects.create(chat=chat, sender=user, receiver=f, content=text, message_type='text',
+                                     status='delivered' if f.is_online else 'sent')
+        notify_message(chat, msg, 'new')
+        sent += 1
+    return Response({"sent": sent, "skipped": skipped})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reel_yt_share_view(request):
+    """Send a YouTube Short (from Discover) to friends as a chat message with its link."""
+    import re
+    from .models import CustomUser, Message
+    from .views import (ChatLocked, blocked_between, ensure_unlocked, friend_ids_of, get_or_create_direct_chat, notify_message)
+    user = request.user
+    yt = str(request.data.get('yt') or '')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{11}', yt):
+        raise ValidationError({"error": "Invalid video."})
+    raw = request.data.get('friend_ids') or []
+    ids = {int(i) for i in raw if str(i).isdigit()} if isinstance(raw, (list, tuple)) else set()
+    if not ids or len(ids) > 30:
+        raise ValidationError({"error": "Pick 1 to 30 friends."})
+    title = clean_text(request.data.get('title'), 80)
+    text = "▶️ " + (title + "\n" if title else "") + f"https://www.youtube.com/shorts/{yt}"
     friends = friend_ids_of(user)
     sent = skipped = 0
     for f in CustomUser.objects.filter(id__in=ids, is_active=True):
